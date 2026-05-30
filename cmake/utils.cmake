@@ -368,6 +368,10 @@ endmacro()
 function(cuda_archs_loose_intersection OUT_CUDA_ARCHS SRC_CUDA_ARCHS TGT_CUDA_ARCHS)
   set(_SRC_CUDA_ARCHS "${SRC_CUDA_ARCHS}")
   set(_TGT_CUDA_ARCHS ${TGT_CUDA_ARCHS})
+  set(_ALLOW_CROSS_MAJOR_PTX_FALLBACK TRUE)
+  if(DEFINED VLLM_NATIVE_CUDA_ARCHS_ONLY AND VLLM_NATIVE_CUDA_ARCHS_ONLY)
+    set(_ALLOW_CROSS_MAJOR_PTX_FALLBACK FALSE)
+  endif()
 
   # handle +PTX suffix: separate base arch for matching, record PTX requests
   set(_PTX_ARCHS)
@@ -445,7 +449,8 @@ function(cuda_archs_loose_intersection OUT_CUDA_ARCHS SRC_CUDA_ARCHS TGT_CUDA_AR
       string(REGEX REPLACE "^([0-9]+)\\..*$" "\\1" SRC_ARCH_MAJOR "${_SRC_ARCH}")
       # Check version-less-or-equal, and allow PTX arches to match across majors
       if (_SRC_ARCH VERSION_LESS_EQUAL _ARCH)
-        if (_SRC_ARCH IN_LIST _PTX_ARCHS OR SRC_ARCH_MAJOR STREQUAL TGT_ARCH_MAJOR)
+        if (SRC_ARCH_MAJOR STREQUAL TGT_ARCH_MAJOR OR
+            (_ALLOW_CROSS_MAJOR_PTX_FALLBACK AND _SRC_ARCH IN_LIST _PTX_ARCHS))
           set(_TMP_ARCH "${_SRC_ARCH}")
         endif()
       else()

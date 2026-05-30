@@ -1,0 +1,200 @@
+name: GB10 vLLM wheel and image
+
+on:
+  push:
+    tags:
+      - "gb10-vllm-v*"
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: "Optional GitHub Release tag. Tag pushes use the pushed tag."
+        required: false
+        default: ""
+        type: string
+      image-name:
+        description: "Container image name"
+        required: true
+        default: "ghcr.io/gardner/vllm-gb10"
+        type: string
+      prebuilt-wheel-urls:
+        description: "Space-separated direct wheel URLs to install before resolving requirements"
+        required: false
+        default: ""
+        type: string
+      vllm-flash-attn-git-repository:
+        description: "Bundled vLLM flash-attn source repository"
+        required: true
+        default: "https://github.com/gardner/vllm-flash-attention.git"
+        type: string
+      vllm-flash-attn-git-tag:
+        description: "Bundled vLLM flash-attn source ref"
+        required: true
+        default: "6407c49b28a365f5a5f7722116c8e44aaea45692"
+        type: string
+      push-image:
+        description: "Push the runtime image to GHCR"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+defaults:
+  run:
+    shell: bash -e -u -o pipefail {0}
+
+jobs:
+  build:
+    name: Build GB10 artifacts
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 360
+    env:
+      DOCKER_BUILDKIT: "1"
+      BUILDKIT_PROGRESS: plain
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release settings
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            release_tag="${GITHUB_REF#refs/tags/}"
+            image_name="ghcr.io/gardner/vllm-gb10"
+            prebuilt_wheel_urls=""
+            flash_attn_repo="https://github.com/gardner/vllm-flash-attention.git"
+            flash_attn_ref="6407c49b28a365f5a5f7722116c8e44aaea45692"
+            push_image="true"
+          else
+            release_tag="${{ inputs.release-tag }}"
+            image_name="${{ inputs.image-name }}"
+            prebuilt_wheel_urls="${{ inputs.prebuilt-wheel-urls }}"
+            flash_attn_repo="${{ inputs.vllm-flash-attn-git-repository }}"
+            flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
+            push_image="${{ inputs.push-image }}"
+          fi
+
+          image_tag="${release_tag:-gb10-${GITHUB_SHA::12}}"
+          {
+            echo "GB10_RELEASE_TAG=${release_tag}"
+            echo "GB10_IMAGE_NAME=${image_name}"
+            echo "GB10_IMAGE_TAG=${image_tag}"
+            echo "GB10_PREBUILT_WHEEL_URLS=${prebuilt_wheel_urls}"
+            echo "GB10_FLASH_ATTN_REPO=${flash_attn_repo}"
+            echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
+            echo "GB10_PUSH_IMAGE=${push_image}"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: env.GB10_PUSH_IMAGE == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build wheel stage
+        run: |
+          docker buildx build \
+            --target build \
+            --platform linux/arm64 \
+            --load \
+            --tag vllm-gb10-wheel:${GITHUB_SHA::12} \
+            --cache-from type=gha,scope=gb10-vllm \
+            --cache-to type=gha,scope=gb10-vllm,mode=max \
+            --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+            --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
+            --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+            .
+
+      - name: Extract vLLM wheel
+        run: |
+          mkdir -p dist
+          cid="$(docker create vllm-gb10-wheel:${GITHUB_SHA::12})"
+          docker cp "$cid:/workspace/dist/." dist/
+          docker rm "$cid"
+          ls -lh dist
+
+      - name: Verify wheel contains only SM121A CUDA images
+        run: |
+          wheel="$(ls dist/vllm-*.whl | head -n1)"
+          docker run --rm \
+            -v "$PWD/dist:/dist:ro" \
+            -e WHEEL="/dist/$(basename "$wheel")" \
+            vllm-gb10-wheel:${GITHUB_SHA::12} \
+            python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          import tempfile
+          import zipfile
+          from pathlib import Path
+
+          wheel = Path(os.environ["WHEEL"])
+          tmp = Path(tempfile.mkdtemp())
+          with zipfile.ZipFile(wheel) as zf:
+              zf.extractall(tmp)
+
+          found_cuda = False
+          allowed = {"sm_121a", "compute_121a"}
+          for so_file in tmp.rglob("*.so"):
+              proc = subprocess.run(
+                  ["cuobjdump", "--list-elf", str(so_file)],
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  check=False,
+              )
+              tokens = set(re.findall(r"(?:sm|compute)_[0-9]+[a-z]?", proc.stdout))
+              if not tokens:
+                  continue
+              found_cuda = True
+              bad = sorted(tokens - allowed)
+              if bad:
+                  raise SystemExit(f"{so_file}: unexpected CUDA images: {bad}")
+
+          if not found_cuda:
+              raise SystemExit(f"{wheel}: no CUDA images found")
+          PY
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gb10-vllm-wheel
+          path: dist/*.whl
+
+      - name: Publish wheel to GitHub Release
+        if: env.GB10_RELEASE_TAG != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$GB10_RELEASE_TAG" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
+          fi
+          gh release upload "$GB10_RELEASE_TAG" dist/*.whl --clobber
+
+      - name: Build runtime image
+        run: |
+          output_arg="--load"
+          if [ "$GB10_PUSH_IMAGE" = "true" ]; then
+            output_arg="--push"
+          fi
+
+          docker buildx build \
+            --target vllm-openai \
+            --platform linux/arm64 \
+            --tag "$GB10_IMAGE_NAME:$GB10_IMAGE_TAG" \
+            --tag "$GB10_IMAGE_NAME:latest-gb10" \
+            --cache-from type=gha,scope=gb10-vllm \
+            --cache-to type=gha,scope=gb10-vllm,mode=max \
+            --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+            --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
+            --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+            $output_arg \
+            .

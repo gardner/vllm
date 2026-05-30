@@ -211,6 +211,7 @@ WORKDIR /workspace
 
 # We can specify the standard or nightly build of PyTorch
 ARG PYTORCH_NIGHTLY
+ARG gb10_prebuilt_wheel_urls=""
 
 # Install build and runtime dependencies, including PyTorch
 # Check whether to install torch nightly instead of release for this build
@@ -219,6 +220,14 @@ COPY requirements/cuda.txt requirements/cuda.txt
 COPY use_existing_torch.py use_existing_torch.py
 COPY pyproject.toml pyproject.toml
 RUN --mount=type=cache,target=/opt/uv/cache \
+    if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
+        echo "Installing GB10 prebuilt wheels..." \
+        && for wheel_url in ${gb10_prebuilt_wheel_urls}; do \
+            uv pip install --python /opt/venv/bin/python3 "$wheel_url"; \
+        done \
+        && python3 use_existing_torch.py --prefix; \
+    fi \
+    && \
     if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "12" ]; then \
         sed -i 's/^nvidia-cutlass-dsl\[cu13\]/nvidia-cutlass-dsl/' requirements/cuda.txt; \
         sed -i 's/^humming-kernels\[cu13\]/humming-kernels[cu12]/' requirements/cuda.txt; \
@@ -248,8 +257,20 @@ RUN --mount=type=cache,target=/opt/uv/cache \
 # Explicitly set the list to avoid issues with torch 2.2
 # See https://github.com/pytorch/pytorch/pull/123243
 # From versions.json: .torch.cuda_arch_list
-ARG torch_cuda_arch_list='7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX'
+ARG torch_cuda_arch_list='12.1a'
 ENV TORCH_CUDA_ARCH_LIST=${torch_cuda_arch_list}
+ARG flashinfer_cuda_arch_list='12.1a'
+ENV FLASHINFER_CUDA_ARCH_LIST=${flashinfer_cuda_arch_list}
+ARG cmake_cuda_architectures='121a'
+ENV CMAKE_CUDA_ARCHITECTURES=${cmake_cuda_architectures}
+ARG cute_dsl_arch='sm_121a'
+ENV CUTE_DSL_ARCH=${cute_dsl_arch}
+ARG vllm_flash_attn_git_repository='https://github.com/gardner/vllm-flash-attention.git'
+ARG vllm_flash_attn_git_tag='6407c49b28a365f5a5f7722116c8e44aaea45692'
+ENV VLLM_BUILD_FLASH_ATTN=1
+ENV VLLM_BUILD_FLASH_ATTN_FA3=0
+ENV VLLM_FLASH_ATTN_GIT_REPOSITORY=${vllm_flash_attn_git_repository}
+ENV VLLM_FLASH_ATTN_GIT_TAG=${vllm_flash_attn_git_tag}
 #################### BUILD BASE IMAGE ####################
 
 #################### RUST BUILD IMAGE ####################
@@ -757,7 +778,7 @@ RUN --mount=type=cache,target=/opt/uv/cache \
 # Install FlashInfer JIT cache (requires CUDA-version-specific index URL)
 # https://docs.flashinfer.ai/installation.html
 # From versions.json: .flashinfer.version
-ARG FLASHINFER_VERSION=0.6.11.post2
+ARG FLASHINFER_VERSION=0.6.12
 RUN --mount=type=cache,target=/opt/uv/cache \
     uv pip install --system flashinfer-jit-cache==${FLASHINFER_VERSION} \
         --extra-index-url https://flashinfer.ai/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
@@ -957,8 +978,14 @@ ARG PIP_EXTRA_INDEX_URL UV_EXTRA_INDEX_URL
 ENV UV_HTTP_TIMEOUT=500
 
 # install kv_connectors if requested
-ARG torch_cuda_arch_list='7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX'
+ARG torch_cuda_arch_list='12.1a'
 ENV TORCH_CUDA_ARCH_LIST=${torch_cuda_arch_list}
+ARG flashinfer_cuda_arch_list='12.1a'
+ENV FLASHINFER_CUDA_ARCH_LIST=${flashinfer_cuda_arch_list}
+ARG cmake_cuda_architectures='121a'
+ENV CMAKE_CUDA_ARCHITECTURES=${cmake_cuda_architectures}
+ARG cute_dsl_arch='sm_121a'
+ENV CUTE_DSL_ARCH=${cute_dsl_arch}
 RUN --mount=type=cache,target=/opt/uv/cache \
     --mount=type=bind,source=requirements/kv_connectors.txt,target=/tmp/kv_connectors.txt,ro \
     CUDA_MAJOR="${CUDA_VERSION%%.*}"; \

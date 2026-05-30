@@ -6,9 +6,17 @@ include(FetchContent)
 # The environment variable takes precedence.
 if (DEFINED ENV{DEEPGEMM_SRC_DIR})
   set(DEEPGEMM_SRC_DIR $ENV{DEEPGEMM_SRC_DIR})
+elseif(VLLM_USE_LOCAL_GB10_DEPS AND NOT DEEPGEMM_SRC_DIR)
+  get_filename_component(_VLLM_SIBLING_DEEPGEMM_SRC_DIR
+    "${CMAKE_SOURCE_DIR}/../DeepGEMM" ABSOLUTE)
+  if(EXISTS "${_VLLM_SIBLING_DEEPGEMM_SRC_DIR}/deep_gemm" AND
+     EXISTS "${_VLLM_SIBLING_DEEPGEMM_SRC_DIR}/csrc/python_api.cpp")
+    set(DEEPGEMM_SRC_DIR "${_VLLM_SIBLING_DEEPGEMM_SRC_DIR}")
+  endif()
 endif()
 
 if(DEEPGEMM_SRC_DIR)
+  message(STATUS "Using DeepGEMM source directory: ${DEEPGEMM_SRC_DIR}")
   FetchContent_Declare(
     deepgemm
     SOURCE_DIR ${DEEPGEMM_SRC_DIR}

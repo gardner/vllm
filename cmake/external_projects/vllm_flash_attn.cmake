@@ -29,6 +29,31 @@ if (DEFINED ENV{VLLM_FLASH_ATTN_SRC_DIR})
   set(VLLM_FLASH_ATTN_SRC_DIR $ENV{VLLM_FLASH_ATTN_SRC_DIR})
 endif()
 
+if(VLLM_USE_LOCAL_GB10_DEPS AND NOT VLLM_FLASH_ATTN_SRC_DIR)
+  get_filename_component(_GB10_FLASH_ATTN_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/../../../vllm-flash-attention" ABSOLUTE)
+  if(EXISTS "${_GB10_FLASH_ATTN_SRC}/CMakeLists.txt")
+    set(VLLM_FLASH_ATTN_SRC_DIR "${_GB10_FLASH_ATTN_SRC}" CACHE PATH
+        "Local vLLM flash-attn source directory" FORCE)
+    message(STATUS "Using sibling GB10 vllm-flash-attn source: ${VLLM_FLASH_ATTN_SRC_DIR}")
+  endif()
+endif()
+
+set(VLLM_FLASH_ATTN_GIT_REPOSITORY
+    "https://github.com/gardner/vllm-flash-attention.git"
+    CACHE STRING "Git repository for bundled vLLM flash-attn.")
+set(VLLM_FLASH_ATTN_GIT_TAG
+    "6407c49b28a365f5a5f7722116c8e44aaea45692"
+    CACHE STRING "Git tag, branch, or commit for bundled vLLM flash-attn.")
+if(DEFINED ENV{VLLM_FLASH_ATTN_GIT_REPOSITORY})
+  set(VLLM_FLASH_ATTN_GIT_REPOSITORY "$ENV{VLLM_FLASH_ATTN_GIT_REPOSITORY}"
+      CACHE STRING "Git repository for bundled vLLM flash-attn." FORCE)
+endif()
+if(DEFINED ENV{VLLM_FLASH_ATTN_GIT_TAG})
+  set(VLLM_FLASH_ATTN_GIT_TAG "$ENV{VLLM_FLASH_ATTN_GIT_TAG}"
+      CACHE STRING "Git tag, branch, or commit for bundled vLLM flash-attn." FORCE)
+endif()
+
 if(VLLM_FLASH_ATTN_SRC_DIR)
   FetchContent_Declare(
           vllm-flash-attn SOURCE_DIR 
@@ -38,8 +63,8 @@ if(VLLM_FLASH_ATTN_SRC_DIR)
 else()
   FetchContent_Declare(
           vllm-flash-attn
-          GIT_REPOSITORY https://github.com/vllm-project/flash-attention.git
-          GIT_TAG bce29425653ec0fbc579d329883030e832d15ada
+          GIT_REPOSITORY ${VLLM_FLASH_ATTN_GIT_REPOSITORY}
+          GIT_TAG ${VLLM_FLASH_ATTN_GIT_TAG}
           GIT_PROGRESS TRUE
           # Don't share the vllm-flash-attn build between build types
           BINARY_DIR ${CMAKE_BINARY_DIR}/vllm-flash-attn

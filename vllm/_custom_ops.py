@@ -12,6 +12,7 @@ from vllm.platforms import current_platform
 from vllm.scalar_type import ScalarType
 from vllm.utils.flashinfer import (
     flashinfer_quant_nvfp4_8x4_sf_layout,
+    flashinfer_quant_nvfp4_128x4_sf_layout,
 )
 from vllm.utils.math_utils import cdiv
 
@@ -1688,11 +1689,18 @@ def scaled_fp4_quant(
         )
 
     use_8x4_sf_layout = True if "trtllm" in backend and m <= 32 else False  # noqa: SIM210
+    use_b12x_sf_layout = backend == "b12x"
     if use_8x4_sf_layout and padded_n is not None and padded_n != n:
         # TODO: support this case
         raise ValueError("padded_n is not supported with TRTLLM 8x4 scale layout.")
+    if use_b12x_sf_layout and padded_n is not None and padded_n != n:
+        raise ValueError("padded_n is not supported with b12x 128x4 scale layout.")
     if use_8x4_sf_layout:
         output, output_scale = flashinfer_quant_nvfp4_8x4_sf_layout(
+            input, input_global_scale
+        )
+    elif use_b12x_sf_layout:
+        output, output_scale = flashinfer_quant_nvfp4_128x4_sf_layout(
             input, input_global_scale
         )
     else:

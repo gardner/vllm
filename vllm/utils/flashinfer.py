@@ -631,11 +631,39 @@ if has_flashinfer():
     ) -> tuple[torch.Tensor, torch.Tensor]:
         m, n = a.shape
 
-        round_up = lambda x, y: (x + y - 1) // y * y
-
-        rounded_m = round_up(m, 8)
+        rounded_m = cdiv(m, 8) * 8
         scale_n = n // 16
-        rounded_n = round_up(scale_n, 4)
+        rounded_n = cdiv(scale_n, 4) * 4
+
+        return torch.empty(m, n // 2, dtype=torch.uint8, device=a.device), torch.empty(
+            rounded_m, rounded_n, dtype=torch.uint8, device=a.device
+        )
+
+    @torch.library.custom_op(
+        "vllm::flashinfer_nvfp4_quantize_128x4",
+        mutates_args=[],
+        device_types="cuda",
+    )
+    def flashinfer_nvfp4_quantize_128x4(
+        a: torch.Tensor, a_global_sf: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        from flashinfer import SfLayout
+        from flashinfer import nvfp4_quantize as nvfp4_quantize_
+
+        return nvfp4_quantize_(
+            a, a_global_sf, sfLayout=SfLayout.layout_128x4, do_shuffle=False
+        )
+
+    @torch.library.register_fake(
+        "vllm::flashinfer_nvfp4_quantize_128x4",
+    )
+    def flashinfer_nvfp4_quantize_128x4_fake(
+        a: torch.Tensor, a_global_sf: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        m, n = a.shape
+        rounded_m = cdiv(m, 128) * 128
+        scale_n = n // 16
+        rounded_n = cdiv(scale_n, 4) * 4
 
         return torch.empty(m, n // 2, dtype=torch.uint8, device=a.device), torch.empty(
             rounded_m, rounded_n, dtype=torch.uint8, device=a.device
@@ -867,6 +895,13 @@ def flashinfer_quant_nvfp4_8x4_sf_layout(
     return flashinfer_nvfp4_quantize(a, a_global_sf)
 
 
+def flashinfer_quant_nvfp4_128x4_sf_layout(
+    a: torch.Tensor, a_global_sf: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    a_fp4, a_sf = flashinfer_nvfp4_quantize_128x4(a, a_global_sf)
+    return a_fp4, a_sf.view(torch.float8_e4m3fn)
+
+
 flashinfer_fp8_blockscale_gemm = _lazy_import_wrapper(
     "flashinfer.gemm", "fp8_blockscale_gemm_sm90"
 )
@@ -986,6 +1021,7 @@ __all__ = [
     "flashinfer_scaled_fp8_mm",
     "flashinfer_scaled_fp8_mm_out",
     "flashinfer_quant_nvfp4_8x4_sf_layout",
+    "flashinfer_quant_nvfp4_128x4_sf_layout",
     "flashinfer_fp8_blockscale_gemm",
     "should_use_flashinfer_for_blockscale_fp8_gemm",
     "is_flashinfer_fp8_blockscale_gemm_supported",

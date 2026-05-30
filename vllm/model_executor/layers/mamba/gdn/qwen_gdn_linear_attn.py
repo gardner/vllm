@@ -147,6 +147,16 @@ def _is_libs_cu13_install_intact() -> bool:
     return True
 
 
+@functools.cache
+def _has_flashinfer_sm12x_gdn_prefill() -> bool:
+    """Return True when FlashInfer exposes a native SM12x GDN prefill kernel."""
+    try:
+        from flashinfer.gdn_kernels import _has_sm12x_prefill
+    except (ImportError, RuntimeError):
+        return False
+    return bool(_has_sm12x_prefill)
+
+
 def _resolve_gdn_prefill_backend(
     vllm_config: VllmConfig,
 ) -> tuple[str, Literal["triton", "flashinfer", "cutedsl"]]:
@@ -160,6 +170,8 @@ def _resolve_gdn_prefill_backend(
       - Blackwell (SM10.x) with ``head_k_dim == 128``, ``cuda_runtime >= 13``,
         and an intact ``nvidia-cutlass-dsl-libs-cu13`` install on disk
         (see :func:`_is_libs_cu13_install_intact`).
+      - Blackwell SM12x with ``head_k_dim == 128``, ``cuda_runtime >= 13``,
+        and a native FlashInfer SM12x GDN prefill kernel.
 
     In-tree CuteDSL GDN prefill kernel is chosen when:
     * "cutedsl" is requested; (opt-in only)
@@ -202,6 +214,19 @@ def _resolve_gdn_prefill_backend(
                 "https://github.com/NVIDIA/cutlass/issues/3259). Falling back "
                 "to Triton/FLA. Repair with: pip install --force-reinstall "
                 "--no-deps nvidia-cutlass-dsl-libs-cu13"
+            )
+    elif (
+        current_platform.is_device_capability_family(120)
+        and head_k_dim == 128
+        and current_platform.get_cuda_runtime_major() >= 13
+    ):
+        supports_flashinfer = _has_flashinfer_sm12x_gdn_prefill()
+        if not supports_flashinfer:
+            logger.warning_once(
+                "FlashInfer SM12x GDN prefill is unavailable. GB10/SM121 "
+                "requires a native SM12x kernel and will not be routed to the "
+                "SM100 tcgen05/TMEM GDN prefill path. Falling back to "
+                "Triton/FLA."
             )
 
     if backend in ["flashinfer", "auto"] and supports_flashinfer:

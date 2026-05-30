@@ -5,10 +5,21 @@ set(DEFAULT_TRITON_KERNELS_TAG "v3.5.1")
 # Set TRITON_KERNELS_SRC_DIR for use with local development with vLLM. We expect TRITON_KERNELS_SRC_DIR to
 # be directly set to the triton_kernels python directory.
 if (DEFINED ENV{TRITON_KERNELS_SRC_DIR})
-  message(STATUS "[triton_kernels] Fetch from $ENV{TRITON_KERNELS_SRC_DIR}")
+  set(TRITON_KERNELS_SRC_DIR $ENV{TRITON_KERNELS_SRC_DIR})
+elseif(VLLM_USE_LOCAL_GB10_DEPS AND NOT TRITON_KERNELS_SRC_DIR)
+  get_filename_component(_VLLM_SIBLING_TRITON_KERNELS_SRC_DIR
+    "${CMAKE_SOURCE_DIR}/../triton/python/triton_kernels/triton_kernels"
+    ABSOLUTE)
+  if(EXISTS "${_VLLM_SIBLING_TRITON_KERNELS_SRC_DIR}/__init__.py")
+    set(TRITON_KERNELS_SRC_DIR "${_VLLM_SIBLING_TRITON_KERNELS_SRC_DIR}")
+  endif()
+endif()
+
+if(TRITON_KERNELS_SRC_DIR)
+  message(STATUS "[triton_kernels] Fetch from ${TRITON_KERNELS_SRC_DIR}")
   FetchContent_Declare(
           triton_kernels
-          SOURCE_DIR $ENV{TRITON_KERNELS_SRC_DIR}
+          SOURCE_DIR ${TRITON_KERNELS_SRC_DIR}
   )
 
 else()
@@ -31,7 +42,7 @@ if (NOT triton_kernels_SOURCE_DIR)
   message (FATAL_ERROR "[triton_kernels] Cannot resolve triton_kernels_SOURCE_DIR")
 endif()
 
-if (DEFINED ENV{TRITON_KERNELS_SRC_DIR})
+if (TRITON_KERNELS_SRC_DIR)
   set(TRITON_KERNELS_PYTHON_DIR "${triton_kernels_SOURCE_DIR}/")
 else()
   set(TRITON_KERNELS_PYTHON_DIR "${triton_kernels_SOURCE_DIR}/python/triton_kernels/triton_kernels/")

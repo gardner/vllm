@@ -35,7 +35,22 @@
       "default": "false"
     },
     "TORCH_CUDA_ARCH_LIST": {
-      "default": "7.5 8.0 8.6 8.9 9.0 10.0 11.0 12.0+PTX"
+      "default": "12.1a"
+    },
+    "FLASHINFER_CUDA_ARCH_LIST": {
+      "default": "12.1a"
+    },
+    "CMAKE_CUDA_ARCHITECTURES": {
+      "default": "121a"
+    },
+    "CUTE_DSL_ARCH": {
+      "default": "sm_121a"
+    },
+    "VLLM_FLASH_ATTN_GIT_REPOSITORY": {
+      "default": "https://github.com/gardner/vllm-flash-attention.git"
+    },
+    "VLLM_FLASH_ATTN_GIT_TAG": {
+      "default": "6407c49b28a365f5a5f7722116c8e44aaea45692"
     },
     "MAX_JOBS": {
       "default": "2"
@@ -68,7 +83,7 @@
       "default": "true"
     },
     "FLASHINFER_VERSION": {
-      "default": "0.6.11.post2"
+      "default": "0.6.12"
     },
     "GDRCOPY_CUDA_VERSION": {
       "default": "12.8"

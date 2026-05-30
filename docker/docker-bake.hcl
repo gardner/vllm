@@ -20,7 +20,31 @@ variable "NVCC_THREADS" {
 }
 
 variable "TORCH_CUDA_ARCH_LIST" {
-  default = "8.0 8.9 9.0 10.0 11.0 12.0"
+  default = "12.1a"
+}
+
+variable "FLASHINFER_CUDA_ARCH_LIST" {
+  default = "12.1a"
+}
+
+variable "CMAKE_CUDA_ARCHITECTURES" {
+  default = "121a"
+}
+
+variable "CUTE_DSL_ARCH" {
+  default = "sm_121a"
+}
+
+variable "VLLM_FLASH_ATTN_GIT_REPOSITORY" {
+  default = "https://github.com/gardner/vllm-flash-attention.git"
+}
+
+variable "VLLM_FLASH_ATTN_GIT_TAG" {
+  default = "6407c49b28a365f5a5f7722116c8e44aaea45692"
+}
+
+variable "GB10_PREBUILT_WHEEL_URLS" {
+  default = ""
 }
 
 variable "COMMIT" {
@@ -59,13 +83,19 @@ target "_common" {
   dockerfile = "docker/Dockerfile"
   context    = "."
   args = {
-    max_jobs             = MAX_JOBS
-    nvcc_threads         = NVCC_THREADS
-    torch_cuda_arch_list = TORCH_CUDA_ARCH_LIST
-    VLLM_BUILD_COMMIT    = VLLM_BUILD_COMMIT != "unknown" ? VLLM_BUILD_COMMIT : (COMMIT != "" ? COMMIT : "unknown")
-    VLLM_BUILD_PIPELINE  = VLLM_BUILD_PIPELINE
-    VLLM_BUILD_URL       = VLLM_BUILD_URL
-    VLLM_IMAGE_TAG       = VLLM_IMAGE_TAG
+    max_jobs                    = MAX_JOBS
+    nvcc_threads                = NVCC_THREADS
+    torch_cuda_arch_list        = TORCH_CUDA_ARCH_LIST
+    flashinfer_cuda_arch_list   = FLASHINFER_CUDA_ARCH_LIST
+    cmake_cuda_architectures    = CMAKE_CUDA_ARCHITECTURES
+    cute_dsl_arch               = CUTE_DSL_ARCH
+    vllm_flash_attn_git_repository = VLLM_FLASH_ATTN_GIT_REPOSITORY
+    vllm_flash_attn_git_tag        = VLLM_FLASH_ATTN_GIT_TAG
+    gb10_prebuilt_wheel_urls       = GB10_PREBUILT_WHEEL_URLS
+    VLLM_BUILD_COMMIT           = VLLM_BUILD_COMMIT != "unknown" ? VLLM_BUILD_COMMIT : (COMMIT != "" ? COMMIT : "unknown")
+    VLLM_BUILD_PIPELINE         = VLLM_BUILD_PIPELINE
+    VLLM_BUILD_URL              = VLLM_BUILD_URL
+    VLLM_IMAGE_TAG              = VLLM_IMAGE_TAG
   }
 }
 

@@ -1662,6 +1662,7 @@ environment_variables: dict[str, Callable[[], Any]] = {
         int(os.getenv("VLLM_HAS_FLASHINFER_CUBIN", "0"))
     ),
     # Supported options:
+    # - "flashinfer-b12x": use flashinfer b12x GEMM backend for SM12x NVFP4
     # - "flashinfer-cudnn": use flashinfer cudnn GEMM backend
     # - "flashinfer-trtllm": use flashinfer trtllm GEMM backend
     # - "flashinfer-cutlass": use flashinfer cutlass GEMM backend

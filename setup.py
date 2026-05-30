@@ -869,6 +869,20 @@ def _is_cuda() -> bool:
     return VLLM_TARGET_DEVICE == "cuda" and has_cuda and not _is_tpu()
 
 
+def _build_vllm_flash_attn() -> bool:
+    override = os.getenv("VLLM_BUILD_FLASH_ATTN", "")
+    if override:
+        return override.lower() not in ("0", "false", "no", "off")
+    return _is_cuda() and torch.version.cuda.split(".")[0] in ("12", "13")
+
+
+def _build_vllm_flash_attn_fa3() -> bool:
+    override = os.getenv("VLLM_BUILD_FLASH_ATTN_FA3", "")
+    if override:
+        return override.lower() not in ("0", "false", "no", "off")
+    return torch.version.cuda is not None and torch.version.cuda.split(".")[0] == "12"
+
+
 def _is_hip() -> bool:
     return (
         VLLM_TARGET_DEVICE == "cuda" or VLLM_TARGET_DEVICE == "rocm"
@@ -1048,10 +1062,11 @@ ext_modules.append(CMakeExtension(name="vllm.spinloop"))
 if _is_hip():
     ext_modules.append(CMakeExtension(name="vllm._rocm_C"))
 
-if _is_cuda():
+if _build_vllm_flash_attn():
     ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa2_C"))
-    if USE_PRECOMPILED_EXTENSIONS or (
-        CUDA_HOME and get_nvcc_cuda_version() >= Version("12.3")
+    if _build_vllm_flash_attn_fa3() and (
+        USE_PRECOMPILED_EXTENSIONS
+        or (CUDA_HOME and get_nvcc_cuda_version() >= Version("12.3"))
     ):
         # FA3 requires CUDA 12.3 or later
         ext_modules.append(CMakeExtension(name="vllm.vllm_flash_attn._vllm_fa3_C"))

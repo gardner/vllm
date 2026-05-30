@@ -6,9 +6,18 @@ include(FetchContent)
 # The environment variable takes precedence.
 if (DEFINED ENV{FLASH_MLA_SRC_DIR})
   set(FLASH_MLA_SRC_DIR $ENV{FLASH_MLA_SRC_DIR})
+elseif(VLLM_USE_LOCAL_GB10_DEPS AND NOT FLASH_MLA_SRC_DIR)
+  get_filename_component(_VLLM_SIBLING_FLASH_MLA_SRC_DIR
+    "${CMAKE_SOURCE_DIR}/../FlashMLA" ABSOLUTE)
+  if(EXISTS "${_VLLM_SIBLING_FLASH_MLA_SRC_DIR}/flash_mla/flash_mla_interface.py" AND
+     (EXISTS "${_VLLM_SIBLING_FLASH_MLA_SRC_DIR}/csrc/torch_api.cpp" OR
+      EXISTS "${_VLLM_SIBLING_FLASH_MLA_SRC_DIR}/csrc/api/api.cpp"))
+    set(FLASH_MLA_SRC_DIR "${_VLLM_SIBLING_FLASH_MLA_SRC_DIR}")
+  endif()
 endif()
 
 if(FLASH_MLA_SRC_DIR)
+  message(STATUS "Using FlashMLA source directory: ${FLASH_MLA_SRC_DIR}")
   FetchContent_Declare(
         flashmla 
         SOURCE_DIR ${FLASH_MLA_SRC_DIR}
@@ -183,4 +192,3 @@ else()
     add_custom_target(_flashmla_C)
     add_custom_target(_flashmla_extension_C)
 endif()
-

@@ -32,6 +32,12 @@ VERSIONS_JSON = REPO_ROOT / "docker" / "versions.json"
 # This matches docker-bake.hcl variable naming convention
 BAKE_VAR_NAMES = {
     "torch_cuda_arch_list": "TORCH_CUDA_ARCH_LIST",
+    "flashinfer_cuda_arch_list": "FLASHINFER_CUDA_ARCH_LIST",
+    "cmake_cuda_architectures": "CMAKE_CUDA_ARCHITECTURES",
+    "cute_dsl_arch": "CUTE_DSL_ARCH",
+    "vllm_flash_attn_git_repository": "VLLM_FLASH_ATTN_GIT_REPOSITORY",
+    "vllm_flash_attn_git_tag": "VLLM_FLASH_ATTN_GIT_TAG",
+    "gb10_prebuilt_wheel_urls": "GB10_PREBUILT_WHEEL_URLS",
     "max_jobs": "MAX_JOBS",
     "nvcc_threads": "NVCC_THREADS",
 }

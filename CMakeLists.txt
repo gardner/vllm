@@ -31,6 +31,44 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/utils.cmake)
 # Suppress potential warnings about unused manually-specified variables
 set(ignoreMe "${VLLM_PYTHON_PATH}")
 
+set(VLLM_NATIVE_CUDA_ARCHS_ONLY OFF CACHE BOOL
+    "Skip cross-major PTX fallback CUDA architectures.")
+if(DEFINED ENV{VLLM_NATIVE_CUDA_ARCHS_ONLY})
+  string(TOLOWER "$ENV{VLLM_NATIVE_CUDA_ARCHS_ONLY}" _VLLM_NATIVE_CUDA_ARCHS_ONLY)
+  if(_VLLM_NATIVE_CUDA_ARCHS_ONLY STREQUAL "0" OR
+     _VLLM_NATIVE_CUDA_ARCHS_ONLY STREQUAL "false" OR
+     _VLLM_NATIVE_CUDA_ARCHS_ONLY STREQUAL "no" OR
+     _VLLM_NATIVE_CUDA_ARCHS_ONLY STREQUAL "off")
+    set(VLLM_NATIVE_CUDA_ARCHS_ONLY OFF CACHE BOOL
+        "Skip cross-major PTX fallback CUDA architectures." FORCE)
+  else()
+    set(VLLM_NATIVE_CUDA_ARCHS_ONLY ON CACHE BOOL
+        "Skip cross-major PTX fallback CUDA architectures." FORCE)
+  endif()
+endif()
+if(VLLM_NATIVE_CUDA_ARCHS_ONLY)
+  message(STATUS "Skipping cross-major PTX fallback CUDA archs.")
+endif()
+
+set(VLLM_USE_LOCAL_GB10_DEPS ON CACHE BOOL
+    "Prefer sibling GB10 dependency checkouts when present.")
+if(DEFINED ENV{VLLM_USE_LOCAL_GB10_DEPS})
+  string(TOLOWER "$ENV{VLLM_USE_LOCAL_GB10_DEPS}" _VLLM_USE_LOCAL_GB10_DEPS)
+  if(_VLLM_USE_LOCAL_GB10_DEPS STREQUAL "0" OR
+     _VLLM_USE_LOCAL_GB10_DEPS STREQUAL "false" OR
+     _VLLM_USE_LOCAL_GB10_DEPS STREQUAL "no" OR
+     _VLLM_USE_LOCAL_GB10_DEPS STREQUAL "off")
+    set(VLLM_USE_LOCAL_GB10_DEPS OFF CACHE BOOL
+        "Prefer sibling GB10 dependency checkouts when present." FORCE)
+  else()
+    set(VLLM_USE_LOCAL_GB10_DEPS ON CACHE BOOL
+        "Prefer sibling GB10 dependency checkouts when present." FORCE)
+  endif()
+endif()
+if(VLLM_USE_LOCAL_GB10_DEPS)
+  message(STATUS "Prefer sibling GB10 dependency checkouts when present.")
+endif()
+
 # Prevent installation of dependencies (cutlass) by default.
 install(CODE "set(CMAKE_INSTALL_LOCAL_ONLY TRUE)" ALL_COMPONENTS)
 
@@ -101,7 +139,7 @@ if(DEFINED CMAKE_CUDA_COMPILER_VERSION AND
    # starting from CUDA 12.9 and Blackwell (10.0), we use family-specific targets (10.0f, 12.0f, etc)
    # to support the whole generation without specifying all sub-architectures
    # see: https://developer.nvidia.com/blog/nvidia-blackwell-and-nvidia-cuda-12-9-introduce-family-specific-architecture-features/
-  set(CUDA_SUPPORTED_ARCHS "7.5;8.0;8.6;8.7;8.9;9.0;10.0;11.0;12.0")
+  set(CUDA_SUPPORTED_ARCHS "7.5;8.0;8.6;8.7;8.9;9.0;10.0;11.0;12.0;12.1")
 elseif(DEFINED CMAKE_CUDA_COMPILER_VERSION AND
    CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
   set(CUDA_SUPPORTED_ARCHS "7.5;8.0;8.6;8.7;8.9;9.0;10.0;10.1;10.3;12.0;12.1")
@@ -1338,6 +1376,18 @@ if (VLLM_GPU_LANG STREQUAL "CUDA")
     include(cmake/external_projects/flashmla.cmake)
     include(cmake/external_projects/qutlass.cmake)
 
-    # vllm-flash-attn should be last as it overwrites some CMake functions
-    include(cmake/external_projects/vllm_flash_attn.cmake)
+    set(VLLM_BUILD_FLASH_ATTN ON)
+    if(DEFINED ENV{VLLM_BUILD_FLASH_ATTN})
+        string(TOLOWER "$ENV{VLLM_BUILD_FLASH_ATTN}" VLLM_BUILD_FLASH_ATTN_ENV)
+        if(VLLM_BUILD_FLASH_ATTN_ENV MATCHES "^(0|false|no|off)$")
+            set(VLLM_BUILD_FLASH_ATTN OFF)
+        endif()
+    endif()
+
+    if(VLLM_BUILD_FLASH_ATTN)
+        # vllm-flash-attn should be last as it overwrites some CMake functions
+        include(cmake/external_projects/vllm_flash_attn.cmake)
+    else()
+        message(STATUS "Skipping bundled vllm-flash-attn for this CUDA build.")
+    endif()
 endif ()

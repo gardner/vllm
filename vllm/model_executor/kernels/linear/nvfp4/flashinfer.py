@@ -4,6 +4,7 @@
 import torch
 
 from vllm._custom_ops import scaled_fp4_quant
+from vllm.logger import init_logger
 from vllm.model_executor.layers.quantization.utils.nvfp4_utils import (
     pad_nvfp4_activation_for_cutlass,
     pad_nvfp4_weight_for_cutlass,
@@ -12,12 +13,21 @@ from vllm.model_executor.layers.quantization.utils.nvfp4_utils import (
 )
 from vllm.platforms import current_platform
 from vllm.utils.flashinfer import (
+    flashinfer_quant_nvfp4_128x4_sf_layout,
     flashinfer_scaled_fp4_mm,
     has_flashinfer,
     has_flashinfer_b12x_gemm,
 )
 
 from .base import NvFp4LinearKernel, NvFp4LinearLayerConfig
+
+logger = init_logger(__name__)
+
+
+def _is_sm12x(compute_capability: int | None = None) -> bool:
+    if compute_capability is not None:
+        return compute_capability // 10 == 12
+    return current_platform.is_device_capability_family(120)
 
 
 class FlashInferCutlassNvFp4LinearKernel(NvFp4LinearKernel):
@@ -225,12 +235,12 @@ class FlashInferB12xNvFp4LinearKernel(NvFp4LinearKernel):
     def is_supported(
         cls, compute_capability: int | None = None
     ) -> tuple[bool, str | None]:
-        if current_platform.has_device_capability(120) and has_flashinfer_b12x_gemm():
+        if _is_sm12x(compute_capability) and has_flashinfer_b12x_gemm():
             return True, None
         return (
             False,
-            "FlashInfer b12x requires SM120+ and FlashInfer "
-            "with Sm120BlockScaledDenseGemmKernel",
+            "FlashInfer b12x requires SM120/SM121 and FlashInfer "
+            "with Sm120B12xBlockScaledDenseGemmKernel",
         )
 
     @classmethod
@@ -247,6 +257,26 @@ class FlashInferB12xNvFp4LinearKernel(NvFp4LinearKernel):
         layer.weight = torch.nn.Parameter(padded_weight, requires_grad=False)
         layer.weights_padding_cols = weights_padding_cols
 
+    @staticmethod
+    def _quantize_activation(
+        layer: torch.nn.Module,
+        x: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x_2d = x.reshape(-1, x.shape[-1])
+
+        if x.dtype == torch.bfloat16:
+            return flashinfer_quant_nvfp4_128x4_sf_layout(
+                x_2d,
+                layer.input_global_scale_inv,
+            )
+
+        return scaled_fp4_quant(
+            x_2d,
+            layer.input_global_scale_inv,
+            is_sf_swizzled_layout=True,
+            backend="b12x",
+        )
+
     def apply_weights(
         self,
         layer: torch.nn.Module,
@@ -257,16 +287,19 @@ class FlashInferB12xNvFp4LinearKernel(NvFp4LinearKernel):
         output_dtype = x.dtype
         output_shape = [*x.shape[:-1], output_size]
 
-        x_fp4, x_blockscale = scaled_fp4_quant(
-            x,
-            layer.input_global_scale_inv,
-            is_sf_swizzled_layout=True,
-            backend="b12x",
-        )
+        x_fp4, x_blockscale = self._quantize_activation(layer, x)
 
         x_fp4 = pad_nvfp4_activation_for_cutlass(
             x_fp4, getattr(layer, "weights_padding_cols", 0)
         )
+
+        backend = "b12x" if output_dtype == torch.bfloat16 else "cutlass"
+        if backend != "b12x":
+            logger.warning_once(
+                "FlashInfer b12x NVFP4 linear only has validated BF16 output "
+                "on SM12x; using FlashInfer CUTLASS for output dtype %s.",
+                output_dtype,
+            )
 
         out = flashinfer_scaled_fp4_mm(
             x_fp4,
@@ -275,7 +308,7 @@ class FlashInferB12xNvFp4LinearKernel(NvFp4LinearKernel):
             layer.weight_scale,
             layer.alpha,
             output_dtype,
-            backend="b12x",
+            backend=backend,
         )
 
         out = slice_nvfp4_output(out, output_size)
