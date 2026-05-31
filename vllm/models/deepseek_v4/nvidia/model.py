@@ -252,8 +252,11 @@ class DeepseekV4MegaMoEExperts(nn.Module):
 
     def _check_runtime_supported(self) -> None:
         device = self.w13_weight.device
-        if torch.cuda.get_device_capability(device)[0] != 10:
-            raise NotImplementedError("DeepGEMM MegaMoE requires SM100 GPUs.")
+        arch_major = torch.cuda.get_device_capability(device)[0]
+        if arch_major not in (10, 12):
+            raise NotImplementedError(
+                "DeepGEMM MegaMoE requires SM100 or SM120-family GPUs."
+            )
         if self.hidden_size % 128 != 0 or self.intermediate_size % 128 != 0:
             raise ValueError(
                 "DeepGEMM MegaMoE requires hidden and intermediate sizes "

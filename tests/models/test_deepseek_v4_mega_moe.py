@@ -106,6 +106,37 @@ def test_deepseek_v4_mega_moe_weight_loader_uses_ep_expert_ownership():
     assert torch.count_nonzero(experts.w13_weight[1]) == 0
 
 
+def test_deepseek_v4_mega_moe_runtime_allows_sm100_and_sm120(monkeypatch):
+    vllm_config = SimpleNamespace(
+        scheduler_config=SimpleNamespace(max_num_batched_tokens=4)
+    )
+    experts = DeepseekV4MegaMoEExperts(
+        vllm_config,
+        num_experts=2,
+        num_local_experts=2,
+        experts_start_idx=0,
+        top_k=2,
+        hidden_size=128,
+        intermediate_size=128,
+    )
+
+    for major in (10, 12):
+        monkeypatch.setattr(
+            torch.cuda,
+            "get_device_capability",
+            lambda device, major=major: (major, 0),
+        )
+        experts._check_runtime_supported()
+
+    monkeypatch.setattr(
+        torch.cuda,
+        "get_device_capability",
+        lambda device: (11, 0),
+    )
+    with pytest.raises(NotImplementedError, match="SM100 or SM120"):
+        experts._check_runtime_supported()
+
+
 @pytest.mark.skipif(
     not torch.cuda.is_available(),
     reason="DeepSeek V4 MegaMoE fused input staging requires CUDA.",
