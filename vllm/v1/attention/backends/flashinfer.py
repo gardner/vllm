@@ -758,6 +758,25 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
     def set_workspace_buffer(self, workspace_buffer: torch.Tensor):
         self._workspace_buffer = workspace_buffer
 
+    def _get_flashinfer_wrapper_backend(self) -> str:
+        if not self.is_kvcache_nvfp4:
+            return "auto"
+        if can_use_trtllm_attention(self.num_qo_heads, self.num_kv_heads):
+            logger.info_once(
+                "Using FlashInfer TRTLLM Gen attention backend for NVFP4 KV cache."
+            )
+            return "trtllm-gen"
+        # GB10 / SM12x does not have TRTLLM Gen FMHA artifacts. FlashInfer's
+        # native FA2 path covers NVFP4 KV cache there.
+        logger.info_once(
+            "Using FlashInfer FA2 attention backend for NVFP4 KV cache because "
+            "TRTLLM Gen attention is unavailable for num_qo_heads=%s, "
+            "num_kv_heads=%s.",
+            self.num_qo_heads,
+            self.num_kv_heads,
+        )
+        return "fa2"
+
     def _get_prefill_wrapper(
         self,
     ) -> BatchPrefillWithPagedKVCacheWrapper | BatchDCPPrefillWrapper:
@@ -768,9 +787,7 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
                     dcp_a2a=self.dcp_a2a,
                 )
             else:
-                # NVFP4 KV cache requires the trtllm-gen backend inside
-                # the wrapper; fa2/fa3 do not support nvfp4.
-                backend = "trtllm-gen" if self.is_kvcache_nvfp4 else "auto"
+                backend = self._get_flashinfer_wrapper_backend()
                 self._prefill_wrapper = BatchPrefillWithPagedKVCacheWrapper(
                     self._get_workspace_buffer(),
                     get_kv_cache_layout(),
@@ -794,9 +811,7 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
                 paged_kv_indptr = None
                 paged_kv_indices = None
                 paged_kv_last_page_len = None
-            # NVFP4 KV cache requires the trtllm-gen backend inside
-            # the wrapper; fa2/fa3 do not support nvfp4.
-            backend = "trtllm-gen" if self.is_kvcache_nvfp4 else "auto"
+            backend = self._get_flashinfer_wrapper_backend()
             decode_wrapper = BatchDecodeWithPagedKVCacheWrapper(
                 self._get_workspace_buffer(),
                 get_kv_cache_layout(),

@@ -62,6 +62,12 @@ def _get_mla_prefill_backend_priorities(
     Returns:
         List of backends in priority order (highest priority first).
     """
+    if device_capability.major == 12:
+        # GB10 / SM12x uses FlashInfer's native FA2 path. Public
+        # FlashAttention and TRTLLM Gen MLA prefill are not SM12x backends.
+        return [
+            MLAPrefillBackendEnum.FLASHINFER,
+        ]
     if device_capability.major == 10:  # Blackwell
         return [
             MLAPrefillBackendEnum.FLASH_ATTN,

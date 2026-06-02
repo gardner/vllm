@@ -17,6 +17,7 @@ from vllm.v1.attention.backends.mla.prefill.base import MLAPrefillBackend
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
+    from vllm.platforms.interface import DeviceCapability
 
 if is_flash_attn_varlen_func_available():
     from vllm.v1.attention.backends.fa_utils import flash_attn_varlen_func
@@ -34,6 +35,10 @@ class FlashAttnPrefillBackend(MLAPrefillBackend):
     @classmethod
     def is_available(cls) -> bool:
         return is_flash_attn_varlen_func_available()
+
+    @classmethod
+    def supports_compute_capability(cls, device_capability: "DeviceCapability") -> bool:
+        return device_capability.major != 12
 
     def __init__(
         self,

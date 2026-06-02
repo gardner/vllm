@@ -139,7 +139,15 @@ class FlashInferB12xExperts(mk.FusedMoEExpertsModular):
 
     @staticmethod
     def _supports_parallel_config(moe_parallel_config: FusedMoEParallelConfig) -> bool:
-        return True
+        # The SM12x b12x path is validated locally only for single-Spark,
+        # TP=1 non-EP execution. Keep expert-parallel/all2all/EPLB paths
+        # blocked until global-to-local expert mapping and row-count contracts
+        # are validated on multi-Spark hardware.
+        return not (
+            moe_parallel_config.use_ep
+            or moe_parallel_config.use_all2all_kernels
+            or moe_parallel_config.enable_eplb
+        )
 
     def supports_expert_map(self) -> bool:
         return False

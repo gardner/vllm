@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from dataclasses import replace
+
 import pytest
 import torch
 
@@ -36,7 +38,10 @@ from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.all2all_utils import (
     maybe_make_prepare_finalize,
 )
-from vllm.model_executor.layers.fused_moe.config import nvfp4_moe_quant_config
+from vllm.model_executor.layers.fused_moe.config import (
+    FusedMoEParallelConfig,
+    nvfp4_moe_quant_config,
+)
 from vllm.model_executor.layers.fused_moe.experts.flashinfer_b12x_moe import (
     FlashInferB12xExperts,
 )
@@ -51,6 +56,21 @@ MNK_FACTORS = [
     (16, 128, 256),
     (64, 256, 512),
 ]
+
+
+def test_flashinfer_b12x_moe_blocks_ep_until_validated():
+    no_parallel = FusedMoEParallelConfig.make_no_parallel()
+    ep_parallel = replace(
+        no_parallel,
+        use_ep=True,
+        ep_size=2,
+        ep_rank=1,
+        dp_size=2,
+        dp_rank=1,
+    )
+
+    assert FlashInferB12xExperts._supports_parallel_config(no_parallel)
+    assert not FlashInferB12xExperts._supports_parallel_config(ep_parallel)
 
 
 def _reorder_gate_up_to_up_gate(

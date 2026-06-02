@@ -176,6 +176,23 @@ class TestAutoSelectMLAPrefillBackend:
             )
             assert backend.get_name() == "TRTLLM_RAGGED"
 
+    def test_gb10_auto_selection_uses_flashinfer(self):
+        vllm_config = _make_vllm_config()
+        capability = DeviceCapability(major=12, minor=1)
+        selector_config = MLAPrefillSelectorConfig(
+            dtype=torch.bfloat16,
+            is_r1_compatible=is_deepseek_r1_mla_compatible(vllm_config),
+        )
+        flashinfer_cls = MLAPrefillBackendEnum.FLASHINFER.get_class()
+
+        with patch.object(flashinfer_cls, "is_available", return_value=True):
+            backend = _auto_select_mla_prefill_backend(
+                capability,
+                selector_config,
+            )
+
+        assert backend.get_name() == "FLASHINFER"
+
     def test_all_fail_raises_error(self):
         vllm_config = _make_vllm_config()
         capability = DeviceCapability(major=10, minor=0)
@@ -200,6 +217,20 @@ class TestAutoSelectMLAPrefillBackend:
 
 class TestBackendValidation:
     """Tests for backend validation logic."""
+
+    def test_flash_attn_prefill_rejects_gb10_sm12x(self):
+        flash_attn_cls = MLAPrefillBackendEnum.FLASH_ATTN.get_class()
+        selector_config = MLAPrefillSelectorConfig(
+            dtype=torch.bfloat16,
+            is_r1_compatible=True,
+        )
+
+        invalid_reasons = flash_attn_cls.validate_configuration(
+            DeviceCapability(major=12, minor=1),
+            selector_config,
+        )
+
+        assert "compute capability 12.1 not supported" in invalid_reasons
 
     def test_r1_dimension_requirement(self):
         try:

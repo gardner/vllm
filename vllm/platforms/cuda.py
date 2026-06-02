@@ -84,6 +84,13 @@ def _get_backend_priorities(
 ) -> list[AttentionBackendEnum]:
     """Get backend priorities with lazy import to avoid circular dependency."""
     if use_mla:
+        if device_capability.major == 12:
+            return [
+                AttentionBackendEnum.FLASHMLA,
+                AttentionBackendEnum.FLASHINFER_MLA,
+                AttentionBackendEnum.TRITON_MLA,
+                AttentionBackendEnum.FLASHMLA_SPARSE,
+            ]
         if device_capability.major == 10:
             # Sparse MLA backend priorities
             # See https://github.com/vllm-project/vllm/issues/35807 for
@@ -129,6 +136,13 @@ def _get_backend_priorities(
                 AttentionBackendEnum.FLASHMLA_SPARSE,
             ]
     else:
+        if device_capability.major == 12:
+            return [
+                AttentionBackendEnum.FLASHINFER,
+                AttentionBackendEnum.TRITON_ATTN,
+                AttentionBackendEnum.FLEX_ATTENTION,
+                AttentionBackendEnum.TURBOQUANT,
+            ]
         if device_capability.major == 10:
             return [
                 AttentionBackendEnum.FLASHINFER,
@@ -385,6 +399,13 @@ class CudaPlatformBase(Platform):
 
     @classmethod
     def get_supported_vit_attn_backends(cls) -> list[AttentionBackendEnum]:
+        device_capability = cls.get_device_capability()
+        if device_capability is not None and device_capability.major == 12:
+            return [
+                AttentionBackendEnum.FLASHINFER,
+                AttentionBackendEnum.TRITON_ATTN,
+                AttentionBackendEnum.TORCH_SDPA,
+            ]
         if cls.has_device_capability(80):
             return [
                 AttentionBackendEnum.FLASH_ATTN,

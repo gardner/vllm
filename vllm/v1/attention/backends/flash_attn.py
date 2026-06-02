@@ -200,6 +200,11 @@ class FlashAttentionBackend(AttentionBackend):
 
     @classmethod
     def supports_compute_capability(cls, capability: DeviceCapability) -> bool:
+        # GB10 / SM12x is routed through FlashInfer or FlashMLA in this fork.
+        # Public FlashAttention does not cover the SM12x runtime surface vLLM
+        # needs, including the wider GB10 head-dim cases.
+        if capability.major == 12:
+            return False
         return capability >= DeviceCapability(8, 0)
 
     @classmethod
