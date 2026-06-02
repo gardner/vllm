@@ -237,6 +237,15 @@ def test_gb10_ep_kernel_helper_exports_cuda_home_for_uv_build():
     assert "export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}" in install_script
 
 
+def test_gb10_ep_kernel_build_uses_native_torch_cuda_arch_list():
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    versions_json = (REPO_ROOT / "docker" / "versions.json").read_text()
+
+    assert "export TORCH_CUDA_ARCH_LIST=\"${TORCH_CUDA_ARCH_LIST}\"" in dockerfile
+    assert "export TORCH_CUDA_ARCH_LIST='9.0a 10.0a'" not in dockerfile
+    assert '"TORCH_CUDA_ARCH_LIST": {\n      "default": "12.1a"\n    }' in versions_json
+
+
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
