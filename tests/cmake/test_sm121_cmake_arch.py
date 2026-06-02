@@ -229,6 +229,14 @@ def test_gb10_dockerfile_exports_cuda_home_for_extension_builds():
     )
 
 
+def test_gb10_ep_kernel_helper_exports_cuda_home_for_uv_build():
+    install_script = (
+        REPO_ROOT / "tools" / "ep_kernels" / "install_python_libraries.sh"
+    ).read_text()
+
+    assert "export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}" in install_script
+
+
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
