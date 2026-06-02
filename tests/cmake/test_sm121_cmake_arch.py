@@ -207,6 +207,14 @@ def test_gb10_release_workflow_defaults_to_published_flashinfer_wheels():
     assert 'prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"' in gb10_workflow
 
 
+def test_gb10_release_workflow_uses_vllm_dockerfile():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert gb10_workflow.count("--file docker/Dockerfile") == 2
+
+
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /

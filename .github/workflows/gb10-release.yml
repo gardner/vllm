@@ -122,6 +122,7 @@ jobs:
       - name: Build wheel stage
         run: |
           docker buildx build \
+            --file docker/Dockerfile \
             --target build \
             --platform linux/arm64 \
             --load \
@@ -208,6 +209,7 @@ jobs:
           fi
 
           docker buildx build \
+            --file docker/Dockerfile \
             --target vllm-openai \
             --platform linux/arm64 \
             --tag "$GB10_IMAGE_NAME:$GB10_IMAGE_TAG" \
