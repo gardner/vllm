@@ -41,6 +41,12 @@ permissions:
   contents: write
   packages: write
 
+env:
+  GB10_DEFAULT_PREBUILT_WHEEL_URLS: >-
+    https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl
+    https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl
+    https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl
+
 defaults:
   run:
     shell: bash -e -u -o pipefail {0}
@@ -64,7 +70,7 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             release_tag="${GITHUB_REF#refs/tags/}"
             image_name="ghcr.io/gardner/vllm-gb10"
-            prebuilt_wheel_urls=""
+            prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
             flash_attn_repo="https://github.com/gardner/vllm-flash-attention.git"
             flash_attn_ref="de3849e75d07edd1c00aec02c92ec852ba757adc"
             push_image="true"
@@ -75,6 +81,9 @@ jobs:
             flash_attn_repo="${{ inputs.vllm-flash-attn-git-repository }}"
             flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
             push_image="${{ inputs.push-image }}"
+          fi
+          if [ -z "${prebuilt_wheel_urls}" ]; then
+            prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
           fi
 
           if [ -z "${prebuilt_wheel_urls}" ]; then

@@ -8,6 +8,12 @@ DEEPGEMM_GIT_TAG = "fb9c137443998c535daaa39aace6685a98352514"
 FLASHMLA_GIT_TAG = "cb378f8bf6f76f4998a24b42f3d638f98fc94125"
 TRITON_KERNELS_GIT_TAG = "28c73277042f3140a7c8c448913416d24fb57e61"
 VLLM_FLASH_ATTN_GIT_TAG = "de3849e75d07edd1c00aec02c92ec852ba757adc"
+FLASHINFER_RELEASE_TAG = "gb10-flashinfer-v0.6.12-1c80efb3"
+FLASHINFER_RELEASE_WHEELS = (
+    "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl",
+    "flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl",
+    "flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl",
+)
 
 
 def _cuda13_supported_archs() -> list[str]:
@@ -183,6 +189,22 @@ def test_gb10_flashinfer_wheels_fail_fast():
 
     assert "GB10 prebuilt FlashInfer wheel URLs are required" in gb10_workflow
     assert "GB10 FlashInfer wheels are required" in dockerfile
+
+
+def test_gb10_release_workflow_defaults_to_published_flashinfer_wheels():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert "GB10_DEFAULT_PREBUILT_WHEEL_URLS" in gb10_workflow
+    assert FLASHINFER_RELEASE_TAG in gb10_workflow
+    for wheel in FLASHINFER_RELEASE_WHEELS:
+        assert wheel in gb10_workflow
+        assert (
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+        ) in gb10_workflow
+    assert 'prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"' in gb10_workflow
 
 
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
