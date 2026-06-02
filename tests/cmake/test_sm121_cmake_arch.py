@@ -215,6 +215,20 @@ def test_gb10_release_workflow_uses_vllm_dockerfile():
     assert gb10_workflow.count("--file docker/Dockerfile") == 2
 
 
+def test_gb10_dockerfile_exports_cuda_home_for_extension_builds():
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    cuda_home_env = "ENV CUDA_HOME=/usr/local/cuda"
+
+    assert dockerfile.count(cuda_home_env) >= 2
+    assert dockerfile.index(cuda_home_env) < dockerfile.index(
+        "FROM base AS extensions-build"
+    )
+    assert dockerfile.index(cuda_home_env) < dockerfile.index("FROM base AS build")
+    assert dockerfile.index("FROM ${FINAL_BASE_IMAGE} AS vllm-base") < (
+        dockerfile.rindex(cuda_home_env)
+    )
+
+
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /

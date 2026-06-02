@@ -104,6 +104,9 @@ ARG PYTHON_VERSION
 ARG BUILD_OS
 
 ENV DEBIAN_FRONTEND=noninteractive
+# PyTorch extension builders require CUDA_HOME to be exported to child
+# processes; shell-local defaults in helper scripts are not enough.
+ENV CUDA_HOME=/usr/local/cuda
 
 # Environment for uv
 # Declared BEFORE the installer + `uv venv` invocations below so the uv
@@ -648,6 +651,7 @@ ARG DEADSNAKES_GPGKEY_URL
 ARG GET_PIP_URL
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV CUDA_HOME=/usr/local/cuda
 WORKDIR /vllm-workspace
 
 
