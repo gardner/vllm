@@ -40,11 +40,15 @@ variable "VLLM_FLASH_ATTN_GIT_REPOSITORY" {
 }
 
 variable "VLLM_FLASH_ATTN_GIT_TAG" {
-  default = "6407c49b28a365f5a5f7722116c8e44aaea45692"
+  default = "de3849e75d07edd1c00aec02c92ec852ba757adc"
 }
 
 variable "GB10_PREBUILT_WHEEL_URLS" {
   default = ""
+}
+
+variable "GB10_REQUIRE_FLASHINFER_WHEELS" {
+  default = true
 }
 
 variable "COMMIT" {
@@ -92,6 +96,7 @@ target "_common" {
     vllm_flash_attn_git_repository = VLLM_FLASH_ATTN_GIT_REPOSITORY
     vllm_flash_attn_git_tag        = VLLM_FLASH_ATTN_GIT_TAG
     gb10_prebuilt_wheel_urls       = GB10_PREBUILT_WHEEL_URLS
+    gb10_require_flashinfer_wheels = GB10_REQUIRE_FLASHINFER_WHEELS
     VLLM_BUILD_COMMIT           = VLLM_BUILD_COMMIT != "unknown" ? VLLM_BUILD_COMMIT : (COMMIT != "" ? COMMIT : "unknown")
     VLLM_BUILD_PIPELINE         = VLLM_BUILD_PIPELINE
     VLLM_BUILD_URL              = VLLM_BUILD_URL

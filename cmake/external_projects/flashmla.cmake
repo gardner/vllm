@@ -16,6 +16,21 @@ elseif(VLLM_USE_LOCAL_GB10_DEPS AND NOT FLASH_MLA_SRC_DIR)
   endif()
 endif()
 
+set(FLASH_MLA_GIT_REPOSITORY
+    "https://github.com/gardner/FlashMLA.git"
+    CACHE STRING "Git repository for GB10 FlashMLA.")
+set(FLASH_MLA_GIT_TAG
+    "cb378f8bf6f76f4998a24b42f3d638f98fc94125"
+    CACHE STRING "Git tag, branch, or commit for GB10 FlashMLA.")
+if(DEFINED ENV{FLASH_MLA_GIT_REPOSITORY})
+  set(FLASH_MLA_GIT_REPOSITORY "$ENV{FLASH_MLA_GIT_REPOSITORY}"
+      CACHE STRING "Git repository for GB10 FlashMLA." FORCE)
+endif()
+if(DEFINED ENV{FLASH_MLA_GIT_TAG})
+  set(FLASH_MLA_GIT_TAG "$ENV{FLASH_MLA_GIT_TAG}"
+      CACHE STRING "Git tag, branch, or commit for GB10 FlashMLA." FORCE)
+endif()
+
 if(FLASH_MLA_SRC_DIR)
   message(STATUS "Using FlashMLA source directory: ${FLASH_MLA_SRC_DIR}")
   FetchContent_Declare(
@@ -27,8 +42,8 @@ if(FLASH_MLA_SRC_DIR)
 else()
   FetchContent_Declare(
         flashmla
-        GIT_REPOSITORY https://github.com/vllm-project/FlashMLA
-        GIT_TAG a6ec2ba7bd0a7dff98b3f4d3e6b52b159c48d78b
+        GIT_REPOSITORY ${FLASH_MLA_GIT_REPOSITORY}
+        GIT_TAG ${FLASH_MLA_GIT_TAG}
         GIT_PROGRESS TRUE
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
@@ -57,13 +72,15 @@ install(FILES "${FLASHMLA_VENDOR_DIR}/flash_mla_interface.py"
         DESTINATION vllm/third_party/flashmla/
         COMPONENT _flashmla_C)
 
-# The FlashMLA kernels only work on hopper and require CUDA 12.3 or later.
-# Only build FlashMLA kernels if we are building for something compatible with 
-# sm90a
+# FlashMLA kernels require CUDA 12.3+ for SM90, 12.9+ for SM100, and
+# CUDA 13.0+ for native SM12x family builds.
 
 set(SUPPORT_ARCHS)
 if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 12.3)
     list(APPEND SUPPORT_ARCHS "9.0a")
+endif()
+if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 13.0)
+    list(APPEND SUPPORT_ARCHS "12.0f")
 endif()
 if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 12.9)
     # CUDA 12.9 has introduced "Family-Specific Architecture Features"
@@ -80,8 +97,25 @@ if(FLASH_MLA_ARCHS)
     set(VLLM_FLASHMLA_GPU_FLAGS ${VLLM_GPU_FLAGS})
     list(APPEND VLLM_FLASHMLA_GPU_FLAGS "--expt-relaxed-constexpr" "--expt-extended-lambda" "--use_fast_math")
 
+    if(EXISTS "${flashmla_SOURCE_DIR}/csrc/api/api.cpp")
+        set(FLASHMLA_API_SOURCE "${flashmla_SOURCE_DIR}/csrc/api/api.cpp")
+        set(FlashMLA_SM100_LAYOUT_SOURCES
+            ${flashmla_SOURCE_DIR}/csrc/sm100/prefill/dense/fmha_cutlass_bwd_sm100.cu
+        )
+        set(FlashMLA_SM121_SOURCES
+            ${flashmla_SOURCE_DIR}/csrc/sm121/prefill/dense/fmha_dense_prefill_sm121.cu
+            ${flashmla_SOURCE_DIR}/csrc/sm121/decode/dense/dense_decode_sm121.cu
+            ${flashmla_SOURCE_DIR}/csrc/sm121/prefill/sparse/sparse_prefill_sm121.cu
+            ${flashmla_SOURCE_DIR}/csrc/sm121/decode/sparse/sparse_decode_sm121.cu
+        )
+    else()
+        set(FLASHMLA_API_SOURCE "${flashmla_SOURCE_DIR}/csrc/torch_api.cpp")
+        set(FlashMLA_SM100_LAYOUT_SOURCES)
+        set(FlashMLA_SM121_SOURCES)
+    endif()
+
     set(FlashMLA_SOURCES
-        ${flashmla_SOURCE_DIR}/csrc/torch_api.cpp
+        ${FLASHMLA_API_SOURCE}
 
         # Misc kernels for decoding
         ${flashmla_SOURCE_DIR}/csrc/smxx/decode/get_decoding_sched_meta/get_decoding_sched_meta.cu
@@ -106,6 +140,7 @@ if(FLASH_MLA_ARCHS)
 
         # sm100 dense prefill & backward
         ${flashmla_SOURCE_DIR}/csrc/sm100/prefill/dense/fmha_cutlass_fwd_sm100.cu
+        ${FlashMLA_SM100_LAYOUT_SOURCES}
 
         # sm100 sparse prefill
         ${flashmla_SOURCE_DIR}/csrc/sm100/prefill/sparse/fwd/head64/instantiations/phase1_k512.cu
@@ -118,14 +153,20 @@ if(FLASH_MLA_ARCHS)
         ${flashmla_SOURCE_DIR}/csrc/sm100/decode/head64/instantiations/v32.cu
         ${flashmla_SOURCE_DIR}/csrc/sm100/decode/head64/instantiations/model1.cu
         ${flashmla_SOURCE_DIR}/csrc/sm100/prefill/sparse/fwd_for_small_topk/head128/instantiations/phase1_decode_k512.cu
+
+        # sm121 dense/sparse prefill and decode
+        ${FlashMLA_SM121_SOURCES}
     )
 
-    set(FlashMLA_Extension_SOURCES
-        ${flashmla_SOURCE_DIR}/csrc/extension/torch_api.cpp
-        ${flashmla_SOURCE_DIR}/csrc/extension/sm90/dense_fp8/pybind.cpp
-        ${flashmla_SOURCE_DIR}/csrc/extension/sm90/dense_fp8/flash_fwd_mla_fp8_sm90.cu
-        ${flashmla_SOURCE_DIR}/csrc/extension/sm90/dense_fp8/flash_fwd_mla_metadata.cu
-    )
+    set(FlashMLA_Extension_SOURCES)
+    if(EXISTS "${flashmla_SOURCE_DIR}/csrc/extension/torch_api.cpp")
+        set(FlashMLA_Extension_SOURCES
+            ${flashmla_SOURCE_DIR}/csrc/extension/torch_api.cpp
+            ${flashmla_SOURCE_DIR}/csrc/extension/sm90/dense_fp8/pybind.cpp
+            ${flashmla_SOURCE_DIR}/csrc/extension/sm90/dense_fp8/flash_fwd_mla_fp8_sm90.cu
+            ${flashmla_SOURCE_DIR}/csrc/extension/sm90/dense_fp8/flash_fwd_mla_metadata.cu
+        )
+    endif()
 
     set(FlashMLA_INCLUDES
         ${flashmla_SOURCE_DIR}/csrc
@@ -146,9 +187,11 @@ if(FLASH_MLA_ARCHS)
         SRCS "${FlashMLA_SOURCES}"
         CUDA_ARCHS "${FLASH_MLA_ARCHS}")
 
-    set_gencode_flags_for_srcs(
-        SRCS "${FlashMLA_Extension_SOURCES}"
-        CUDA_ARCHS "${FLASH_MLA_ARCHS}")
+    if(FlashMLA_Extension_SOURCES)
+        set_gencode_flags_for_srcs(
+            SRCS "${FlashMLA_Extension_SOURCES}"
+            CUDA_ARCHS "${FLASH_MLA_ARCHS}")
+    endif()
 
     define_extension_target(
         _flashmla_C
@@ -170,22 +213,26 @@ if(FLASH_MLA_ARCHS)
         $<$<COMPILE_LANGUAGE:CXX>:-std=c++20>
         $<$<COMPILE_LANGUAGE:CUDA>:-std=c++20>)
 
-    define_extension_target(
-        _flashmla_extension_C
-        DESTINATION vllm
-        LANGUAGE ${VLLM_GPU_LANG}
-        SOURCES ${FlashMLA_Extension_SOURCES}
-        COMPILE_FLAGS ${VLLM_FLASHMLA_GPU_FLAGS}
-        ARCHITECTURES ${VLLM_GPU_ARCHES}
-        INCLUDE_DIRECTORIES ${FlashMLA_Extension_INCLUDES}
-        USE_SABI 3
-        WITH_SOABI)
+    if(FlashMLA_Extension_SOURCES)
+        define_extension_target(
+            _flashmla_extension_C
+            DESTINATION vllm
+            LANGUAGE ${VLLM_GPU_LANG}
+            SOURCES ${FlashMLA_Extension_SOURCES}
+            COMPILE_FLAGS ${VLLM_FLASHMLA_GPU_FLAGS}
+            ARCHITECTURES ${VLLM_GPU_ARCHES}
+            INCLUDE_DIRECTORIES ${FlashMLA_Extension_INCLUDES}
+            USE_SABI 3
+            WITH_SOABI)
 
-    # Keep Stable ABI for the module, but *not* for CUDA/C++ files.
-    # This prevents Py_LIMITED_API from affecting nvcc and C++ compiles.
-    target_compile_options(_flashmla_extension_C PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:-UPy_LIMITED_API>
-        $<$<COMPILE_LANGUAGE:CXX>:-UPy_LIMITED_API>)
+        # Keep Stable ABI for the module, but *not* for CUDA/C++ files.
+        # This prevents Py_LIMITED_API from affecting nvcc and C++ compiles.
+        target_compile_options(_flashmla_extension_C PRIVATE
+            $<$<COMPILE_LANGUAGE:CUDA>:-UPy_LIMITED_API>
+            $<$<COMPILE_LANGUAGE:CXX>:-UPy_LIMITED_API>)
+    else()
+        add_custom_target(_flashmla_extension_C)
+    endif()
 else()
     message(STATUS "FlashMLA will not compile: unsupported CUDA architecture ${CUDA_ARCHS}")
     # Create empty targets for setup.py on unsupported systems

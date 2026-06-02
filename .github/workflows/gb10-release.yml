@@ -29,7 +29,7 @@ on:
       vllm-flash-attn-git-tag:
         description: "Bundled vLLM flash-attn source ref"
         required: true
-        default: "6407c49b28a365f5a5f7722116c8e44aaea45692"
+        default: "de3849e75d07edd1c00aec02c92ec852ba757adc"
         type: string
       push-image:
         description: "Push the runtime image to GHCR"
@@ -66,7 +66,7 @@ jobs:
             image_name="ghcr.io/gardner/vllm-gb10"
             prebuilt_wheel_urls=""
             flash_attn_repo="https://github.com/gardner/vllm-flash-attention.git"
-            flash_attn_ref="6407c49b28a365f5a5f7722116c8e44aaea45692"
+            flash_attn_ref="de3849e75d07edd1c00aec02c92ec852ba757adc"
             push_image="true"
           else
             release_tag="${{ inputs.release-tag }}"
@@ -76,6 +76,17 @@ jobs:
             flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
             push_image="${{ inputs.push-image }}"
           fi
+
+          if [ -z "${prebuilt_wheel_urls}" ]; then
+            echo "GB10 prebuilt FlashInfer wheel URLs are required." >&2
+            exit 1
+          fi
+          for required_wheel in flashinfer_python flashinfer_cubin flashinfer_jit_cache; do
+            if [[ " ${prebuilt_wheel_urls} " != *"${required_wheel}"* ]]; then
+              echo "GB10 prebuilt wheel URLs must include ${required_wheel}." >&2
+              exit 1
+            fi
+          done
 
           image_tag="${release_tag:-gb10-${GITHUB_SHA::12}}"
           {
@@ -109,6 +120,7 @@ jobs:
             --cache-from type=gha,scope=gb10-vllm \
             --cache-to type=gha,scope=gb10-vllm,mode=max \
             --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+            --build-arg gb10_require_flashinfer_wheels=true \
             --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
             --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
             .
@@ -194,6 +206,7 @@ jobs:
             --cache-from type=gha,scope=gb10-vllm \
             --cache-to type=gha,scope=gb10-vllm,mode=max \
             --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+            --build-arg gb10_require_flashinfer_wheels=true \
             --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
             --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
             $output_arg \

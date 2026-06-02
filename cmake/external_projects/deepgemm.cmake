@@ -15,6 +15,21 @@ elseif(VLLM_USE_LOCAL_GB10_DEPS AND NOT DEEPGEMM_SRC_DIR)
   endif()
 endif()
 
+set(DEEPGEMM_GIT_REPOSITORY
+    "https://github.com/gardner/DeepGEMM.git"
+    CACHE STRING "Git repository for GB10 DeepGEMM.")
+set(DEEPGEMM_GIT_TAG
+    "fb9c137443998c535daaa39aace6685a98352514"
+    CACHE STRING "Git tag, branch, or commit for GB10 DeepGEMM.")
+if(DEFINED ENV{DEEPGEMM_GIT_REPOSITORY})
+  set(DEEPGEMM_GIT_REPOSITORY "$ENV{DEEPGEMM_GIT_REPOSITORY}"
+      CACHE STRING "Git repository for GB10 DeepGEMM." FORCE)
+endif()
+if(DEFINED ENV{DEEPGEMM_GIT_TAG})
+  set(DEEPGEMM_GIT_TAG "$ENV{DEEPGEMM_GIT_TAG}"
+      CACHE STRING "Git tag, branch, or commit for GB10 DeepGEMM." FORCE)
+endif()
+
 if(DEEPGEMM_SRC_DIR)
   message(STATUS "Using DeepGEMM source directory: ${DEEPGEMM_SRC_DIR}")
   FetchContent_Declare(
@@ -24,11 +39,10 @@ if(DEEPGEMM_SRC_DIR)
     BUILD_COMMAND ""
   )
 else()
-  # This ref should be kept in sync with tools/install_deepgemm.sh
   FetchContent_Declare(
     deepgemm
-    GIT_REPOSITORY https://github.com/deepseek-ai/DeepGEMM.git
-    GIT_TAG 891d57b4db1071624b5c8fa0d1e51cb317fa709f
+    GIT_REPOSITORY ${DEEPGEMM_GIT_REPOSITORY}
+    GIT_TAG ${DEEPGEMM_GIT_TAG}
     GIT_SUBMODULES "third-party/cutlass" "third-party/fmt"
     GIT_PROGRESS TRUE
     CONFIGURE_COMMAND ""
@@ -44,10 +58,14 @@ if(NOT deepgemm_POPULATED)
 endif()
 message(STATUS "DeepGEMM is available at ${deepgemm_SOURCE_DIR}")
 
-# DeepGEMM requires CUDA 12.3+ for SM90, 12.9+ for SM100
+# DeepGEMM requires CUDA 12.3+ for SM90, 12.9+ for SM100, and
+# CUDA 13.0+ for native SM12x family builds.
 set(DEEPGEMM_SUPPORT_ARCHS)
 if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 12.3)
   list(APPEND DEEPGEMM_SUPPORT_ARCHS "9.0a")
+endif()
+if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 13.0)
+  list(APPEND DEEPGEMM_SUPPORT_ARCHS "12.0f")
 endif()
 if(${CMAKE_CUDA_COMPILER_VERSION} VERSION_GREATER_EQUAL 12.9)
   list(APPEND DEEPGEMM_SUPPORT_ARCHS "10.0f")

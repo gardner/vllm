@@ -50,7 +50,7 @@ if(VLLM_NATIVE_CUDA_ARCHS_ONLY)
   message(STATUS "Skipping cross-major PTX fallback CUDA archs.")
 endif()
 
-set(VLLM_USE_LOCAL_GB10_DEPS ON CACHE BOOL
+set(VLLM_USE_LOCAL_GB10_DEPS OFF CACHE BOOL
     "Prefer sibling GB10 dependency checkouts when present.")
 if(DEFINED ENV{VLLM_USE_LOCAL_GB10_DEPS})
   string(TOLOWER "$ENV{VLLM_USE_LOCAL_GB10_DEPS}" _VLLM_USE_LOCAL_GB10_DEPS)

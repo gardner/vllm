@@ -4,6 +4,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+DEEPGEMM_GIT_TAG = "fb9c137443998c535daaa39aace6685a98352514"
+FLASHMLA_GIT_TAG = "cb378f8bf6f76f4998a24b42f3d638f98fc94125"
+TRITON_KERNELS_GIT_TAG = "28c73277042f3140a7c8c448913416d24fb57e61"
+VLLM_FLASH_ATTN_GIT_TAG = "de3849e75d07edd1c00aec02c92ec852ba757adc"
+
 
 def _cuda13_supported_archs() -> list[str]:
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
@@ -77,7 +82,7 @@ def test_gb10_build_can_enable_native_cuda_archs_only():
     assert "Skipping cross-major PTX fallback CUDA archs" in cmake_lists
 
 
-def test_gb10_build_prefers_sibling_dependency_forks():
+def test_gb10_build_uses_pinned_dependency_forks_without_siblings():
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
     deepgemm_cmake = (
         REPO_ROOT / "cmake" / "external_projects" / "deepgemm.cmake"
@@ -90,6 +95,33 @@ def test_gb10_build_prefers_sibling_dependency_forks():
     ).read_text()
 
     assert "VLLM_USE_LOCAL_GB10_DEPS" in cmake_lists
+    assert "VLLM_USE_LOCAL_GB10_DEPS OFF" in cmake_lists
+
+    assert "DEEPGEMM_GIT_REPOSITORY" in deepgemm_cmake
+    assert "https://github.com/gardner/DeepGEMM.git" in deepgemm_cmake
+    assert DEEPGEMM_GIT_TAG in deepgemm_cmake
+    assert "GIT_REPOSITORY ${DEEPGEMM_GIT_REPOSITORY}" in deepgemm_cmake
+    assert "GIT_TAG ${DEEPGEMM_GIT_TAG}" in deepgemm_cmake
+    assert "12.0f" in deepgemm_cmake
+
+    assert "FLASH_MLA_GIT_REPOSITORY" in flashmla_cmake
+    assert "https://github.com/gardner/FlashMLA.git" in flashmla_cmake
+    assert FLASHMLA_GIT_TAG in flashmla_cmake
+    assert "GIT_REPOSITORY ${FLASH_MLA_GIT_REPOSITORY}" in flashmla_cmake
+    assert "GIT_TAG ${FLASH_MLA_GIT_TAG}" in flashmla_cmake
+    assert "csrc/api/api.cpp" in flashmla_cmake
+    assert "csrc/sm121/prefill/dense/fmha_dense_prefill_sm121.cu" in flashmla_cmake
+    assert "csrc/sm121/decode/dense/dense_decode_sm121.cu" in flashmla_cmake
+    assert "12.0f" in flashmla_cmake
+
+    assert "TRITON_KERNELS_GIT_REPOSITORY" in triton_kernels_cmake
+    assert "https://github.com/gardner/triton.git" in triton_kernels_cmake
+    assert TRITON_KERNELS_GIT_TAG in triton_kernels_cmake
+    assert "GIT_REPOSITORY ${TRITON_KERNELS_GIT_REPOSITORY}" in triton_kernels_cmake
+    assert "GIT_TAG ${TRITON_KERNELS_GIT_TAG}" in triton_kernels_cmake
+
+    # Local dependency checkouts remain available for development, but are no
+    # longer required for a fresh clone to build the GB10 fork.
     assert "../DeepGEMM" in deepgemm_cmake
     assert "DEEPGEMM_SRC_DIR" in deepgemm_cmake
     assert "../FlashMLA" in flashmla_cmake
@@ -105,15 +137,23 @@ def test_cuda13_build_uses_gb10_bundled_vllm_flash_attn_source():
     ).read_text()
     setup_py = (REPO_ROOT / "setup.py").read_text()
     dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
-    gb10_workflow = (REPO_ROOT / ".github" / "workflows" / "gb10-release.yml").read_text()
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
 
     assert "VLLM_BUILD_FLASH_ATTN" in cmake_lists
     assert "include(cmake/external_projects/vllm_flash_attn.cmake)" in cmake_lists
-    assert "VERSION_GREATER_EQUAL 13.0)\n        set(VLLM_BUILD_FLASH_ATTN OFF)" not in cmake_lists
+    assert (
+        "VERSION_GREATER_EQUAL 13.0)\n        set(VLLM_BUILD_FLASH_ATTN OFF)"
+        not in cmake_lists
+    )
     assert "VLLM_FLASH_ATTN_GIT_REPOSITORY" in vllm_flash_attn_cmake
-    assert "https://github.com/gardner/vllm-flash-attention.git" in vllm_flash_attn_cmake
+    assert (
+        "https://github.com/gardner/vllm-flash-attention.git"
+        in vllm_flash_attn_cmake
+    )
     assert "VLLM_FLASH_ATTN_GIT_TAG" in vllm_flash_attn_cmake
-    assert "6407c49b28a365f5a5f7722116c8e44aaea45692" in vllm_flash_attn_cmake
+    assert VLLM_FLASH_ATTN_GIT_TAG in vllm_flash_attn_cmake
     assert "def _build_vllm_flash_attn" in setup_py
     assert 'torch.version.cuda.split(".")[0] in ("12", "13")' in setup_py
     assert "if _build_vllm_flash_attn():" in setup_py
@@ -123,3 +163,38 @@ def test_cuda13_build_uses_gb10_bundled_vllm_flash_attn_source():
     assert "gb10_prebuilt_wheel_urls" in gb10_workflow
     assert "gh release upload" in gb10_workflow
     assert "ghcr.io/gardner/vllm-gb10" in gb10_workflow
+
+
+def test_gb10_flashinfer_wheels_fail_fast():
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    docker_bake = (REPO_ROOT / "docker" / "docker-bake.hcl").read_text()
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    versions_json = (REPO_ROOT / "docker" / "versions.json").read_text()
+
+    for text in (dockerfile, docker_bake, gb10_workflow, versions_json):
+        assert "gb10_require_flashinfer_wheels" in text
+
+    for text in (dockerfile, gb10_workflow):
+        assert "flashinfer_python" in text
+        assert "flashinfer_cubin" in text
+        assert "flashinfer_jit_cache" in text
+
+    assert "GB10 prebuilt FlashInfer wheel URLs are required" in gb10_workflow
+    assert "GB10 FlashInfer wheels are required" in dockerfile
+
+
+def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
+    nvfp4_oracle = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "fused_moe" / "oracle" / "nvfp4.py"
+    ).read_text()
+
+    clamp_allowlist = nvfp4_oracle.split("NVFP4_BACKENDS_WITH_CLAMP = {", 1)[1].split(
+        "}", 1
+    )[0]
+
+    assert "NvFp4MoeBackend.FLASHINFER_TRTLLM" in clamp_allowlist
+    assert "NvFp4MoeBackend.FLASHINFER_CUTLASS" in clamp_allowlist
+    assert "NvFp4MoeBackend.FLASHINFER_B12X" not in clamp_allowlist

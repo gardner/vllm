@@ -43,7 +43,7 @@ set(VLLM_FLASH_ATTN_GIT_REPOSITORY
     "https://github.com/gardner/vllm-flash-attention.git"
     CACHE STRING "Git repository for bundled vLLM flash-attn.")
 set(VLLM_FLASH_ATTN_GIT_TAG
-    "6407c49b28a365f5a5f7722116c8e44aaea45692"
+    "de3849e75d07edd1c00aec02c92ec852ba757adc"
     CACHE STRING "Git tag, branch, or commit for bundled vLLM flash-attn.")
 if(DEFINED ENV{VLLM_FLASH_ATTN_GIT_REPOSITORY})
   set(VLLM_FLASH_ATTN_GIT_REPOSITORY "$ENV{VLLM_FLASH_ATTN_GIT_REPOSITORY}"

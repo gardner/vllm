@@ -34,6 +34,9 @@
     "INSTALL_KV_CONNECTORS": {
       "default": "false"
     },
+    "gb10_require_flashinfer_wheels": {
+      "default": "true"
+    },
     "TORCH_CUDA_ARCH_LIST": {
       "default": "12.1a"
     },
@@ -50,7 +53,7 @@
       "default": "https://github.com/gardner/vllm-flash-attention.git"
     },
     "VLLM_FLASH_ATTN_GIT_TAG": {
-      "default": "6407c49b28a365f5a5f7722116c8e44aaea45692"
+      "default": "de3849e75d07edd1c00aec02c92ec852ba757adc"
     },
     "MAX_JOBS": {
       "default": "2"

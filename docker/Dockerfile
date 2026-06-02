@@ -212,6 +212,7 @@ WORKDIR /workspace
 # We can specify the standard or nightly build of PyTorch
 ARG PYTORCH_NIGHTLY
 ARG gb10_prebuilt_wheel_urls=""
+ARG gb10_require_flashinfer_wheels=true
 
 # Install build and runtime dependencies, including PyTorch
 # Check whether to install torch nightly instead of release for this build
@@ -220,6 +221,19 @@ COPY requirements/cuda.txt requirements/cuda.txt
 COPY use_existing_torch.py use_existing_torch.py
 COPY pyproject.toml pyproject.toml
 RUN --mount=type=cache,target=/opt/uv/cache \
+    if [ "${gb10_require_flashinfer_wheels}" = "true" ]; then \
+        if [ -z "${gb10_prebuilt_wheel_urls}" ]; then \
+            echo "GB10 FlashInfer wheels are required; set gb10_prebuilt_wheel_urls."; \
+            exit 1; \
+        fi; \
+        for required_wheel in flashinfer_python flashinfer_cubin flashinfer_jit_cache; do \
+            case " ${gb10_prebuilt_wheel_urls} " in \
+                *"${required_wheel}"*) ;; \
+                *) echo "GB10 FlashInfer wheel URLs must include ${required_wheel}."; exit 1 ;; \
+            esac; \
+        done; \
+    fi \
+    && \
     if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
         echo "Installing GB10 prebuilt wheels..." \
         && for wheel_url in ${gb10_prebuilt_wheel_urls}; do \
@@ -266,7 +280,7 @@ ENV CMAKE_CUDA_ARCHITECTURES=${cmake_cuda_architectures}
 ARG cute_dsl_arch='sm_121a'
 ENV CUTE_DSL_ARCH=${cute_dsl_arch}
 ARG vllm_flash_attn_git_repository='https://github.com/gardner/vllm-flash-attention.git'
-ARG vllm_flash_attn_git_tag='6407c49b28a365f5a5f7722116c8e44aaea45692'
+ARG vllm_flash_attn_git_tag='de3849e75d07edd1c00aec02c92ec852ba757adc'
 ENV VLLM_BUILD_FLASH_ATTN=1
 ENV VLLM_BUILD_FLASH_ATTN_FA3=0
 ENV VLLM_FLASH_ATTN_GIT_REPOSITORY=${vllm_flash_attn_git_repository}
