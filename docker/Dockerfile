@@ -240,9 +240,8 @@ RUN --mount=type=cache,target=/opt/uv/cache \
     if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
         echo "Installing GB10 prebuilt wheels..." \
         && for wheel_url in ${gb10_prebuilt_wheel_urls}; do \
-            uv pip install --python /opt/venv/bin/python3 "$wheel_url"; \
-        done \
-        && python3 use_existing_torch.py --prefix; \
+            uv pip install --python /opt/venv/bin/python3 --no-deps "$wheel_url"; \
+        done; \
     fi \
     && \
     if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "12" ]; then \
@@ -261,6 +260,8 @@ RUN --mount=type=cache,target=/opt/uv/cache \
         uv pip install --python /opt/venv/bin/python3 -r requirements/cuda.txt \
         --extra-index-url ${PYTORCH_CUDA_INDEX_BASE_URL}/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.'); \
     fi
+
+RUN python3 -c 'import torch; assert torch.cuda._is_compiled(), f"GB10 build requires CUDA-enabled PyTorch, got torch {torch.__version__}"; print(f"CUDA-enabled torch: {torch.__version__}, cuda={torch.version.cuda}")'
 
 # Track PyTorch lib versions used during build and match in downstream instances.
 # We do this for both nightly and release so we can strip dependencies/*.txt as needed.

@@ -246,6 +246,20 @@ def test_gb10_ep_kernel_build_uses_native_torch_cuda_arch_list():
     assert '"TORCH_CUDA_ARCH_LIST": {\n      "default": "12.1a"\n    }' in versions_json
 
 
+def test_gb10_prebuilt_flashinfer_wheels_do_not_preserve_unpinned_torch():
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    prebuilt_block = dockerfile.split(
+        'if [ -n "${gb10_prebuilt_wheel_urls}" ]; then',
+        1,
+    )[1].split('if [ "$(echo $CUDA_VERSION | cut -d. -f1)" = "12" ]; then', 1)[0]
+
+    assert 'uv pip install --python /opt/venv/bin/python3 --no-deps "$wheel_url"' in (
+        prebuilt_block
+    )
+    assert "use_existing_torch.py" not in prebuilt_block
+    assert "GB10 build requires CUDA-enabled PyTorch" in dockerfile
+
+
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
