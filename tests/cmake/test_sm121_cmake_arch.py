@@ -1244,9 +1244,11 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
 
     assert "Bundle GB10 release smoke reports" in script
     assert "EXPECTED_REPORTS" in script
+    assert "EXPECTED_EVIDENCE_FILES" in script
     assert "gb10-nvfp4-smoke.json" in script
     assert "gb10-openai-server-smoke-image.json" in script
     assert "gb10-release-evidence-image.json" in script
+    assert "gb10-smoked-image-digest.txt" in script
     assert "GB10_RELEASE_EVIDENCE_REPORT_DIR" in script
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
     assert "GB10_RELEASE_EVIDENCE_IMAGE_REF" in script
@@ -1261,11 +1263,12 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "provenance/buildx-runtime-image-metadata.json" in script
     assert "--gb10-allow-partial" in script
     assert "--gb10-include-glob" in script
+    assert "gb10-*.txt" in script
     assert "release-evidence-metadata.json" in script
     assert "SHA256SUMS" in script
     assert "tarfile.open" in script
     assert "hashlib.sha256" in script
-    assert '"status": "partial" if missing_reports else "complete"' in script
+    assert '"status": "partial" if missing_evidence_files else "complete"' in script
 
 
 def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
@@ -1288,6 +1291,9 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     }
     for name, payload in report_payloads.items():
         (report_dir / name).write_text(json.dumps(payload) + "\n")
+    (report_dir / "gb10-smoked-image-digest.txt").write_text(
+        "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64 + "\n"
+    )
 
     manifest_path = tmp_path / "gb10-release-manifest.json"
     manifest_path.write_text(
@@ -1340,6 +1346,7 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     metadata = json.loads(metadata_path.read_text())
     assert metadata["status"] == "complete"
     assert metadata["missing_reports"] == []
+    assert metadata["missing_evidence_files"] == []
     assert metadata["source"] == {
         "report_dir": str(report_dir.resolve()),
         "commit": "abc123",
@@ -1362,6 +1369,15 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "gb10-openai-server-smoke-image.json": True,
         "gb10-release-evidence-image.json": True,
     }
+    assert {
+        evidence_file["name"]: evidence_file["present"]
+        for evidence_file in metadata["expected_evidence_files"]
+    } == {
+        "gb10-nvfp4-smoke.json": True,
+        "gb10-openai-server-smoke-image.json": True,
+        "gb10-release-evidence-image.json": True,
+        "gb10-smoked-image-digest.txt": True,
+    }
     included_paths = {
         item["relative_path"] for item in metadata["included_files"]
     }
@@ -1370,10 +1386,12 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "reports/gb10-openai-server-smoke-image.json",
         "reports/gb10-release-evidence-image.json",
         "reports/gb10-extra-local-note.json",
+        "reports/gb10-smoked-image-digest.txt",
     }
 
     checksum_text = checksum_path.read_text()
     assert "reports/gb10-nvfp4-smoke.json" in checksum_text
+    assert "reports/gb10-smoked-image-digest.txt" in checksum_text
     assert "provenance/gb10-release-manifest.json" in checksum_text
     assert "provenance/buildx-runtime-image-metadata.json" in checksum_text
     assert "release-evidence-metadata.json" in checksum_text
@@ -1385,6 +1403,7 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     assert "evidence/reports/gb10-nvfp4-smoke.json" in tar_names
     assert "evidence/reports/gb10-openai-server-smoke-image.json" in tar_names
     assert "evidence/reports/gb10-release-evidence-image.json" in tar_names
+    assert "evidence/reports/gb10-smoked-image-digest.txt" in tar_names
     assert "evidence/provenance/gb10-release-manifest.json" in tar_names
     assert "evidence/provenance/buildx-runtime-image-metadata.json" in tar_names
 

@@ -29,6 +29,11 @@ EXPECTED_REPORTS = (
     "gb10-release-evidence-image.json",
 )
 
+EXPECTED_EVIDENCE_FILES = (
+    *EXPECTED_REPORTS,
+    "gb10-smoked-image-digest.txt",
+)
+
 PROVENANCE_FILES = {
     "release_manifest": "gb10-release-manifest.json",
     "runtime_image_metadata": "buildx-runtime-image-metadata.json",
@@ -116,7 +121,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Report-dir glob to include. May be repeated. "
-            "Defaults to gb10-*.json."
+            "Defaults to gb10-*.json and gb10-*.txt."
         ),
     )
     parser.add_argument(
@@ -270,7 +275,6 @@ def _write_metadata(
     report_dir: Path,
     included_files: list[dict[str, Any]],
     included_provenance: list[dict[str, Any]],
-    missing_reports: list[str],
     commit: str | None,
     release_tag: str | None,
     image_ref: str | None,
@@ -278,12 +282,12 @@ def _write_metadata(
     included_by_name = {
         Path(item["relative_path"]).name: item for item in included_files
     }
-    expected_reports = []
-    for report in EXPECTED_REPORTS:
-        included = included_by_name.get(report)
-        expected_reports.append(
+    expected_evidence_files = []
+    for evidence_file in EXPECTED_EVIDENCE_FILES:
+        included = included_by_name.get(evidence_file)
+        expected_evidence_files.append(
             {
-                "name": report,
+                "name": evidence_file,
                 "present": included is not None,
                 "relative_path": included["relative_path"] if included else None,
                 "sha256": included["sha256"] if included else None,
@@ -291,9 +295,26 @@ def _write_metadata(
             }
         )
 
+    expected_reports = [
+        evidence_file
+        for evidence_file in expected_evidence_files
+        if evidence_file["name"] in EXPECTED_REPORTS
+    ]
+
+    missing_evidence_files = [
+        evidence_file["name"]
+        for evidence_file in expected_evidence_files
+        if not evidence_file["present"]
+    ]
+    missing_reports = [
+        evidence_file
+        for evidence_file in missing_evidence_files
+        if evidence_file in EXPECTED_REPORTS
+    ]
+
     metadata = {
         "schema_version": 1,
-        "status": "partial" if missing_reports else "complete",
+        "status": "partial" if missing_evidence_files else "complete",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source": {
             "report_dir": str(report_dir),
@@ -302,13 +323,30 @@ def _write_metadata(
             "image_ref": image_ref,
         },
         "expected_reports": expected_reports,
+        "expected_evidence_files": expected_evidence_files,
         "missing_reports": missing_reports,
+        "missing_evidence_files": missing_evidence_files,
         "included_files": included_files,
         "included_provenance": included_provenance,
     }
     metadata_path = output_dir / "release-evidence-metadata.json"
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
     return metadata_path
+
+
+def _missing_evidence(
+    included_files: list[dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    included_names = {Path(item["relative_path"]).name for item in included_files}
+    missing_evidence_files = [
+        evidence_file
+        for evidence_file in EXPECTED_EVIDENCE_FILES
+        if evidence_file not in included_names
+    ]
+    missing_reports = [
+        report for report in EXPECTED_REPORTS if report not in included_names
+    ]
+    return missing_reports, missing_evidence_files
 
 
 def _write_checksums(output_dir: Path, files: list[Path]) -> Path:
@@ -351,7 +389,7 @@ def _write_tarball(output_dir: Path, bundle_name: str, files: list[Path]) -> Pat
 def _bundle(args: argparse.Namespace) -> dict[str, Any]:
     report_dir = args.gb10_report_dir.resolve()
     output_dir = args.gb10_output_dir.resolve()
-    include_globs = args.gb10_include_glob or ["gb10-*.json"]
+    include_globs = args.gb10_include_glob or ["gb10-*.json", "gb10-*.txt"]
 
     if not report_dir.exists():
         raise RuntimeError(f"GB10 report directory does not exist: {report_dir}")
@@ -374,18 +412,15 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         output_dir=output_dir,
         include_globs=include_globs,
     )
-    included_names = {Path(item["relative_path"]).name for item in included_files}
-    missing_reports = [
-        report for report in EXPECTED_REPORTS if report not in included_names
-    ]
-    if missing_reports and not args.gb10_allow_partial:
-        missing = ", ".join(missing_reports)
+    missing_reports, missing_evidence_files = _missing_evidence(included_files)
+    if missing_evidence_files and not args.gb10_allow_partial:
+        missing = ", ".join(missing_evidence_files)
         raise RuntimeError(
-            "Missing required GB10 final-image release reports: "
-            f"{missing}. Pass --gb10-allow-partial to bundle available reports."
+            "Missing required GB10 final-image release evidence files: "
+            f"{missing}. Pass --gb10-allow-partial to bundle available evidence."
         )
     if not included_files:
-        raise RuntimeError(f"No GB10 JSON reports found in {report_dir}")
+        raise RuntimeError(f"No GB10 evidence files found in {report_dir}")
     included_provenance = _copy_optional_provenance(
         output_dir=output_dir,
         release_manifest_json=args.gb10_release_manifest_json,
@@ -399,7 +434,6 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         report_dir=report_dir,
         included_files=included_files,
         included_provenance=included_provenance,
-        missing_reports=missing_reports,
         commit=commit,
         release_tag=args.gb10_release_tag,
         image_ref=args.gb10_image_ref,
@@ -417,13 +451,14 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     return {
-        "status": "partial" if missing_reports else "complete",
+        "status": "partial" if missing_evidence_files else "complete",
         "output_dir": str(output_dir),
         "archive_path": str(archive_path),
         "archive_sha256": _sha256(archive_path),
         "metadata_path": str(metadata_path),
         "checksum_path": str(checksum_path),
         "missing_reports": missing_reports,
+        "missing_evidence_files": missing_evidence_files,
         "included_count": len(included_files),
         "included_provenance_count": len(included_provenance),
     }
