@@ -161,6 +161,7 @@ from vllm.model_executor.kernels.linear.scaled_mm.xpu import (
     XPUFP8ScaledMMLinearKernel,
 )
 from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+    record_nvfp4_backend_selection,
     record_nvfp4_fallback,
 )
 from vllm.model_executor.layers.quantization.utils.quant_utils import QuantKey
@@ -847,7 +848,13 @@ def _log_nvfp4_linear_kernel_selection(
     failure_reasons: list[str] | None = None,
 ) -> None:
     logger.info_once("Using %s for NVFP4 GEMM", kernel_cls.__name__)
-    if kernel_cls not in _NVFP4_LINEAR_FALLBACK_KERNELS:
+    is_fallback = kernel_cls in _NVFP4_LINEAR_FALLBACK_KERNELS
+    record_nvfp4_backend_selection(
+        "linear",
+        kernel_cls.__name__,
+        is_fallback=is_fallback,
+    )
+    if not is_fallback:
         return
 
     reason_suffix = ""

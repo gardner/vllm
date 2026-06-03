@@ -69,6 +69,7 @@ from vllm.model_executor.layers.quantization.utils.mxfp8_utils import (
     MXFP8_VALUE_DTYPE,
 )
 from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+    record_nvfp4_backend_selection,
     record_nvfp4_fallback,
 )
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
@@ -1275,6 +1276,11 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
             "weight-only fallback path, not the native GB10 W4A4 FP4 Tensor "
             "Core path; verify this fallback is intentional before publishing "
             "GB10 artifacts."
+        )
+        record_nvfp4_backend_selection(
+            "linear_w4a16",
+            "MarlinNvFp4LinearKernel",
+            is_fallback=True,
         )
         logger.warning_once("%s", fallback_message)
         record_nvfp4_fallback(

@@ -32,6 +32,7 @@ from vllm.model_executor.layers.quantization.utils.nvfp4_emulation_utils import 
     kE2M1ToFloat_handle,
 )
 from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+    record_nvfp4_backend_selection,
     record_nvfp4_fallback,
 )
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
@@ -228,7 +229,13 @@ def select_nvfp4_moe_backend(
 
     def _log_backend_selection(backend: NvFp4MoeBackend) -> None:
         logger.info_once(_make_log_backend(backend))
-        if backend not in _NVFP4_MOE_FALLBACK_BACKENDS:
+        is_fallback = backend in _NVFP4_MOE_FALLBACK_BACKENDS
+        record_nvfp4_backend_selection(
+            "moe",
+            backend.value,
+            is_fallback=is_fallback,
+        )
+        if not is_fallback:
             return
 
         reason_suffix = ""

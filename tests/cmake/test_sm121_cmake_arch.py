@@ -469,6 +469,7 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
+    assert "record_nvfp4_backend_selection" in linear_selector
     assert "record_nvfp4_fallback" in linear_selector
     assert "NVFP4 linear selected fallback backend " in linear_selector
     assert "not the native " in linear_selector
@@ -480,6 +481,7 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "EmulationNvFp4LinearKernel" in linear_selector
 
     assert "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel" in modelopt_quant
+    assert "record_nvfp4_backend_selection" in modelopt_quant
     assert "record_nvfp4_fallback" in modelopt_quant
     assert '"linear_w4a16"' in modelopt_quant
     assert "weight-only fallback path" in modelopt_quant
@@ -499,6 +501,7 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "NvFp4MoeBackend.MARLIN" in nvfp4_oracle
     assert "NvFp4MoeBackend.EMULATION" in nvfp4_oracle
     assert "unavailable_native_backend_reasons" in nvfp4_oracle
+    assert "record_nvfp4_backend_selection" in nvfp4_oracle
     assert "record_nvfp4_fallback" in nvfp4_oracle
     assert "NVFP4 MoE selected fallback backend '" in nvfp4_oracle
     assert "not the native " in nvfp4_oracle
@@ -510,19 +513,40 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "VLLM_USE_FLASHINFER_MOE_FP4=0" in nvfp4_oracle
 
 
-def test_gb10_nvfp4_fallback_recorder_can_fail_fast(monkeypatch):
+def test_gb10_nvfp4_backend_recorder_can_fail_fast(monkeypatch):
     import vllm.envs as envs
     from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
-        clear_nvfp4_fallback_events,
+        clear_nvfp4_backend_events,
+        get_nvfp4_backend_selection_events,
         get_nvfp4_fallback_events,
+        record_nvfp4_backend_selection,
         record_nvfp4_fallback,
     )
 
-    clear_nvfp4_fallback_events()
+    clear_nvfp4_backend_events()
     monkeypatch.setattr(envs, "VLLM_FAIL_ON_NVFP4_FALLBACK", False)
 
+    record_nvfp4_backend_selection(
+        "linear",
+        "FlashInferB12xNvFp4LinearKernel",
+        is_fallback=False,
+    )
+    record_nvfp4_backend_selection(
+        "moe",
+        "MARLIN",
+        is_fallback=True,
+    )
     record_nvfp4_fallback("linear", "MarlinNvFp4LinearKernel", "fallback selected")
+    selections = get_nvfp4_backend_selection_events()
     events = get_nvfp4_fallback_events()
+
+    assert len(selections) == 2
+    assert selections[0].path == "linear"
+    assert selections[0].backend == "FlashInferB12xNvFp4LinearKernel"
+    assert not selections[0].is_fallback
+    assert selections[1].path == "moe"
+    assert selections[1].backend == "MARLIN"
+    assert selections[1].is_fallback
 
     assert len(events) == 1
     assert events[0].path == "linear"
