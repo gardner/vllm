@@ -177,6 +177,9 @@ fi
 if ! has_arg --gb10-openai-report-json "${verify_args[@]}"; then
     verify_args+=(--gb10-openai-report-json "$openai_report")
 fi
+if ! has_arg --gb10-image-ref "${verify_args[@]}"; then
+    verify_args+=(--gb10-image-ref "$image")
+fi
 if ! has_arg --gb10-output-json "${verify_args[@]}"; then
     verify_args+=(--gb10-output-json "$evidence_report")
 fi

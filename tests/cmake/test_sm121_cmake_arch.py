@@ -1192,11 +1192,13 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
     assert "--gb10-release-manifest-json" in script
+    assert "--gb10-image-ref" in script
     assert "--gb10-output-json" in script
     assert "--gb10-require-moe" in script
     assert "--gb10-require-openai-deterministic" in script
     assert "GB10_SMOKE_REPORT_DIR=\"$report_dir\"" in script
     assert "GB10_OPENAI_IMAGE_REPORT_DIR=\"$report_dir\"" in script
+    assert 'verify_args+=(--gb10-image-ref "$image")' in script
     assert 'verify_args+=(--gb10-release-manifest-json' in script
     assert '"$offline_wrapper" "$image" -- "${offline_args[@]}"' in script
     assert '"$openai_wrapper" "$image" --serve "${serve_args[@]}" --smoke' in script
@@ -1597,6 +1599,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
     assert "--gb10-release-manifest-json" in script
+    assert "--gb10-image-ref" in script
     assert "--gb10-output-json" in script
     assert "--gb10-require-moe" in script
     assert "--gb10-require-openai-deterministic" in script
@@ -1610,6 +1613,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"release_manifest_source_refs_pinned"' in script
     assert '"release_manifest_no_local_deps"' in script
     assert '"release_manifest_image_pushed_for_tagged_release"' in script
+    assert '"release_manifest_image_ref_matches_smoke"' in script
     assert "GB10 release evidence gate failed" in script
 
 
@@ -1713,6 +1717,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:test",
         require_release_manifest=True,
         require_moe=True,
         require_openai_deterministic=True,
@@ -1733,6 +1738,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert (
         check_statuses["release_manifest_image_pushed_for_tagged_release"] == "passed"
     )
+    assert check_statuses["release_manifest_image_ref_matches_smoke"] == "passed"
 
     nvfp4_report["fallback_events"] = [
         {
@@ -1748,6 +1754,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:test",
         require_release_manifest=True,
         require_moe=True,
         require_openai_deterministic=True,
@@ -1774,6 +1781,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:test",
         require_release_manifest=True,
         require_moe=True,
         require_openai_deterministic=True,
@@ -1784,4 +1792,28 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "release_manifest_flashinfer_components"
         for failure in manifest_failed_summary["failures"]
+    )
+
+    release_manifest["dependencies"]["flashinfer"][
+        "all_required_components_present"
+    ] = True
+    release_manifest["dependencies"]["flashinfer"]["missing_components"] = []
+    image_mismatch_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:other",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert image_mismatch_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "release_manifest_image_ref_matches_smoke"
+        for failure in image_mismatch_summary["failures"]
     )
