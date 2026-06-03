@@ -43,6 +43,19 @@ def _load_gb10_openai_smoke_module():
     return module
 
 
+def _load_gb10_release_evidence_module():
+    script_path = REPO_ROOT / "scripts" / "gb10-verify-release-evidence.py"
+    spec = importlib.util.spec_from_file_location(
+        "gb10_verify_release_evidence",
+        script_path,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _cuda13_supported_archs() -> list[str]:
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
     match = re.search(
@@ -1076,3 +1089,130 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
     assert "CUDA graph capture/replay validation" in report[
         "gb10_release_evidence"
     ]["remaining_release_evidence"]
+
+
+def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
+    script = (REPO_ROOT / "scripts" / "gb10-verify-release-evidence.py").read_text()
+
+    assert "scripts/gb10-smoke-nvfp4.py" in script
+    assert "scripts/gb10-smoke-openai-server.py" in script
+    assert "--gb10-nvfp4-report-json" in script
+    assert "--gb10-openai-report-json" in script
+    assert "--gb10-output-json" in script
+    assert "--gb10-require-moe" in script
+    assert "--gb10-require-openai-deterministic" in script
+    assert "--gb10-allow-partial" in script
+    assert '"release_gate_passed"' in script
+    assert '"native_nvfp4_gemm_observed"' in script
+    assert '"native_nvfp4_moe_non_ep_observed"' in script
+    assert '"openai_deterministic_generation"' in script
+    assert '"kv_cache_fp8_e4m3"' in script
+    assert "GB10 release evidence gate failed" in script
+
+
+def test_gb10_release_evidence_verifier_builds_gate_summary():
+    verifier = _load_gb10_release_evidence_module()
+    nvfp4_report = {
+        "status": "passed",
+        "backend_selections": [
+            {
+                "path": "linear",
+                "backend": "FlashInferB12xNvFp4LinearKernel",
+                "is_fallback": False,
+            },
+            {
+                "path": "moe",
+                "backend": "FLASHINFER_B12X",
+                "is_fallback": False,
+            },
+        ],
+        "fallback_events": [],
+        "backend_summary": {
+            "capabilities": {
+                "native_nvfp4_gemm": {"status": "observed"},
+                "native_nvfp4_moe_non_ep": {"status": "observed"},
+            }
+        },
+        "gb10_release_summary": {
+            "first_path_smoke_passed": True,
+            "smoke_blockers": [],
+            "checks": {
+                "kv_cache_dtype": {
+                    "status": "passed",
+                    "expected": "fp8_e4m3",
+                    "configured": "fp8_e4m3",
+                }
+            },
+        },
+    }
+    openai_report = {
+        "status": "passed",
+        "models": {
+            "selected": {
+                "id": "qwen3.6",
+                "root": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            }
+        },
+        "response": {
+            "status": 200,
+            "generated_text": "native output",
+            "generated_text_source": "message.content",
+            "system_fingerprint": "vllm-gb10",
+        },
+        "deterministic_generation": {
+            "status": "passed",
+            "repeat_count": 2,
+            "unique_generated_text_count": 1,
+            "generated_texts_match": True,
+        },
+        "gb10_release_evidence": {
+            "openai_compatible_server_smoke": {
+                "status": "passed",
+                "endpoint": "/v1/chat/completions",
+                "generated_text_observed": True,
+            }
+        },
+    }
+
+    summary = verifier._build_summary(
+        nvfp4_report=nvfp4_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["release_gate_passed"] is True
+    assert summary["failure_count"] == 0
+    check_statuses = {check["name"]: check["status"] for check in summary["checks"]}
+    assert check_statuses["native_nvfp4_gemm_observed"] == "passed"
+    assert check_statuses["native_nvfp4_moe_non_ep_observed"] == "passed"
+    assert check_statuses["nvfp4_fallback_free"] == "passed"
+    assert check_statuses["openai_deterministic_generation"] == "passed"
+
+    nvfp4_report["fallback_events"] = [
+        {
+            "path": "linear",
+            "backend": "MarlinNvFp4LinearKernel",
+            "message": "fallback selected",
+        }
+    ]
+    failed_summary = verifier._build_summary(
+        nvfp4_report=nvfp4_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert failed_summary["status"] == "failed"
+    assert failed_summary["release_gate_passed"] is False
+    assert any(
+        failure["name"] == "nvfp4_fallback_free"
+        for failure in failed_summary["failures"]
+    )
