@@ -628,6 +628,10 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "docker image inspect \"$GB10_IMAGE_REF\"" in smoke_workflow
     assert "GB10_IMAGE_DIGEST=$image_digest" in smoke_workflow
     assert "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" in smoke_workflow
+    assert "gb10-provenance-check.json" in smoke_workflow
+    assert "write_provenance_check_report" in smoke_workflow
+    assert '"phase": phase' in smoke_workflow
+    assert '"message": message' in smoke_workflow
     assert "GB10 release manifest image ref does not match input image-ref" in (
         smoke_workflow
     )
@@ -637,6 +641,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 pulled image digest does not match release provenance" in (
         smoke_workflow
     )
+    assert "GB10 candidate image pull failed" in smoke_workflow
     assert "gb10-smoked-image-digest.txt" in smoke_workflow
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
         smoke_workflow

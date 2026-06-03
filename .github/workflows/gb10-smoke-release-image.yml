@@ -157,9 +157,43 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p "$GB10_RELEASE_PROVENANCE_DIR"
-          gh run download "$GB10_RELEASE_WORKFLOW_RUN_ID" \
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          provenance_check_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-provenance-check.json"
+
+          write_provenance_check_report() {
+            local status="$1"
+            local phase="$2"
+            local message="$3"
+            python3 - "$provenance_check_report" "$status" "$phase" "$message" <<'PY'
+          import json
+          import os
+          import sys
+
+          path, status, phase, message = sys.argv[1:5]
+          report = {
+              "schema_version": 1,
+              "status": status,
+              "phase": phase,
+              "message": message,
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "manifest_image_ref": os.environ.get("GB10_MANIFEST_IMAGE_REF"),
+              "expected_image_ref": os.environ.get("GB10_EXPECTED_IMAGE_REF"),
+              "expected_image_digest": os.environ.get("GB10_EXPECTED_IMAGE_DIGEST"),
+              "provenance_dir": os.environ.get("GB10_RELEASE_PROVENANCE_DIR"),
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+          }
+
+          if ! gh run download "$GB10_RELEASE_WORKFLOW_RUN_ID" \
             --name gb10-release-manifest \
-            --dir "$GB10_RELEASE_PROVENANCE_DIR"
+            --dir "$GB10_RELEASE_PROVENANCE_DIR"; then
+            write_provenance_check_report failed download "GB10 release provenance download failed"
+            exit 1
+          fi
 
           manifest="$GB10_RELEASE_PROVENANCE_DIR/gb10-release-manifest.json"
           runtime_metadata="$GB10_RELEASE_PROVENANCE_DIR/buildx-runtime-image-metadata.json"
@@ -168,10 +202,11 @@ jobs:
           if [ ! -f "$manifest" ]; then
             echo "GB10 release manifest artifact is missing $manifest" >&2
             find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
+            write_provenance_check_report failed download "GB10 release manifest artifact is missing"
             exit 1
           fi
 
-          manifest_image_ref="$(
+          if ! manifest_image_ref="$(
             python3 - "$manifest" <<'PY'
           import json
           import sys
@@ -184,15 +219,22 @@ jobs:
           if name and tag:
               print(f"{name}:{tag}")
           PY
-          )"
+          )"; then
+            write_provenance_check_report failed manifest "GB10 release manifest image ref parsing failed"
+            exit 1
+          fi
+          export GB10_MANIFEST_IMAGE_REF="$manifest_image_ref"
+          echo "GB10_MANIFEST_IMAGE_REF=$manifest_image_ref" >> "$GITHUB_ENV"
           if [ -z "$manifest_image_ref" ]; then
             echo "GB10 release manifest does not include image.name:image.tag." >&2
+            write_provenance_check_report failed manifest "GB10 release manifest does not include image.name:image.tag"
             exit 1
           fi
           if [ "$manifest_image_ref" != "$GB10_IMAGE_REF" ]; then
             echo "GB10 release manifest image ref does not match input image-ref." >&2
             echo "  manifest: $manifest_image_ref" >&2
             echo "  input:    $GB10_IMAGE_REF" >&2
+            write_provenance_check_report failed manifest "GB10 release manifest image ref does not match input image-ref"
             exit 1
           fi
 
@@ -207,9 +249,12 @@ jobs:
               echo "GB10 runtime image ref file does not match input image-ref." >&2
               echo "  ref file: $expected_ref" >&2
               echo "  input:    $GB10_IMAGE_REF" >&2
+              export GB10_EXPECTED_IMAGE_REF="$expected_ref"
+              write_provenance_check_report failed image_ref "GB10 runtime image ref file does not match input image-ref"
               exit 1
             fi
             if [ -n "$expected_ref" ]; then
+              export GB10_EXPECTED_IMAGE_REF="$expected_ref"
               echo "GB10_EXPECTED_IMAGE_REF=$expected_ref" >> "$GITHUB_ENV"
             fi
           fi
@@ -217,16 +262,52 @@ jobs:
           if [ -f "$runtime_image_digest" ]; then
             expected_digest="$(sed -n '1p' "$runtime_image_digest")"
             if [ -n "$expected_digest" ]; then
+              export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
               echo "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" >> "$GITHUB_ENV"
             fi
           fi
 
+          write_provenance_check_report passed provenance "release provenance matches input image ref"
           find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print
 
       - name: Pull candidate image
         run: |
-          docker pull "$GB10_IMAGE_REF"
           mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          provenance_check_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-provenance-check.json"
+
+          write_provenance_check_report() {
+            local status="$1"
+            local phase="$2"
+            local message="$3"
+            local pulled_digest="${4:-}"
+            python3 - "$provenance_check_report" "$status" "$phase" "$message" "$pulled_digest" <<'PY'
+          import json
+          import os
+          import sys
+
+          path, status, phase, message, pulled_digest = sys.argv[1:6]
+          report = {
+              "schema_version": 1,
+              "status": status,
+              "phase": phase,
+              "message": message,
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "manifest_image_ref": os.environ.get("GB10_MANIFEST_IMAGE_REF"),
+              "expected_image_ref": os.environ.get("GB10_EXPECTED_IMAGE_REF"),
+              "expected_image_digest": os.environ.get("GB10_EXPECTED_IMAGE_DIGEST"),
+              "pulled_image_digest": pulled_digest or None,
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+          }
+
+          if ! docker pull "$GB10_IMAGE_REF"; then
+            write_provenance_check_report failed pull "GB10 candidate image pull failed"
+            exit 1
+          fi
           image_digest="$(
             docker image inspect "$GB10_IMAGE_REF" \
               --format '{{range .RepoDigests}}{{println .}}{{end}}' \
@@ -234,6 +315,7 @@ jobs:
           )"
           if [ -z "$image_digest" ]; then
             echo "Unable to resolve pulled image digest for $GB10_IMAGE_REF" >&2
+            write_provenance_check_report failed pull "Unable to resolve pulled image digest for candidate image"
             exit 1
           fi
           if [ -n "${GB10_EXPECTED_IMAGE_DIGEST:-}" ]; then
@@ -243,9 +325,11 @@ jobs:
               echo "GB10 pulled image digest does not match release provenance." >&2
               echo "  pulled:   $pulled_digest" >&2
               echo "  expected: $expected_digest" >&2
+              write_provenance_check_report failed digest "GB10 pulled image digest does not match release provenance" "$pulled_digest"
               exit 1
             fi
           fi
+          write_provenance_check_report passed pull "candidate image pull and provenance digest checks passed" "$image_digest"
           echo "GB10_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
           printf '%s\n' "$image_digest" \
             > "$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-smoked-image-digest.txt"
