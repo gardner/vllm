@@ -589,6 +589,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
 
     assert "workflow_dispatch:" in smoke_workflow
     assert "image-ref:" in smoke_workflow
+    assert "release-workflow-run-id:" in smoke_workflow
     assert "release-tag:" in smoke_workflow
     assert "publish-to-release:" in smoke_workflow
     assert "model:" in smoke_workflow
@@ -601,6 +602,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "permissions:" in smoke_workflow
     assert "contents: write" in smoke_workflow
     assert "packages: read" in smoke_workflow
+    assert "actions: read" in smoke_workflow
     assert "docker/login-action@v3" in smoke_workflow
     assert "docker pull \"$GB10_IMAGE_REF\"" in smoke_workflow
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
@@ -615,11 +617,21 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "--kv-cache-dtype fp8" in smoke_workflow
     assert "GB10_RELEASE_SMOKE_REPORT_DIR" in smoke_workflow
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in smoke_workflow
+    assert "GB10_RELEASE_WORKFLOW_RUN_ID" in smoke_workflow
+    assert "GB10_RELEASE_PROVENANCE_DIR" in smoke_workflow
+    assert "Download release provenance artifact" in smoke_workflow
+    assert "gh run download \"$GB10_RELEASE_WORKFLOW_RUN_ID\"" in smoke_workflow
+    assert "--name gb10-release-manifest" in smoke_workflow
+    assert "--dir \"$GB10_RELEASE_PROVENANCE_DIR\"" in smoke_workflow
+    assert "GB10_RELEASE_MANIFEST_JSON=$manifest" in smoke_workflow
+    assert "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" in smoke_workflow
+    assert "GB10 release manifest artifact is missing" in smoke_workflow
     assert "Bundle available evidence after failure" in smoke_workflow
     assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
     assert "--gb10-allow-partial || true" in smoke_workflow
     assert "actions/upload-artifact@v4" in smoke_workflow
     assert "gb10-smoke-reports/**" in smoke_workflow
+    assert "gb10-release-provenance/**" in smoke_workflow
     assert "dist/gb10-release-evidence/**" in smoke_workflow
     assert "Attach evidence to GitHub Release" in smoke_workflow
     assert "gh release upload \"$GB10_RELEASE_TAG\"" in smoke_workflow
