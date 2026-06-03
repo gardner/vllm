@@ -52,6 +52,13 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--gb10-release-tag",
+        help=(
+            "Optional release tag receiving the smoke evidence. When provided "
+            "with a release manifest, it must match release.tag."
+        ),
+    )
+    parser.add_argument(
         "--gb10-output-json",
         help="Optional path for the combined release-evidence summary.",
     )
@@ -393,6 +400,7 @@ def _check_release_manifest(
     *,
     required: bool,
     image_ref: str | None,
+    expected_release_tag: str | None,
 ) -> list[dict[str, Any]]:
     if manifest is None:
         if required:
@@ -495,6 +503,16 @@ def _check_release_manifest(
             },
             required=image_ref is not None,
         ),
+        _check(
+            name="release_manifest_tag_matches_expected",
+            passed=expected_release_tag is None or expected_release_tag == release_tag,
+            message="release manifest tag matches the release receiving evidence",
+            details={
+                "release_tag": expected_release_tag,
+                "manifest_release_tag": release_tag,
+            },
+            required=expected_release_tag is not None,
+        ),
     ]
 
 
@@ -516,6 +534,7 @@ def _build_summary(
     release_manifest: dict[str, Any] | None = None,
     release_manifest_error: str | None = None,
     image_ref: str | None = None,
+    release_tag: str | None = None,
     require_release_manifest: bool = False,
     require_moe: bool,
     require_openai_deterministic: bool,
@@ -537,6 +556,7 @@ def _build_summary(
             release_manifest_error,
             required=require_release_manifest,
             image_ref=image_ref,
+            expected_release_tag=release_tag,
         ),
     ]
     failures = _required_failures(checks)
@@ -554,6 +574,7 @@ def _build_summary(
             "require_openai_deterministic": require_openai_deterministic,
             "require_release_manifest": require_release_manifest,
             "image_ref": image_ref,
+            "release_tag": release_tag,
         },
         "checks": checks,
         "failure_count": len(failures),
@@ -591,6 +612,7 @@ def main(argv: list[str] | None = None) -> int:
         release_manifest=release_manifest,
         release_manifest_error=release_manifest_error,
         image_ref=args.gb10_image_ref,
+        release_tag=args.gb10_release_tag,
         require_release_manifest=args.gb10_release_manifest_json is not None,
         require_moe=args.gb10_require_moe,
         require_openai_deterministic=args.gb10_require_openai_deterministic,
