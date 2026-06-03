@@ -859,6 +859,9 @@ def test_gb10_openai_server_smoke_reports_api_evidence():
     assert "/v1/models" in script
     assert "/v1/completions" in script
     assert "/v1/chat/completions" in script
+    assert "reasoning_content" in script
+    assert '"reasoning")' in script
+    assert 'f"message.{field_name}"' in script
     assert "--gb10-endpoint" in script
     assert "--gb10-report-json" in script
     assert '"schema_version": 1' in script
@@ -868,6 +871,7 @@ def test_gb10_openai_server_smoke_reports_api_evidence():
     assert "native backend evidence comes from the" in script
     assert "_request_with_retries" in script
     assert "_extract_generated_text" in script
+    assert "_extract_generated_text_with_source" in script
     assert "_build_report" in script
     assert "raise SystemExit(main())" in script
 
@@ -907,6 +911,12 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
         )
         == "native list output"
     )
+    generated_text, generated_text_source = smoke._extract_generated_text_with_source(
+        "chat",
+        {"choices": [{"message": {"content": None, "reasoning": "native reasoning"}}]},
+    )
+    assert generated_text == "native reasoning"
+    assert generated_text_source == "message.reasoning"
 
     args = SimpleNamespace(
         gb10_endpoint="chat",
@@ -929,6 +939,7 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
             "usage": {"completion_tokens": 3},
         },
         generated_text="native chat output",
+        generated_text_source="message.content",
         status="passed",
     )
 
@@ -940,6 +951,7 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
         "path": "/v1/chat/completions",
     }
     assert report["response"]["usage"] == {"completion_tokens": 3}
+    assert report["response"]["generated_text_source"] == "message.content"
     assert report["gb10_release_evidence"]["openai_compatible_server_smoke"] == {
         "status": "passed",
         "endpoint": "/v1/chat/completions",

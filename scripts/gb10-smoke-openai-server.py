@@ -234,24 +234,41 @@ def _content_part_text(part: Any) -> str:
 
 
 def _extract_generated_text(endpoint: str, response: dict[str, Any]) -> str:
+    generated_text, _ = _extract_generated_text_with_source(endpoint, response)
+    return generated_text
+
+
+def _extract_generated_text_with_source(
+    endpoint: str,
+    response: dict[str, Any],
+) -> tuple[str, str | None]:
     choices = response.get("choices", [])
     if not isinstance(choices, list) or not choices:
-        return ""
+        return "", None
     first_choice = choices[0]
     if not isinstance(first_choice, dict):
-        return ""
+        return "", None
 
     if endpoint == "chat":
         message = first_choice.get("message", {})
         if not isinstance(message, dict):
-            return ""
+            return "", None
         content = message.get("content", "")
         if isinstance(content, list):
-            return "".join(_content_part_text(part) for part in content)
-        return content if isinstance(content, str) else ""
+            generated_text = "".join(_content_part_text(part) for part in content)
+            if generated_text:
+                return generated_text, "message.content"
+        elif isinstance(content, str) and content:
+            return content, "message.content"
+
+        for field_name in ("reasoning_content", "reasoning"):
+            reasoning = message.get(field_name)
+            if isinstance(reasoning, str) and reasoning:
+                return reasoning, f"message.{field_name}"
+        return "", None
 
     text = first_choice.get("text", "")
-    return text if isinstance(text, str) else ""
+    return (text, "text") if isinstance(text, str) and text else ("", None)
 
 
 def _build_report(
@@ -264,6 +281,7 @@ def _build_report(
     completion_status: int | None,
     completion_body: dict[str, Any] | None,
     generated_text: str,
+    generated_text_source: str | None,
     status: str,
     error: str | None = None,
 ) -> dict[str, Any]:
@@ -299,6 +317,7 @@ def _build_report(
         "response": {
             "status": completion_status,
             "generated_text": generated_text,
+            "generated_text_source": generated_text_source,
             "usage": completion_body.get("usage"),
         },
         "gb10_release_evidence": {
@@ -345,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     completion_status: int | None = None
     completion_body: dict[str, Any] | None = None
     generated_text = ""
+    generated_text_source: str | None = None
 
     try:
         models_status, models_body = _request_with_retries(
@@ -378,7 +398,10 @@ def main(argv: list[str] | None = None) -> int:
             retries=args.gb10_retries,
             retry_delay=args.gb10_retry_delay,
         )
-        generated_text = _extract_generated_text(args.gb10_endpoint, completion_body)
+        generated_text, generated_text_source = _extract_generated_text_with_source(
+            args.gb10_endpoint,
+            completion_body,
+        )
         if not generated_text and not args.gb10_allow_empty:
             raise RuntimeError(
                 "Generation response did not contain non-empty generated text"
@@ -393,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
             completion_status=completion_status,
             completion_body=completion_body,
             generated_text=generated_text,
+            generated_text_source=generated_text_source,
             status="passed",
         )
         _write_report(args.gb10_report_json, report)
@@ -408,6 +432,7 @@ def main(argv: list[str] | None = None) -> int:
             completion_status=completion_status,
             completion_body=completion_body,
             generated_text=generated_text,
+            generated_text_source=generated_text_source,
             status="failed",
             error=str(exc),
         )
