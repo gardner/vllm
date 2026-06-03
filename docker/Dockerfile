@@ -787,6 +787,8 @@ ENV VLLM_ENABLE_CUDA_COMPATIBILITY=0
 # Install PyTorch and core CUDA dependencies
 # This is ~2GB and rarely changes
 ARG PYTORCH_CUDA_INDEX_BASE_URL
+ARG gb10_prebuilt_wheel_urls=""
+ARG gb10_require_flashinfer_wheels=true
 COPY requirements/common.txt /tmp/common.txt
 COPY requirements/cuda.txt /tmp/requirements-cuda.txt
 RUN --mount=type=cache,target=/opt/uv/cache \
@@ -803,8 +805,24 @@ RUN --mount=type=cache,target=/opt/uv/cache \
 # From versions.json: .flashinfer.version
 ARG FLASHINFER_VERSION=0.6.12
 RUN --mount=type=cache,target=/opt/uv/cache \
-    uv pip install --system flashinfer-jit-cache==${FLASHINFER_VERSION} \
-        --extra-index-url https://flashinfer.ai/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
+    if [ "${gb10_require_flashinfer_wheels}" = "true" ]; then \
+        if [ -z "${gb10_prebuilt_wheel_urls}" ]; then \
+            echo "GB10 runtime FlashInfer wheels are required; set gb10_prebuilt_wheel_urls."; \
+            exit 1; \
+        fi; \
+        for required_wheel in flashinfer_python flashinfer_cubin flashinfer_jit_cache; do \
+            case " ${gb10_prebuilt_wheel_urls} " in \
+                *"${required_wheel}"*) ;; \
+                *) echo "GB10 runtime FlashInfer wheel URLs must include ${required_wheel}."; exit 1 ;; \
+            esac; \
+        done; \
+    fi && \
+    if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
+        echo "Skipping public FlashInfer JIT cache install; GB10 runtime wheels will be installed after vLLM."; \
+    else \
+        uv pip install --system flashinfer-jit-cache==${FLASHINFER_VERSION} \
+            --extra-index-url https://flashinfer.ai/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.'); \
+    fi
 
 # ============================================================
 # OPENAI API SERVER DEPENDENCIES
@@ -886,12 +904,43 @@ RUN --mount=type=bind,from=build,src=/tmp/ep_kernels_workspace/dist,target=/vllm
     uv pip install --system ep_kernels/dist/*.whl --verbose \
         --extra-index-url ${PYTORCH_CUDA_INDEX_BASE_URL}/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
 
+# Reinstall GB10 FlashInfer wheels after all other runtime pip installs so
+# dependency resolution cannot replace them with the generic upstream wheels.
+RUN --mount=type=cache,target=/opt/uv/cache \
+    if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
+        echo "Installing GB10 runtime FlashInfer wheels..." && \
+        for wheel_url in ${gb10_prebuilt_wheel_urls}; do \
+            uv pip install --system --no-deps "$wheel_url"; \
+        done; \
+    fi
+
 # Download FlashInfer precompiled cubins AFTER all pip installs are done.
 # This must run after the vLLM wheel and EP kernels installs above, because
 # those can reinstall/touch flashinfer packages. Downloading cubins earlier
 # (in the flashinfer-jit-cache layer) causes ~2.5 GB of layer duplication
 # when a later pip install overwrites flashinfer package files.
-RUN flashinfer show-config && flashinfer download-cubin
+RUN set -eux; \
+    flashinfer show-config | tee /tmp/flashinfer-config.txt; \
+    if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
+        if grep -E "trtllm-gen|sm_100|sm_103|sm_110|Sm100|Sm103|Sm110" /tmp/flashinfer-config.txt; then \
+            echo "GB10 runtime image found non-GB10 FlashInfer cubins in show-config."; \
+            exit 1; \
+        fi; \
+    fi; \
+    flashinfer download-cubin; \
+    if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
+        cubin_dir="$(python3 -c 'import pathlib, flashinfer_cubin; print(pathlib.Path(flashinfer_cubin.__file__).parent / "cubins")')"; \
+        find "${cubin_dir}" \( \
+            -path "*trtllm-gen*" -o \
+            -path "*sm_100*" -o -path "*sm_103*" -o -path "*sm_110*" -o \
+            -name "*Sm100*" -o -name "*Sm103*" -o -name "*Sm110*" \
+        \) -print > /tmp/flashinfer-non-gb10-cubins.txt; \
+        if [ -s /tmp/flashinfer-non-gb10-cubins.txt ]; then \
+            echo "GB10 runtime image found non-GB10 FlashInfer cubins."; \
+            cat /tmp/flashinfer-non-gb10-cubins.txt; \
+            exit 1; \
+        fi; \
+    fi
 
 # CUDA image changed from /usr/local/nvidia to /usr/local/cuda in 12.8 but will
 # return to /usr/local/nvidia in 13.0 to allow container providers to mount drivers

@@ -277,6 +277,25 @@ def test_gb10_prebuilt_flashinfer_wheels_do_not_preserve_unpinned_torch():
     assert "GB10 build requires CUDA-enabled PyTorch" in dockerfile
 
 
+def test_gb10_runtime_image_uses_published_flashinfer_wheels():
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    runtime_stage = dockerfile.split(
+        "FROM ${FINAL_BASE_IMAGE} AS vllm-base",
+        1,
+    )[1].split("FROM vllm-base AS test", 1)[0]
+
+    assert 'ARG gb10_prebuilt_wheel_urls=""' in runtime_stage
+    assert 'ARG gb10_require_flashinfer_wheels=true' in runtime_stage
+    assert "Skipping public FlashInfer JIT cache install" in runtime_stage
+    assert "Installing GB10 runtime FlashInfer wheels" in runtime_stage
+    assert 'uv pip install --system --no-deps "$wheel_url"' in runtime_stage
+    assert "GB10 runtime FlashInfer wheels are required" in runtime_stage
+    assert "GB10 runtime image found non-GB10 FlashInfer cubins" in runtime_stage
+    assert runtime_stage.index("Installing GB10 runtime FlashInfer wheels") < (
+        runtime_stage.index("flashinfer show-config")
+    )
+
+
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
