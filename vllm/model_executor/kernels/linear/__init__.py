@@ -160,6 +160,9 @@ from vllm.model_executor.kernels.linear.scaled_mm.triton import (
 from vllm.model_executor.kernels.linear.scaled_mm.xpu import (
     XPUFP8ScaledMMLinearKernel,
 )
+from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+    record_nvfp4_fallback,
+)
 from vllm.model_executor.layers.quantization.utils.quant_utils import QuantKey
 from vllm.platforms import PlatformEnum, current_platform
 
@@ -853,13 +856,14 @@ def _log_nvfp4_linear_kernel_selection(
             " Unavailable native backend reasons:\n - "
             + "\n - ".join(failure_reasons)
         )
-    logger.warning_once(
-        "NVFP4 linear selected fallback backend %s. This is not the native "
-        "GB10 W4A4 FP4 Tensor Core path; verify this fallback is intentional "
-        "before publishing GB10 artifacts.%s",
-        kernel_cls.__name__,
-        reason_suffix,
+    fallback_message = (
+        f"NVFP4 linear selected fallback backend {kernel_cls.__name__}. "
+        "This is not the native GB10 W4A4 FP4 Tensor Core path; verify "
+        "this fallback is intentional before publishing GB10 artifacts."
+        f"{reason_suffix}"
     )
+    logger.warning_once("%s", fallback_message)
+    record_nvfp4_fallback("linear", kernel_cls.__name__, fallback_message)
 
 
 def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:

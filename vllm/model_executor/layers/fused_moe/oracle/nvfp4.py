@@ -31,6 +31,9 @@ from vllm.model_executor.layers.quantization.utils.marlin_utils_fp4 import (
 from vllm.model_executor.layers.quantization.utils.nvfp4_emulation_utils import (
     kE2M1ToFloat_handle,
 )
+from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+    record_nvfp4_fallback,
+)
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     QuantKey,
 )
@@ -234,13 +237,14 @@ def select_nvfp4_moe_backend(
                 " Unavailable native backend reasons:\n - "
                 + "\n - ".join(unavailable_native_backend_reasons)
             )
-        logger.warning_once(
-            "NVFP4 MoE selected fallback backend '%s'. This is not the native "
-            "GB10 W4A4 FP4 fused MoE path; verify this fallback is intentional "
-            "before publishing GB10 artifacts.%s",
-            backend.value,
-            reason_suffix,
+        fallback_message = (
+            f"NVFP4 MoE selected fallback backend '{backend.value}'. "
+            "This is not the native GB10 W4A4 FP4 fused MoE path; verify "
+            "this fallback is intentional before publishing GB10 artifacts."
+            f"{reason_suffix}"
         )
+        logger.warning_once("%s", fallback_message)
+        record_nvfp4_fallback("moe", backend.value, fallback_message)
 
     def _log_unsupported_backend(
         backend: NvFp4MoeBackend,

@@ -210,6 +210,7 @@ if TYPE_CHECKING:
     VLLM_SSM_CONV_STATE_LAYOUT: Literal["SD", "DS"] | None = None
     VLLM_COMPUTE_NANS_IN_LOGITS: bool = False
     VLLM_USE_NVFP4_CT_EMULATIONS: bool = False
+    VLLM_FAIL_ON_NVFP4_FALLBACK: bool = False
     VLLM_ROCM_QUICK_REDUCE_QUANTIZATION: Literal[
         "FP", "INT8", "INT6", "INT4", "NONE"
     ] = "NONE"
@@ -1651,6 +1652,12 @@ environment_variables: dict[str, Callable[[], Any]] = {
         "v0.23",
         "Use --linear-backend emulation.",
         lambda: bool(int(os.getenv("VLLM_USE_NVFP4_CT_EMULATIONS", "0"))),
+    ),
+    # Fail model initialization if an NVFP4 dense or MoE path selects a known
+    # non-native fallback such as Marlin, W4A16 Marlin, or BF16 emulation.
+    # Useful for GB10 release validation where silent fallback is a blocker.
+    "VLLM_FAIL_ON_NVFP4_FALLBACK": lambda: bool(
+        int(os.getenv("VLLM_FAIL_ON_NVFP4_FALLBACK", "0"))
     ),
     # Timeout (in seconds) for MooncakeConnector in PD disaggregated setup.
     "VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT": lambda: int(

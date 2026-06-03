@@ -68,6 +68,9 @@ from vllm.model_executor.layers.quantization.utils.mxfp8_utils import (
     MXFP8_SCALE_DTYPE,
     MXFP8_VALUE_DTYPE,
 )
+from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+    record_nvfp4_fallback,
+)
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     GroupShape,
     create_fp8_quant_key,
@@ -1267,11 +1270,17 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         # silently try to quantize activations (we have no input_scale). For
         # W4A16 there is exactly one valid kernel, so we pin it.
         self.kernel = MarlinNvFp4LinearKernel(NvFp4LinearLayerConfig())
-        logger.warning_once(
+        fallback_message = (
             "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel. This is a "
             "weight-only fallback path, not the native GB10 W4A4 FP4 Tensor "
             "Core path; verify this fallback is intentional before publishing "
             "GB10 artifacts."
+        )
+        logger.warning_once("%s", fallback_message)
+        record_nvfp4_fallback(
+            "linear_w4a16",
+            "MarlinNvFp4LinearKernel",
+            fallback_message,
         )
 
     def create_weights(

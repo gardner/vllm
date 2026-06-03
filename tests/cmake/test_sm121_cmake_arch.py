@@ -2,6 +2,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 DEEPGEMM_GIT_TAG = "fb9c137443998c535daaa39aace6685a98352514"
@@ -289,9 +291,10 @@ def test_gb10_release_workflow_uses_durable_split_build_caches():
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
 
-    assert "GB10_PREFLIGHT_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:preflight" in (
-        gb10_workflow
-    )
+    assert (
+        "GB10_PREFLIGHT_CACHE_REF: "
+        "ghcr.io/gardner/vllm-gb10-buildcache:preflight"
+    ) in gb10_workflow
     assert "GB10_WHEEL_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:wheel" in (
         gb10_workflow
     )
@@ -466,15 +469,19 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
-    assert "NVFP4 linear selected fallback backend %s" in linear_selector
+    assert "record_nvfp4_fallback" in linear_selector
+    assert "NVFP4 linear selected fallback backend " in linear_selector
     assert "not the native " in linear_selector
     assert "GB10 W4A4 FP4 Tensor Core path" in linear_selector
-    assert "verify this fallback is intentional " in linear_selector
+    assert "verify " in linear_selector
+    assert "this fallback is intentional " in linear_selector
     assert "before publishing GB10 artifacts" in linear_selector
     assert "MarlinNvFp4LinearKernel" in linear_selector
     assert "EmulationNvFp4LinearKernel" in linear_selector
 
     assert "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel" in modelopt_quant
+    assert "record_nvfp4_fallback" in modelopt_quant
+    assert '"linear_w4a16"' in modelopt_quant
     assert "weight-only fallback path" in modelopt_quant
     assert "not the native GB10 W4A4 FP4 Tensor " in modelopt_quant
     assert "Core path; verify this fallback is intentional " in modelopt_quant
@@ -492,10 +499,36 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "NvFp4MoeBackend.MARLIN" in nvfp4_oracle
     assert "NvFp4MoeBackend.EMULATION" in nvfp4_oracle
     assert "unavailable_native_backend_reasons" in nvfp4_oracle
-    assert "NVFP4 MoE selected fallback backend '%s'" in nvfp4_oracle
+    assert "record_nvfp4_fallback" in nvfp4_oracle
+    assert "NVFP4 MoE selected fallback backend '" in nvfp4_oracle
     assert "not the native " in nvfp4_oracle
     assert "GB10 W4A4 FP4 fused MoE path" in nvfp4_oracle
-    assert "verify this fallback is intentional " in nvfp4_oracle
+    assert "verify " in nvfp4_oracle
+    assert "this fallback is intentional " in nvfp4_oracle
     assert "before publishing GB10 artifacts" in nvfp4_oracle
     assert "Unavailable native backend reasons" in nvfp4_oracle
     assert "VLLM_USE_FLASHINFER_MOE_FP4=0" in nvfp4_oracle
+
+
+def test_gb10_nvfp4_fallback_recorder_can_fail_fast(monkeypatch):
+    import vllm.envs as envs
+    from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
+        clear_nvfp4_fallback_events,
+        get_nvfp4_fallback_events,
+        record_nvfp4_fallback,
+    )
+
+    clear_nvfp4_fallback_events()
+    monkeypatch.setattr(envs, "VLLM_FAIL_ON_NVFP4_FALLBACK", False)
+
+    record_nvfp4_fallback("linear", "MarlinNvFp4LinearKernel", "fallback selected")
+    events = get_nvfp4_fallback_events()
+
+    assert len(events) == 1
+    assert events[0].path == "linear"
+    assert events[0].backend == "MarlinNvFp4LinearKernel"
+    assert events[0].message == "fallback selected"
+
+    monkeypatch.setattr(envs, "VLLM_FAIL_ON_NVFP4_FALLBACK", True)
+    with pytest.raises(RuntimeError, match="fallback selected"):
+        record_nvfp4_fallback("moe", "MARLIN", "fallback selected")
