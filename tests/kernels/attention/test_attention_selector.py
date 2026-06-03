@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 import torch
 
+import vllm.v1.attention.selector as selector_mod
 from vllm.config import (
     AttentionConfig,
     CacheConfig,
@@ -369,6 +370,43 @@ def test_flashinfer_nvfp4_wrapper_backend_uses_fa2_without_trtllm(monkeypatch):
         "Using FlashInfer FA2 attention backend for NVFP4 KV cache because "
         "TRTLLM Gen attention is unavailable for num_qo_heads=8, num_kv_heads=1."
     ]
+
+
+def test_attention_selector_logs_backend_and_kv_cache_dtype(monkeypatch):
+    attention_config = AttentionConfig(backend=None)
+    cache_config = CacheConfig(block_size=16)
+    vllm_config = VllmConfig(
+        attention_config=attention_config,
+        cache_config=cache_config,
+    )
+    info_messages = []
+    monkeypatch.setattr(
+        selector_mod.logger,
+        "info_once",
+        lambda message, *args, **_kwargs: info_messages.append(message % args),
+    )
+
+    with (
+        set_current_vllm_config(vllm_config),
+        patch("vllm.platforms.current_platform", CpuPlatform()),
+    ):
+        backend = get_attn_backend(
+            16,
+            torch.float16,
+            "fp8_e4m3",
+            attn_type=AttentionType.DECODER,
+            num_heads=4,
+        )
+
+    assert backend.get_name() == "CPU_ATTN"
+    assert any(
+        "Using CPU_ATTN attention backend with requested_backend=None" in message
+        and "num_heads=4" in message
+        and "kv_cache_dtype=fp8_e4m3" in message
+        and "head_size=16" in message
+        and "dtype=torch.float16" in message
+        for message in info_messages
+    )
 
 
 def test_cuda_vit_backends_exclude_flash_attn_on_gb10_sm12x():

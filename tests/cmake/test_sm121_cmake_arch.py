@@ -513,6 +513,17 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "VLLM_USE_FLASHINFER_MOE_FP4=0" in nvfp4_oracle
 
 
+def test_gb10_attention_selector_logs_backend_and_kv_cache_dtype():
+    selector = (REPO_ROOT / "vllm" / "v1" / "attention" / "selector.py").read_text()
+
+    assert "Using %s attention backend with requested_backend=%s" in selector
+    assert "num_heads=%s" in selector
+    assert "selector_config=%s" in selector
+    assert "AttentionSelectorConfig(head_size=" in selector
+    assert "kv_cache_dtype={self.kv_cache_dtype}" in selector
+    assert "dtype={self.dtype}" in selector
+
+
 def test_gb10_nvfp4_backend_recorder_can_fail_fast(monkeypatch):
     import vllm.envs as envs
     from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
