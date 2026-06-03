@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Write a GB10 release manifest from resolved GitHub Actions settings."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+REQUIRED_FLASHINFER_COMPONENTS = (
+    "flashinfer_python",
+    "flashinfer_cubin",
+    "flashinfer_jit_cache",
+)
+
+
+def _env(env: Mapping[str, str], name: str, default: str = "") -> str:
+    return env.get(name, default)
+
+
+def _env_bool(env: Mapping[str, str], name: str) -> bool:
+    return _env(env, name).lower() in {"1", "true", "yes", "on"}
+
+
+def _is_full_git_sha(value: str) -> bool:
+    return re.fullmatch(r"[0-9a-f]{40}", value) is not None
+
+
+def _run_url(env: Mapping[str, str]) -> str:
+    server = _env(env, "GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    repository = _env(env, "GITHUB_REPOSITORY")
+    run_id = _env(env, "GITHUB_RUN_ID")
+    if not repository or not run_id:
+        return ""
+
+    url = f"{server}/{repository}/actions/runs/{run_id}"
+    attempt = _env(env, "GITHUB_RUN_ATTEMPT")
+    if attempt and attempt != "1":
+        url = f"{url}/attempts/{attempt}"
+    return url
+
+
+def _github_release_tag(url: str) -> str | None:
+    path = unquote(urlparse(url).path)
+    marker = "/releases/download/"
+    if marker not in path:
+        return None
+    tail = path.split(marker, 1)[1]
+    return tail.split("/", 1)[0] or None
+
+
+def _wheel_component(url: str) -> str:
+    filename = Path(unquote(urlparse(url).path)).name
+    for component in REQUIRED_FLASHINFER_COMPONENTS:
+        if filename.startswith(f"{component}-"):
+            return component
+    return filename.split("-", 1)[0]
+
+
+def _flashinfer_wheels(env: Mapping[str, str]) -> list[dict[str, str | None]]:
+    urls = _env(env, "GB10_PREBUILT_WHEEL_URLS").split()
+    wheels = []
+    for url in urls:
+        wheels.append(
+            {
+                "component": _wheel_component(url),
+                "filename": Path(unquote(urlparse(url).path)).name,
+                "release_tag": _github_release_tag(url),
+                "url": url,
+            }
+        )
+    return wheels
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _cmake_cache_default(path: Path, variable: str) -> str:
+    content = path.read_text()
+    pattern = rf"set\(\s*{re.escape(variable)}\s+\"([^\"]+)\""
+    match = re.search(pattern, content, re.MULTILINE | re.DOTALL)
+    if match is None:
+        raise ValueError(f"{path}: could not find default for {variable}")
+    return match.group(1)
+
+
+def _pinned_source_dependency(
+    *,
+    name: str,
+    cmake_path: Path,
+    repository_variable: str,
+    ref_variable: str,
+    env: Mapping[str, str],
+) -> dict[str, object]:
+    repository = _env(
+        env,
+        repository_variable,
+        _cmake_cache_default(cmake_path, repository_variable),
+    )
+    ref = _env(env, ref_variable, _cmake_cache_default(cmake_path, ref_variable))
+    return {
+        "name": name,
+        "cmake_file": str(cmake_path.relative_to(_repo_root())),
+        "repository": repository,
+        "ref": ref,
+        "ref_is_full_git_sha": _is_full_git_sha(ref),
+    }
+
+
+def _source_dependencies(env: Mapping[str, str]) -> dict[str, object]:
+    root = _repo_root()
+    return {
+        "deepgemm": _pinned_source_dependency(
+            name="DeepGEMM",
+            cmake_path=root / "cmake" / "external_projects" / "deepgemm.cmake",
+            repository_variable="DEEPGEMM_GIT_REPOSITORY",
+            ref_variable="DEEPGEMM_GIT_TAG",
+            env=env,
+        ),
+        "flashmla": _pinned_source_dependency(
+            name="FlashMLA",
+            cmake_path=root / "cmake" / "external_projects" / "flashmla.cmake",
+            repository_variable="FLASH_MLA_GIT_REPOSITORY",
+            ref_variable="FLASH_MLA_GIT_TAG",
+            env=env,
+        ),
+        "triton_kernels": _pinned_source_dependency(
+            name="triton_kernels",
+            cmake_path=root
+            / "cmake"
+            / "external_projects"
+            / "triton_kernels.cmake",
+            repository_variable="TRITON_KERNELS_GIT_REPOSITORY",
+            ref_variable="TRITON_KERNELS_GIT_TAG",
+            env=env,
+        ),
+    }
+
+
+def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
+    """Build the manifest payload from environment variables."""
+
+    env = os.environ if env is None else env
+    flashinfer_wheels = _flashinfer_wheels(env)
+    flashinfer_components = {str(wheel["component"]) for wheel in flashinfer_wheels}
+    missing_flashinfer = sorted(
+        set(REQUIRED_FLASHINFER_COMPONENTS) - flashinfer_components
+    )
+    flash_attn_ref = _env(env, "GB10_FLASH_ATTN_REF")
+
+    return {
+        "schema_version": 1,
+        "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        "github": {
+            "workflow": _env(env, "GITHUB_WORKFLOW"),
+            "repository": _env(env, "GITHUB_REPOSITORY"),
+            "event_name": _env(env, "GITHUB_EVENT_NAME"),
+            "ref": _env(env, "GITHUB_REF"),
+            "run_id": _env(env, "GITHUB_RUN_ID"),
+            "run_attempt": _env(env, "GITHUB_RUN_ATTEMPT"),
+            "run_url": _run_url(env),
+        },
+        "git": {
+            "commit": _env(env, "GITHUB_SHA"),
+        },
+        "release": {
+            "tag": _env(env, "GB10_RELEASE_TAG"),
+            "preflight_only": _env_bool(env, "GB10_PREFLIGHT_ONLY"),
+        },
+        "image": {
+            "name": _env(env, "GB10_IMAGE_NAME"),
+            "tag": _env(env, "GB10_IMAGE_TAG"),
+            "push": _env_bool(env, "GB10_PUSH_IMAGE"),
+        },
+        "vllm": {
+            "version": _env(env, "GB10_VLLM_VERSION"),
+        },
+        "dependencies": {
+            "flashinfer": {
+                "required_components": list(REQUIRED_FLASHINFER_COMPONENTS),
+                "missing_components": missing_flashinfer,
+                "all_required_components_present": not missing_flashinfer,
+                "wheels": flashinfer_wheels,
+            },
+            "vllm_flash_attn": {
+                "repository": _env(env, "GB10_FLASH_ATTN_REPO"),
+                "ref": flash_attn_ref,
+                "ref_is_full_git_sha": _is_full_git_sha(flash_attn_ref),
+            },
+            "source_dependencies": _source_dependencies(env),
+        },
+        "build": {
+            "dockerfile": "docker/Dockerfile",
+            "preflight_target": "gb10-flashinfer-preflight",
+            "wheel_target": "build",
+            "runtime_target": "vllm-openai",
+            "local_gb10_dependency_checkouts": _env_bool(
+                env,
+                "VLLM_USE_LOCAL_GB10_DEPS",
+            ),
+            "parallelism": {
+                "max_jobs": _env(env, "GB10_MAX_JOBS"),
+                "nvcc_threads": _env(env, "GB10_NVCC_THREADS"),
+            },
+            "cache_refs": {
+                "preflight": _env(env, "GB10_PREFLIGHT_CACHE_REF"),
+                "wheel": _env(env, "GB10_WHEEL_CACHE_REF"),
+                "runtime": _env(env, "GB10_RUNTIME_CACHE_REF"),
+            },
+        },
+    }
+
+
+def write_manifest(
+    output_path: str | Path,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, object]:
+    manifest = build_manifest(env)
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return manifest
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Write resolved GB10 release settings as a JSON manifest."
+    )
+    parser.add_argument(
+        "--gb10-output-json",
+        default=os.environ.get(
+            "GB10_RELEASE_MANIFEST_JSON",
+            "gb10-release-manifest/gb10-release-manifest.json",
+        ),
+        help="Output path for the GB10 release manifest JSON.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    write_manifest(args.gb10_output_json)
+    print(f"GB10 release manifest written to {args.gb10_output_json}")
+
+
+if __name__ == "__main__":
+    main()

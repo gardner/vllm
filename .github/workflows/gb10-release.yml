@@ -74,6 +74,8 @@ jobs:
     env:
       DOCKER_BUILDKIT: "1"
       BUILDKIT_PROGRESS: plain
+      GB10_RELEASE_MANIFEST_DIR: gb10-release-manifest
+      GB10_RUNTIME_IMAGE_METADATA_JSON: gb10-release-manifest/buildx-runtime-image-metadata.json
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -101,6 +103,11 @@ jobs:
           fi
           if [ -z "${prebuilt_wheel_urls}" ]; then
             prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
+          fi
+
+          if [ "$preflight_only" != "true" ] && [ -n "$release_tag" ] && [ "$push_image" != "true" ]; then
+            echo "GB10 full release publication requires push-image=true so the runtime image is durable in GHCR." >&2
+            exit 1
           fi
 
           if [ -z "${prebuilt_wheel_urls}" ]; then
@@ -131,6 +138,13 @@ jobs:
             echo "GB10_PUSH_IMAGE=${push_image}"
             echo "GB10_PREFLIGHT_ONLY=${preflight_only}"
           } >> "$GITHUB_ENV"
+
+      - name: Write GB10 release manifest
+        run: |
+          mkdir -p "$GB10_RELEASE_MANIFEST_DIR"
+          scripts/gb10-write-release-manifest.py \
+            --gb10-output-json "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+          cat "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -240,16 +254,6 @@ jobs:
           name: gb10-vllm-wheel
           path: dist/*.whl
 
-      - name: Publish wheel to GitHub Release
-        if: env.GB10_PREFLIGHT_ONLY != 'true' && env.GB10_RELEASE_TAG != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$GB10_RELEASE_TAG" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
-          fi
-          gh release upload "$GB10_RELEASE_TAG" dist/*.whl --clobber
-
       - name: Build runtime image
         if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
@@ -278,5 +282,46 @@ jobs:
             --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
             --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
             --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+            --metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
             $output_arg \
             .
+          cat "$GB10_RUNTIME_IMAGE_METADATA_JSON"
+
+      - name: Write GB10 release checksums
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
+        run: |
+          checksum_file="$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+          checksum_inputs=(
+            dist/*.whl
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+          )
+          if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]; then
+            checksum_inputs+=("$GB10_RUNTIME_IMAGE_METADATA_JSON")
+          fi
+          sha256sum "${checksum_inputs[@]}" > "$checksum_file"
+          cat "$checksum_file"
+
+      - name: Upload GB10 release manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gb10-release-manifest
+          path: gb10-release-manifest/**
+
+      - name: Publish GB10 release assets
+        if: env.GB10_PREFLIGHT_ONLY != 'true' && env.GB10_RELEASE_TAG != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$GB10_RELEASE_TAG" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
+          fi
+          release_assets=(
+            dist/*.whl
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+          )
+          if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]; then
+            release_assets+=("$GB10_RUNTIME_IMAGE_METADATA_JSON")
+          fi
+          gh release upload "$GB10_RELEASE_TAG" "${release_assets[@]}" --clobber

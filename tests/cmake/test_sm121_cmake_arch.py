@@ -71,6 +71,19 @@ def _load_gb10_release_bundle_module():
     return module
 
 
+def _load_gb10_release_manifest_module():
+    script_path = REPO_ROOT / "scripts" / "gb10-write-release-manifest.py"
+    spec = importlib.util.spec_from_file_location(
+        "gb10_write_release_manifest",
+        script_path,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _cuda13_supported_archs() -> list[str]:
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
     match = re.search(
@@ -329,14 +342,31 @@ def test_gb10_release_workflow_supports_manual_preflight_only():
         "Extract vLLM wheel",
         "Verify wheel contains only SM121A CUDA images",
         "Upload wheel artifact",
-        "Publish wheel to GitHub Release",
         "Build runtime image",
+        "Write GB10 release checksums",
+        "Publish GB10 release assets",
     ):
         step_block = gb10_workflow.split(f"- name: {step_name}", 1)[1].split(
             "\n      - name:",
             1,
         )[0]
         assert "env.GB10_PREFLIGHT_ONLY != 'true'" in step_block
+
+
+def test_gb10_release_workflow_requires_pushed_image_for_tagged_release():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    resolve_step = gb10_workflow.split(
+        "- name: Resolve release settings",
+        1,
+    )[1].split("- name: Write GB10 release manifest", 1)[0]
+
+    assert '[ "$preflight_only" != "true" ]' in resolve_step
+    assert '[ -n "$release_tag" ]' in resolve_step
+    assert '[ "$push_image" != "true" ]' in resolve_step
+    assert "GB10 full release publication requires push-image=true" in resolve_step
 
 
 def test_gb10_release_workflow_uses_durable_split_build_caches():
@@ -402,6 +432,154 @@ def test_gb10_release_workflow_uses_modest_remote_parallelism():
     assert "24 / 8 = 3 jobs" in gb10_workflow
     assert gb10_workflow.count('--build-arg max_jobs="$GB10_MAX_JOBS"') == 2
     assert gb10_workflow.count('--build-arg nvcc_threads="$GB10_NVCC_THREADS"') == 2
+
+
+def test_gb10_release_workflow_publishes_release_manifest():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert "GB10_RELEASE_MANIFEST_DIR" in gb10_workflow
+    assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in gb10_workflow
+    assert "GB10_RELEASE_MANIFEST_DIR: gb10-release-manifest" in gb10_workflow
+    assert (
+        "GB10_RUNTIME_IMAGE_METADATA_JSON: "
+        "gb10-release-manifest/buildx-runtime-image-metadata.json"
+    ) in gb10_workflow
+    assert "${{ github.workspace }}/gb10-release-manifest" not in gb10_workflow
+    assert "Write GB10 release manifest" in gb10_workflow
+    assert "scripts/gb10-write-release-manifest.py" in gb10_workflow
+    assert "gb10-release-manifest.json" in gb10_workflow
+    assert "buildx-runtime-image-metadata.json" in gb10_workflow
+    assert "gb10-vllm-release-SHA256SUMS" in gb10_workflow
+    assert "Write GB10 release checksums" in gb10_workflow
+    assert "Upload GB10 release manifest" in gb10_workflow
+    assert "name: gb10-release-manifest" in gb10_workflow
+    assert "if: always()" in gb10_workflow
+    assert "Publish GB10 release assets" in gb10_workflow
+    assert "Publish wheel to GitHub Release" not in gb10_workflow
+    assert '"$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"' in (
+        gb10_workflow
+    )
+    assert '--metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in gb10_workflow
+
+    assert gb10_workflow.index("Write GB10 release manifest") < (
+        gb10_workflow.index("Preflight GB10 FlashInfer wheels")
+    )
+    assert gb10_workflow.index("Build runtime image") < (
+        gb10_workflow.index("Write GB10 release checksums")
+    )
+    assert gb10_workflow.index("Write GB10 release checksums") < (
+        gb10_workflow.index("Upload GB10 release manifest")
+    )
+    assert gb10_workflow.index("Build runtime image") < (
+        gb10_workflow.index("Publish GB10 release assets")
+    )
+
+    release_step = gb10_workflow.split(
+        "- name: Publish GB10 release assets",
+        1,
+    )[1]
+    assert "env.GB10_PREFLIGHT_ONLY != 'true'" in release_step
+    assert "env.GB10_RELEASE_TAG != ''" in release_step
+    assert "dist/*.whl" in release_step
+    assert "release_assets=(" in release_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json" in release_step
+    assert "$GB10_RUNTIME_IMAGE_METADATA_JSON" in release_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS" in release_step
+
+
+def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
+    manifest = _load_gb10_release_manifest_module()
+    env = {
+        "GITHUB_WORKFLOW": "GB10 vLLM wheel and image",
+        "GITHUB_REPOSITORY": "gardner/vllm",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_REF": "refs/tags/gb10-vllm-v0.22.1rc0-abcdef123",
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GITHUB_RUN_ID": "12345",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GB10_RELEASE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_IMAGE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
+        "GB10_PREBUILT_WHEEL_URLS": " ".join(
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+            for wheel in FLASHINFER_RELEASE_WHEELS
+        ),
+        "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
+        "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_PUSH_IMAGE": "true",
+        "GB10_PREFLIGHT_ONLY": "true",
+        "GB10_MAX_JOBS": "24",
+        "GB10_NVCC_THREADS": "8",
+        "GB10_PREFLIGHT_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:preflight",
+        "GB10_WHEEL_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:wheel",
+        "GB10_RUNTIME_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:runtime",
+        "VLLM_USE_LOCAL_GB10_DEPS": "0",
+    }
+
+    output_path = tmp_path / "gb10-release-manifest.json"
+    manifest.write_manifest(output_path, env=env)
+    data = json.loads(output_path.read_text())
+
+    assert data["schema_version"] == 1
+    assert data["git"]["commit"] == env["GITHUB_SHA"]
+    assert data["github"]["run_url"] == (
+        "https://github.com/gardner/vllm/actions/runs/12345/attempts/2"
+    )
+    assert data["release"]["tag"] == env["GB10_RELEASE_TAG"]
+    assert data["release"]["preflight_only"] is True
+    assert data["image"] == {
+        "name": "ghcr.io/gardner/vllm-gb10",
+        "tag": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "push": True,
+    }
+    assert data["vllm"]["version"] == "0.22.1rc0+gb10.abcdef123456"
+    assert data["dependencies"]["vllm_flash_attn"] == {
+        "repository": "https://github.com/gardner/vllm-flash-attention.git",
+        "ref": VLLM_FLASH_ATTN_GIT_TAG,
+        "ref_is_full_git_sha": True,
+    }
+    assert data["build"]["parallelism"] == {"max_jobs": "24", "nvcc_threads": "8"}
+    assert data["build"]["local_gb10_dependency_checkouts"] is False
+    assert data["build"]["cache_refs"]["runtime"] == (
+        "ghcr.io/gardner/vllm-gb10-buildcache:runtime"
+    )
+
+    wheels = data["dependencies"]["flashinfer"]["wheels"]
+    assert [wheel["component"] for wheel in wheels] == [
+        "flashinfer_python",
+        "flashinfer_cubin",
+        "flashinfer_jit_cache",
+    ]
+    assert {wheel["release_tag"] for wheel in wheels} == {FLASHINFER_RELEASE_TAG}
+    assert data["dependencies"]["flashinfer"]["all_required_components_present"] is True
+
+    source_dependencies = data["dependencies"]["source_dependencies"]
+    assert source_dependencies["deepgemm"] == {
+        "name": "DeepGEMM",
+        "cmake_file": "cmake/external_projects/deepgemm.cmake",
+        "repository": "https://github.com/gardner/DeepGEMM.git",
+        "ref": DEEPGEMM_GIT_TAG,
+        "ref_is_full_git_sha": True,
+    }
+    assert source_dependencies["flashmla"] == {
+        "name": "FlashMLA",
+        "cmake_file": "cmake/external_projects/flashmla.cmake",
+        "repository": "https://github.com/gardner/FlashMLA.git",
+        "ref": FLASHMLA_GIT_TAG,
+        "ref_is_full_git_sha": True,
+    }
+    assert source_dependencies["triton_kernels"] == {
+        "name": "triton_kernels",
+        "cmake_file": "cmake/external_projects/triton_kernels.cmake",
+        "repository": "https://github.com/gardner/triton.git",
+        "ref": TRITON_KERNELS_GIT_TAG,
+        "ref_is_full_git_sha": True,
+    }
 
 
 def test_gb10_image_smoke_workflow_publishes_durable_evidence():
