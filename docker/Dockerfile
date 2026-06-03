@@ -95,6 +95,51 @@ ARG UV_KEYRING_PROVIDER=${PIP_KEYRING_PROVIDER}
 # Flag enables built-in KV-connector dependency libs into docker images
 ARG INSTALL_KV_CONNECTORS=false
 
+#################### GB10 PREFLIGHT IMAGE ####################
+# Cheap validation stage for GB10 release inputs. This catches wrong
+# FlashInfer wheel sets before the multi-hour vLLM compile stages.
+FROM ${BUILD_BASE_IMAGE} AS gb10-flashinfer-preflight
+
+ARG BUILD_OS=ubuntu
+ARG gb10_prebuilt_wheel_urls=""
+ARG gb10_require_flashinfer_wheels=true
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY docker/verify_gb10_flashinfer_jit_cache.py \
+    /tmp/verify_gb10_flashinfer_jit_cache.py
+
+RUN set -eux; \
+    if [ "${BUILD_OS}" != "ubuntu" ]; then \
+        echo "GB10 FlashInfer preflight requires an Ubuntu CUDA devel image."; \
+        exit 1; \
+    fi; \
+    command -v cuobjdump; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        python3 \
+        python3-venv; \
+    rm -rf /var/lib/apt/lists/*; \
+    python3 -m venv /tmp/flashinfer-preflight-venv; \
+    /tmp/flashinfer-preflight-venv/bin/python -m pip install --upgrade pip; \
+    if [ "${gb10_require_flashinfer_wheels}" = "true" ]; then \
+        if [ -z "${gb10_prebuilt_wheel_urls}" ]; then \
+            echo "GB10 FlashInfer preflight requires gb10_prebuilt_wheel_urls."; \
+            exit 1; \
+        fi; \
+        for required_wheel in flashinfer_python flashinfer_cubin flashinfer_jit_cache; do \
+            case " ${gb10_prebuilt_wheel_urls} " in \
+                *"${required_wheel}"*) ;; \
+                *) echo "GB10 FlashInfer wheel URLs must include ${required_wheel}."; exit 1 ;; \
+            esac; \
+        done; \
+    fi; \
+    for wheel_url in ${gb10_prebuilt_wheel_urls}; do \
+        /tmp/flashinfer-preflight-venv/bin/python -m pip install --no-deps "$wheel_url"; \
+    done; \
+    /tmp/flashinfer-preflight-venv/bin/python /tmp/verify_gb10_flashinfer_jit_cache.py
+
 #################### BASE BUILD IMAGE ####################
 # prepare basic build environment
 FROM ${BUILD_BASE_IMAGE} AS base
@@ -772,6 +817,8 @@ RUN useradd --uid 2000 --gid 0 --create-home --home-dir /home/vllm \
     && chmod g=u /etc/passwd /etc/group
 COPY docker/entrypoints/vllm-nonroot-entrypoint.sh \
     /usr/local/bin/vllm-nonroot-entrypoint.sh
+COPY docker/verify_gb10_flashinfer_jit_cache.py \
+    /tmp/verify_gb10_flashinfer_jit_cache.py
 RUN chmod 0755 /usr/local/bin/vllm-nonroot-entrypoint.sh
 
 # Enable CUDA forward compatibility by setting '-e VLLM_ENABLE_CUDA_COMPATIBILITY=1'
@@ -914,32 +961,16 @@ RUN --mount=type=cache,target=/opt/uv/cache \
         done; \
     fi
 
-# Download FlashInfer precompiled cubins AFTER all pip installs are done.
-# This must run after the vLLM wheel and EP kernels installs above, because
-# those can reinstall/touch flashinfer packages. Downloading cubins earlier
-# (in the flashinfer-jit-cache layer) causes ~2.5 GB of layer duplication
-# when a later pip install overwrites flashinfer package files.
+# Download FlashInfer precompiled cubins AFTER all pip installs are done for
+# generic builds. GB10 images use the published jit-cache wheel instead;
+# asking the CLI to download remote cubins pulls generic SM100-family artifacts.
 RUN set -eux; \
-    flashinfer show-config | tee /tmp/flashinfer-config.txt; \
     if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
-        if grep -E "trtllm-gen|sm_100|sm_103|sm_110|Sm100|Sm103|Sm110" /tmp/flashinfer-config.txt; then \
-            echo "GB10 runtime image found non-GB10 FlashInfer cubins in show-config."; \
-            exit 1; \
-        fi; \
-    fi; \
-    flashinfer download-cubin; \
-    if [ -n "${gb10_prebuilt_wheel_urls}" ]; then \
-        cubin_dir="$(python3 -c 'import pathlib, flashinfer_cubin; print(pathlib.Path(flashinfer_cubin.__file__).parent / "cubins")')"; \
-        find "${cubin_dir}" \( \
-            -path "*trtllm-gen*" -o \
-            -path "*sm_100*" -o -path "*sm_103*" -o -path "*sm_110*" -o \
-            -name "*Sm100*" -o -name "*Sm103*" -o -name "*Sm110*" \
-        \) -print > /tmp/flashinfer-non-gb10-cubins.txt; \
-        if [ -s /tmp/flashinfer-non-gb10-cubins.txt ]; then \
-            echo "GB10 runtime image found non-GB10 FlashInfer cubins."; \
-            cat /tmp/flashinfer-non-gb10-cubins.txt; \
-            exit 1; \
-        fi; \
+        echo "Skipping FlashInfer remote cubin download for GB10; validating installed JIT cache."; \
+        python3 /tmp/verify_gb10_flashinfer_jit_cache.py; \
+    else \
+        flashinfer show-config; \
+        flashinfer download-cubin; \
     fi
 
 # CUDA image changed from /usr/local/nvidia to /usr/local/cuda in 12.8 but will

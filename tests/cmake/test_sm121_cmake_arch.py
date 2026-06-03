@@ -212,7 +212,112 @@ def test_gb10_release_workflow_uses_vllm_dockerfile():
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
 
-    assert gb10_workflow.count("--file docker/Dockerfile") == 2
+    assert gb10_workflow.count("--file docker/Dockerfile") == 3
+
+
+def test_gb10_flashinfer_preflight_target_is_cheap():
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    preflight_stage = dockerfile.split(
+        "FROM ${BUILD_BASE_IMAGE} AS gb10-flashinfer-preflight",
+        1,
+    )[1].split("#################### BASE BUILD IMAGE", 1)[0]
+
+    assert "verify_gb10_flashinfer_jit_cache.py" in preflight_stage
+    assert "command -v cuobjdump" in preflight_stage
+    assert "python3 -m venv /tmp/flashinfer-preflight-venv" in preflight_stage
+    assert "GB10 FlashInfer preflight requires gb10_prebuilt_wheel_urls" in (
+        preflight_stage
+    )
+    assert "setup.py bdist_wheel" not in preflight_stage
+    assert "requirements/cuda.txt" not in preflight_stage
+    assert "uv pip install" not in preflight_stage
+
+
+def test_gb10_release_workflow_preflights_before_expensive_build():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert gb10_workflow.index("Preflight GB10 FlashInfer wheels") < (
+        gb10_workflow.index("Build wheel stage")
+    )
+
+    preflight_step = gb10_workflow.split(
+        "- name: Preflight GB10 FlashInfer wheels",
+        1,
+    )[1].split("- name: Build wheel stage", 1)[0]
+
+    assert "--target gb10-flashinfer-preflight" in preflight_step
+    assert "--cache-from type=gha,scope=gb10-vllm-preflight" in preflight_step
+    assert '--cache-from type=registry,ref="$GB10_PREFLIGHT_CACHE_REF"' in (
+        preflight_step
+    )
+    assert "--cache-to type=gha,scope=gb10-vllm-preflight,mode=max" in (
+        preflight_step
+    )
+    assert '--cache-to type=registry,ref="$GB10_PREFLIGHT_CACHE_REF",mode=max' in (
+        preflight_step
+    )
+
+
+def test_gb10_release_workflow_uses_durable_split_build_caches():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert "GB10_PREFLIGHT_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:preflight" in (
+        gb10_workflow
+    )
+    assert "GB10_WHEEL_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:wheel" in (
+        gb10_workflow
+    )
+    assert "GB10_RUNTIME_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:runtime" in (
+        gb10_workflow
+    )
+    assert "--cache-from type=gha,scope=gb10-vllm" in gb10_workflow
+    assert "--cache-to type=gha,scope=gb10-vllm,mode=max" not in gb10_workflow
+    assert "--cache-from type=gha,scope=gb10-vllm-wheel" in gb10_workflow
+    assert "--cache-to type=gha,scope=gb10-vllm-wheel,mode=max" in gb10_workflow
+    assert "--cache-from type=gha,scope=gb10-vllm-runtime" in gb10_workflow
+    assert "--cache-to type=gha,scope=gb10-vllm-runtime,mode=max" in gb10_workflow
+    assert '--cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF"' in gb10_workflow
+    assert '--cache-to type=registry,ref="$GB10_WHEEL_CACHE_REF",mode=max' in (
+        gb10_workflow
+    )
+    assert '--cache-from type=registry,ref="$GB10_RUNTIME_CACHE_REF"' in (
+        gb10_workflow
+    )
+    assert '--cache-to type=registry,ref="$GB10_RUNTIME_CACHE_REF",mode=max' in (
+        gb10_workflow
+    )
+
+
+def test_gb10_release_workflow_uses_modest_remote_parallelism():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert 'GB10_MAX_JOBS: "24"' in gb10_workflow
+    assert 'GB10_NVCC_THREADS: "8"' in gb10_workflow
+    assert "24 / 8 = 3 jobs" in gb10_workflow
+    assert gb10_workflow.count('--build-arg max_jobs="$GB10_MAX_JOBS"') == 2
+    assert gb10_workflow.count('--build-arg nvcc_threads="$GB10_NVCC_THREADS"') == 2
+
+
+def test_gb10_local_cached_build_script_defaults_to_serial_builds():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert "preflight|wheel|runtime" in script
+    assert 'GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"' in script
+    assert 'GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"' in script
+    assert ".buildx-cache/gb10" in script
+    assert 'GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"' in script
+    assert 'GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"' in script
+    assert "--driver docker-container" in script
+    assert '--cache-to "type=local,dest=$cache_next,mode=max"' in script
+    assert "GB10_USE_REGISTRY_CACHE=1" in script
+    assert "--builder \"$GB10_BUILDX_BUILDER\"" in script
+    assert "--target \"$docker_target\"" in script
 
 
 def test_gb10_release_workflow_overrides_pep440_wheel_version():
@@ -290,10 +395,25 @@ def test_gb10_runtime_image_uses_published_flashinfer_wheels():
     assert "Installing GB10 runtime FlashInfer wheels" in runtime_stage
     assert 'uv pip install --system --no-deps "$wheel_url"' in runtime_stage
     assert "GB10 runtime FlashInfer wheels are required" in runtime_stage
-    assert "GB10 runtime image found non-GB10 FlashInfer cubins" in runtime_stage
+    assert "verify_gb10_flashinfer_jit_cache.py" in runtime_stage
+    assert "Skipping FlashInfer remote cubin download for GB10" in runtime_stage
     assert runtime_stage.index("Installing GB10 runtime FlashInfer wheels") < (
-        runtime_stage.index("flashinfer show-config")
+        runtime_stage.index("python3 /tmp/verify_gb10_flashinfer_jit_cache.py")
     )
+    assert runtime_stage.index("Skipping FlashInfer remote cubin download for GB10") < (
+        runtime_stage.index("flashinfer download-cubin")
+    )
+
+
+def test_gb10_runtime_flashinfer_jit_cache_validator_uses_cuobjdump():
+    validator = (
+        REPO_ROOT / "docker" / "verify_gb10_flashinfer_jit_cache.py"
+    ).read_text()
+
+    assert 'ALLOWED_CUDA_IMAGES = {"sm_121a", "compute_121a"}' in validator
+    assert '"cuobjdump", "--list-elf"' in validator
+    assert "unexpected CUDA images" in validator
+    assert "GB10 FlashInfer JIT cache has no CUDA images" in validator
 
 
 def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():

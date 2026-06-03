@@ -46,6 +46,12 @@ env:
     https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl
     https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl
     https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl
+  GB10_PREFLIGHT_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:preflight
+  GB10_WHEEL_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:wheel
+  GB10_RUNTIME_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:runtime
+  # vLLM divides MAX_JOBS by NVCC_THREADS for CUDA builds; 24 / 8 = 3 jobs.
+  GB10_MAX_JOBS: "24"
+  GB10_NVCC_THREADS: "8"
 
 defaults:
   run:
@@ -118,12 +124,27 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: env.GB10_PUSH_IMAGE == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Preflight GB10 FlashInfer wheels
+        run: |
+          docker buildx build \
+            --file docker/Dockerfile \
+            --target gb10-flashinfer-preflight \
+            --platform linux/arm64 \
+            --load \
+            --tag vllm-gb10-flashinfer-preflight:${GITHUB_SHA::12} \
+            --cache-from type=gha,scope=gb10-vllm-preflight \
+            --cache-from type=registry,ref="$GB10_PREFLIGHT_CACHE_REF" \
+            --cache-to type=gha,scope=gb10-vllm-preflight,mode=max \
+            --cache-to type=registry,ref="$GB10_PREFLIGHT_CACHE_REF",mode=max \
+            --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+            --build-arg gb10_require_flashinfer_wheels=true \
+            .
 
       - name: Build wheel stage
         run: |
@@ -134,7 +155,12 @@ jobs:
             --load \
             --tag vllm-gb10-wheel:${GITHUB_SHA::12} \
             --cache-from type=gha,scope=gb10-vllm \
-            --cache-to type=gha,scope=gb10-vllm,mode=max \
+            --cache-from type=gha,scope=gb10-vllm-wheel \
+            --cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF" \
+            --cache-to type=gha,scope=gb10-vllm-wheel,mode=max \
+            --cache-to type=registry,ref="$GB10_WHEEL_CACHE_REF",mode=max \
+            --build-arg max_jobs="$GB10_MAX_JOBS" \
+            --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
             --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
             --build-arg gb10_require_flashinfer_wheels=true \
             --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
@@ -222,7 +248,14 @@ jobs:
             --tag "$GB10_IMAGE_NAME:$GB10_IMAGE_TAG" \
             --tag "$GB10_IMAGE_NAME:latest-gb10" \
             --cache-from type=gha,scope=gb10-vllm \
-            --cache-to type=gha,scope=gb10-vllm,mode=max \
+            --cache-from type=gha,scope=gb10-vllm-wheel \
+            --cache-from type=gha,scope=gb10-vllm-runtime \
+            --cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF" \
+            --cache-from type=registry,ref="$GB10_RUNTIME_CACHE_REF" \
+            --cache-to type=gha,scope=gb10-vllm-runtime,mode=max \
+            --cache-to type=registry,ref="$GB10_RUNTIME_CACHE_REF",mode=max \
+            --build-arg max_jobs="$GB10_MAX_JOBS" \
+            --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
             --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
             --build-arg gb10_require_flashinfer_wheels=true \
             --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
