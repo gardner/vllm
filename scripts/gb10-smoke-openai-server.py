@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+"""Smoke an already running GB10 OpenAI-compatible vLLM server.
+
+This script intentionally does not manage the server lifecycle. It probes the
+OpenAI-compatible HTTP API exposed by a running vLLM process, sends one short
+generation request, and writes a durable JSON report that can be archived with
+the offline NVFP4 backend-selection smoke report.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+DEFAULT_PROMPT = "NVIDIA DGX Spark native NVFP4 support means"
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run a GB10 OpenAI-compatible vLLM server smoke test against an "
+            "already running server. The script never starts or stops vLLM."
+        )
+    )
+    parser.add_argument(
+        "--gb10-base-url",
+        default=os.environ.get("GB10_OPENAI_BASE_URL", DEFAULT_BASE_URL),
+        help=(
+            "OpenAI-compatible server base URL. Defaults to "
+            "GB10_OPENAI_BASE_URL or http://127.0.0.1:8000."
+        ),
+    )
+    parser.add_argument(
+        "--model",
+        default=os.environ.get("GB10_OPENAI_MODEL"),
+        help=(
+            "Model id to request. Defaults to GB10_OPENAI_MODEL, then the "
+            "first id returned by /v1/models."
+        ),
+    )
+    parser.add_argument(
+        "--gb10-endpoint",
+        choices=("completions", "chat"),
+        default="completions",
+        help="Generation endpoint to smoke: /v1/completions or /v1/chat/completions.",
+    )
+    parser.add_argument(
+        "--gb10-prompt",
+        default=DEFAULT_PROMPT,
+        help="Prompt used for the smoke generation.",
+    )
+    parser.add_argument(
+        "--gb10-max-tokens",
+        type=int,
+        default=8,
+        help="Maximum generated tokens for the smoke request.",
+    )
+    parser.add_argument(
+        "--gb10-temperature",
+        type=float,
+        default=0.0,
+        help="Sampling temperature for the smoke request.",
+    )
+    parser.add_argument(
+        "--gb10-seed",
+        type=int,
+        default=0,
+        help="Sampling seed sent to vLLM for deterministic smoke requests.",
+    )
+    parser.add_argument(
+        "--gb10-timeout",
+        type=float,
+        default=30.0,
+        help="Per-request HTTP timeout in seconds.",
+    )
+    parser.add_argument(
+        "--gb10-retries",
+        type=int,
+        default=1,
+        help="Number of retries after the first request attempt.",
+    )
+    parser.add_argument(
+        "--gb10-retry-delay",
+        type=float,
+        default=2.0,
+        help="Delay in seconds between failed request attempts.",
+    )
+    parser.add_argument(
+        "--gb10-allow-empty",
+        action="store_true",
+        help="Allow an empty generated text field in the response.",
+    )
+    parser.add_argument(
+        "--gb10-report-json",
+        help="Optional path for a JSON report containing server smoke evidence.",
+    )
+    return parser
+
+
+def _join_url(base_url: str, path: str) -> str:
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+
+def _json_headers() -> dict[str, str]:
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    api_key = os.environ.get("GB10_OPENAI_API_KEY") or os.environ.get(
+        "OPENAI_API_KEY"
+    )
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _http_json(
+    *,
+    method: str,
+    url: str,
+    payload: dict[str, Any] | None,
+    timeout: float,
+) -> tuple[int, dict[str, Any]]:
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers=_json_headers(),
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_body = response.read().decode("utf-8")
+            return response.status, json.loads(response_body) if response_body else {}
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        error_body = error_body[:2000]
+        raise RuntimeError(
+            f"{method} {url} failed with HTTP {exc.code}: {error_body}"
+        ) from exc
+
+
+def _request_with_retries(
+    *,
+    method: str,
+    url: str,
+    payload: dict[str, Any] | None = None,
+    timeout: float,
+    retries: int,
+    retry_delay: float,
+) -> tuple[int, dict[str, Any]]:
+    last_error: BaseException | None = None
+    for attempt in range(retries + 1):
+        try:
+            return _http_json(
+                method=method,
+                url=url,
+                payload=payload,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            last_error = exc
+            if attempt == retries:
+                break
+            time.sleep(retry_delay)
+
+    assert last_error is not None
+    raise last_error
+
+
+def _extract_model_ids(models_body: dict[str, Any] | None) -> list[str]:
+    if not isinstance(models_body, dict):
+        return []
+    data = models_body.get("data", [])
+    if not isinstance(data, list):
+        return []
+    return [
+        model["id"]
+        for model in data
+        if isinstance(model, dict) and isinstance(model.get("id"), str)
+    ]
+
+
+def _completion_path(endpoint: str) -> str:
+    if endpoint == "chat":
+        return "/v1/chat/completions"
+    return "/v1/completions"
+
+
+def _build_generation_payload(
+    *,
+    endpoint: str,
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    temperature: float,
+    seed: int | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "stream": False,
+    }
+    if seed is not None:
+        payload["seed"] = seed
+
+    if endpoint == "chat":
+        payload["messages"] = [{"role": "user", "content": prompt}]
+    else:
+        payload["prompt"] = prompt
+
+    return payload
+
+
+def _content_part_text(part: Any) -> str:
+    if isinstance(part, str):
+        return part
+    if isinstance(part, dict):
+        text = part.get("text")
+        if isinstance(text, str):
+            return text
+    return ""
+
+
+def _extract_generated_text(endpoint: str, response: dict[str, Any]) -> str:
+    choices = response.get("choices", [])
+    if not isinstance(choices, list) or not choices:
+        return ""
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        return ""
+
+    if endpoint == "chat":
+        message = first_choice.get("message", {})
+        if not isinstance(message, dict):
+            return ""
+        content = message.get("content", "")
+        if isinstance(content, list):
+            return "".join(_content_part_text(part) for part in content)
+        return content if isinstance(content, str) else ""
+
+    text = first_choice.get("text", "")
+    return text if isinstance(text, str) else ""
+
+
+def _build_report(
+    *,
+    args: argparse.Namespace,
+    base_url: str,
+    model: str | None,
+    models_status: int | None,
+    models_body: dict[str, Any] | None,
+    completion_status: int | None,
+    completion_body: dict[str, Any] | None,
+    generated_text: str,
+    status: str,
+    error: str | None = None,
+) -> dict[str, Any]:
+    completion_body = completion_body or {}
+    models_body = models_body or {}
+    model_ids = _extract_model_ids(models_body)
+    endpoint_path = _completion_path(args.gb10_endpoint)
+
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "status": status,
+        "base_url": base_url,
+        "endpoint": {
+            "name": args.gb10_endpoint,
+            "path": endpoint_path,
+        },
+        "model": model,
+        "models": {
+            "status": models_status,
+            "ids": model_ids,
+            "raw_count": len(models_body.get("data", []))
+            if isinstance(models_body.get("data"), list)
+            else None,
+        },
+        "request": {
+            "prompt": args.gb10_prompt,
+            "max_tokens": args.gb10_max_tokens,
+            "temperature": args.gb10_temperature,
+            "seed": args.gb10_seed,
+            "timeout": args.gb10_timeout,
+            "retries": args.gb10_retries,
+        },
+        "response": {
+            "status": completion_status,
+            "generated_text": generated_text,
+            "usage": completion_body.get("usage"),
+        },
+        "gb10_release_evidence": {
+            "openai_compatible_server_smoke": {
+                "status": "passed" if status == "passed" else "failed",
+                "endpoint": endpoint_path,
+                "generated_text_observed": bool(generated_text),
+            },
+            "release_ready": False,
+            "remaining_release_evidence": [
+                "final runtime image smoke with the published GB10 dependency wheels",
+                "offline NVFP4 backend-selection smoke report",
+                "CUDA graph capture/replay validation",
+                "correctness or deterministic generation evidence for the target model",
+                "prefill/decode benchmark evidence",
+            ],
+            "note": (
+                "This OpenAI-compatible server smoke proves API reachability "
+                "and generation only; native backend evidence comes from the "
+                "offline GB10 NVFP4 smoke report."
+            ),
+        },
+    }
+    if error is not None:
+        report["error"] = error
+    return report
+
+
+def _write_report(report_path: str | None, report: dict[str, Any]) -> None:
+    if report_path is None:
+        return
+    path = Path(report_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    print(f"GB10 OpenAI-compatible server smoke report written to {path}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+    base_url = args.gb10_base_url
+    model = args.model
+    models_status: int | None = None
+    models_body: dict[str, Any] | None = None
+    completion_status: int | None = None
+    completion_body: dict[str, Any] | None = None
+    generated_text = ""
+
+    try:
+        models_status, models_body = _request_with_retries(
+            method="GET",
+            url=_join_url(base_url, "/v1/models"),
+            timeout=args.gb10_timeout,
+            retries=args.gb10_retries,
+            retry_delay=args.gb10_retry_delay,
+        )
+        model_ids = _extract_model_ids(models_body)
+        if model is None:
+            if not model_ids:
+                raise RuntimeError(
+                    "No model id was provided and /v1/models returned no ids"
+                )
+            model = model_ids[0]
+
+        payload = _build_generation_payload(
+            endpoint=args.gb10_endpoint,
+            model=model,
+            prompt=args.gb10_prompt,
+            max_tokens=args.gb10_max_tokens,
+            temperature=args.gb10_temperature,
+            seed=args.gb10_seed,
+        )
+        completion_status, completion_body = _request_with_retries(
+            method="POST",
+            url=_join_url(base_url, _completion_path(args.gb10_endpoint)),
+            payload=payload,
+            timeout=args.gb10_timeout,
+            retries=args.gb10_retries,
+            retry_delay=args.gb10_retry_delay,
+        )
+        generated_text = _extract_generated_text(args.gb10_endpoint, completion_body)
+        if not generated_text and not args.gb10_allow_empty:
+            raise RuntimeError(
+                "Generation response did not contain non-empty generated text"
+            )
+
+        report = _build_report(
+            args=args,
+            base_url=base_url,
+            model=model,
+            models_status=models_status,
+            models_body=models_body,
+            completion_status=completion_status,
+            completion_body=completion_body,
+            generated_text=generated_text,
+            status="passed",
+        )
+        _write_report(args.gb10_report_json, report)
+        print(f"GB10 OpenAI-compatible server smoke output: {generated_text!r}")
+        return 0
+    except Exception as exc:
+        report = _build_report(
+            args=args,
+            base_url=base_url,
+            model=model,
+            models_status=models_status,
+            models_body=models_body,
+            completion_status=completion_status,
+            completion_body=completion_body,
+            generated_text=generated_text,
+            status="failed",
+            error=str(exc),
+        )
+        _write_report(args.gb10_report_json, report)
+        print(
+            f"GB10 OpenAI-compatible server smoke failed: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

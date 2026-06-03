@@ -30,6 +30,19 @@ def _load_gb10_smoke_module():
     return module
 
 
+def _load_gb10_openai_smoke_module():
+    script_path = REPO_ROOT / "scripts" / "gb10-smoke-openai-server.py"
+    spec = importlib.util.spec_from_file_location(
+        "gb10_smoke_openai_server",
+        script_path,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _cuda13_supported_archs() -> list[str]:
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
     match = re.search(
@@ -832,3 +845,107 @@ def test_gb10_image_smoke_wraps_nvfp4_model_harness():
     assert "HF_TOKEN" in script
     assert "HUGGING_FACE_HUB_TOKEN" in script
     assert 'python3 /tmp/gb10-smoke-nvfp4.py "$@"' in script
+
+
+def test_gb10_openai_server_smoke_reports_api_evidence():
+    script = (REPO_ROOT / "scripts" / "gb10-smoke-openai-server.py").read_text()
+
+    assert "OpenAI-compatible" in script
+    assert "already running server" in script
+    assert "GB10_OPENAI_BASE_URL" in script
+    assert "GB10_OPENAI_MODEL" in script
+    assert "GB10_OPENAI_API_KEY" in script
+    assert "OPENAI_API_KEY" in script
+    assert "/v1/models" in script
+    assert "/v1/completions" in script
+    assert "/v1/chat/completions" in script
+    assert "--gb10-endpoint" in script
+    assert "--gb10-report-json" in script
+    assert '"schema_version": 1' in script
+    assert '"gb10_release_evidence"' in script
+    assert '"openai_compatible_server_smoke"' in script
+    assert '"offline NVFP4 backend-selection smoke report"' in script
+    assert "native backend evidence comes from the" in script
+    assert "_request_with_retries" in script
+    assert "_extract_generated_text" in script
+    assert "_build_report" in script
+    assert "raise SystemExit(main())" in script
+
+
+def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
+    smoke = _load_gb10_openai_smoke_module()
+
+    assert (
+        smoke._extract_generated_text(
+            "completions",
+            {"choices": [{"text": " native GB10 output"}]},
+        )
+        == " native GB10 output"
+    )
+    assert (
+        smoke._extract_generated_text(
+            "chat",
+            {"choices": [{"message": {"content": "native chat output"}}]},
+        )
+        == "native chat output"
+    )
+    assert (
+        smoke._extract_generated_text(
+            "chat",
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": [
+                                {"type": "text", "text": "native "},
+                                {"type": "text", "text": "list output"},
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+        == "native list output"
+    )
+
+    args = SimpleNamespace(
+        gb10_endpoint="chat",
+        gb10_prompt="hello",
+        gb10_max_tokens=8,
+        gb10_temperature=0.0,
+        gb10_seed=0,
+        gb10_timeout=30.0,
+        gb10_retries=1,
+    )
+    report = smoke._build_report(
+        args=args,
+        base_url="http://127.0.0.1:8000",
+        model="gb10-model",
+        models_status=200,
+        models_body={"data": [{"id": "gb10-model"}]},
+        completion_status=200,
+        completion_body={
+            "choices": [{"message": {"content": "native chat output"}}],
+            "usage": {"completion_tokens": 3},
+        },
+        generated_text="native chat output",
+        status="passed",
+    )
+
+    assert report["status"] == "passed"
+    assert report["model"] == "gb10-model"
+    assert report["models"]["ids"] == ["gb10-model"]
+    assert report["endpoint"] == {
+        "name": "chat",
+        "path": "/v1/chat/completions",
+    }
+    assert report["response"]["usage"] == {"completion_tokens": 3}
+    assert report["gb10_release_evidence"]["openai_compatible_server_smoke"] == {
+        "status": "passed",
+        "endpoint": "/v1/chat/completions",
+        "generated_text_observed": True,
+    }
+    assert report["gb10_release_evidence"]["release_ready"] is False
+    assert "CUDA graph capture/replay validation" in report[
+        "gb10_release_evidence"
+    ]["remaining_release_evidence"]
