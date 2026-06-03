@@ -11,6 +11,7 @@ image:
   1. scripts/gb10-smoke-image.sh for offline NVFP4 backend-selection evidence.
   2. scripts/gb10-smoke-openai-image.sh for OpenAI-compatible server evidence.
   3. scripts/gb10-verify-release-evidence.py as the final report gate.
+  4. scripts/gb10-bundle-release-evidence.py for checksummed artifacts.
 
 This script is intended for local GB10 hardware or a self-hosted Spark runner.
 It starts containers only when invoked; it does not touch any already-running
@@ -32,6 +33,12 @@ Useful environment:
                                       Set to 0 to skip deterministic OpenAI
                                       evidence in the final verifier
                                       (default: 1)
+  GB10_RELEASE_EVIDENCE_OUTPUT_DIR    Directory for the checksummed evidence
+                                      bundle (default:
+                                      ./dist/gb10-release-evidence)
+  GB10_RELEASE_BUNDLE_ALLOW_PARTIAL   Set to 0 to make bundling require all
+                                      final-image reports even after verifier
+                                      failure (default: 1)
 
 Argument sections:
   --offline OFFLINE_ARGS...  Extra args for scripts/gb10-smoke-image.sh after --.
@@ -45,6 +52,7 @@ Default reports:
   ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-nvfp4-smoke.json
   ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-openai-server-smoke-image.json
   ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-release-evidence-image.json
+  ${GB10_RELEASE_EVIDENCE_OUTPUT_DIR:-./dist/gb10-release-evidence}/gb10-release-evidence.tar.gz
 
 Example:
   GB10_NVFP4_MODEL=nvidia/Qwen3.6-35B-A3B-NVFP4 \
@@ -65,6 +73,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 offline_wrapper="$repo_root/scripts/gb10-smoke-image.sh"
 openai_wrapper="$repo_root/scripts/gb10-smoke-openai-image.sh"
 verifier="$repo_root/scripts/gb10-verify-release-evidence.py"
+bundler="$repo_root/scripts/gb10-bundle-release-evidence.py"
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
     usage
@@ -124,7 +133,7 @@ if [ "${#serve_args[@]}" -eq 0 ]; then
     exit 2
 fi
 
-for script in "$offline_wrapper" "$openai_wrapper" "$verifier"; do
+for script in "$offline_wrapper" "$openai_wrapper" "$verifier" "$bundler"; do
     if [ ! -f "$script" ]; then
         echo "Missing required GB10 smoke helper: $script" >&2
         exit 1
@@ -185,4 +194,17 @@ GB10_OPENAI_IMAGE_REPORT_DIR="$report_dir" \
     "$openai_wrapper" "$image" --serve "${serve_args[@]}" --smoke "${openai_args[@]}"
 
 echo "Verifying combined GB10 release evidence..." >&2
-"$verifier" "${verify_args[@]}"
+verify_status=0
+"$verifier" "${verify_args[@]}" || verify_status=$?
+
+echo "Bundling GB10 release evidence reports..." >&2
+bundle_args=(
+    --gb10-report-dir "$report_dir"
+    --gb10-image-ref "$image"
+)
+if [ "${GB10_RELEASE_BUNDLE_ALLOW_PARTIAL:-1}" = "1" ]; then
+    bundle_args+=(--gb10-allow-partial)
+fi
+"$bundler" "${bundle_args[@]}"
+
+exit "$verify_status"

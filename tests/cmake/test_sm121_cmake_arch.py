@@ -1,6 +1,8 @@
 import importlib.util
+import json
 import re
 import subprocess
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -47,6 +49,19 @@ def _load_gb10_release_evidence_module():
     script_path = REPO_ROOT / "scripts" / "gb10-verify-release-evidence.py"
     spec = importlib.util.spec_from_file_location(
         "gb10_verify_release_evidence",
+        script_path,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_gb10_release_bundle_module():
+    script_path = REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py"
+    spec = importlib.util.spec_from_file_location(
+        "gb10_bundle_release_evidence",
         script_path,
     )
     assert spec is not None
@@ -901,6 +916,7 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "scripts/gb10-smoke-image.sh" in script
     assert "scripts/gb10-smoke-openai-image.sh" in script
     assert "scripts/gb10-verify-release-evidence.py" in script
+    assert "scripts/gb10-bundle-release-evidence.py" in script
     assert "--offline OFFLINE_ARGS" in script
     assert "--serve SERVE_ARGS" in script
     assert "--openai OPENAI_ARGS" in script
@@ -908,9 +924,12 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_RELEASE_SMOKE_REPORT_DIR" in script
     assert "GB10_RELEASE_REQUIRE_MOE" in script
     assert "GB10_RELEASE_REQUIRE_OPENAI_DETERMINISTIC" in script
+    assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
+    assert "GB10_RELEASE_BUNDLE_ALLOW_PARTIAL" in script
     assert "gb10-nvfp4-smoke.json" in script
     assert "gb10-openai-server-smoke-image.json" in script
     assert "gb10-release-evidence-image.json" in script
+    assert "gb10-release-evidence.tar.gz" in script
     assert "--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
@@ -921,7 +940,119 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_OPENAI_IMAGE_REPORT_DIR=\"$report_dir\"" in script
     assert '"$offline_wrapper" "$image" -- "${offline_args[@]}"' in script
     assert '"$openai_wrapper" "$image" --serve "${serve_args[@]}" --smoke' in script
-    assert '"$verifier" "${verify_args[@]}"' in script
+    assert '"$verifier" "${verify_args[@]}" || verify_status=$?' in script
+    assert '"$bundler" "${bundle_args[@]}"' in script
+    assert 'bundle_args+=(--gb10-allow-partial)' in script
+    assert 'exit "$verify_status"' in script
+
+
+def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
+    script = (REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py").read_text()
+
+    assert "Bundle GB10 release smoke reports" in script
+    assert "EXPECTED_REPORTS" in script
+    assert "gb10-nvfp4-smoke.json" in script
+    assert "gb10-openai-server-smoke-image.json" in script
+    assert "gb10-release-evidence-image.json" in script
+    assert "GB10_RELEASE_EVIDENCE_REPORT_DIR" in script
+    assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
+    assert "GB10_RELEASE_EVIDENCE_IMAGE_REF" in script
+    assert "GB10_RELEASE_EVIDENCE_RELEASE_TAG" in script
+    assert "GB10_RELEASE_EVIDENCE_COMMIT" in script
+    assert "--gb10-allow-partial" in script
+    assert "--gb10-include-glob" in script
+    assert "release-evidence-metadata.json" in script
+    assert "SHA256SUMS" in script
+    assert "tarfile.open" in script
+    assert "hashlib.sha256" in script
+    assert '"status": "partial" if missing_reports else "complete"' in script
+
+
+def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
+    bundler = _load_gb10_release_bundle_module()
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "bundle"
+    report_dir.mkdir()
+
+    report_payloads = {
+        "gb10-nvfp4-smoke.json": {"status": "passed", "kind": "offline"},
+        "gb10-openai-server-smoke-image.json": {
+            "status": "passed",
+            "kind": "openai",
+        },
+        "gb10-release-evidence-image.json": {
+            "status": "passed",
+            "release_gate_passed": True,
+        },
+        "gb10-extra-local-note.json": {"status": "partial"},
+    }
+    for name, payload in report_payloads.items():
+        (report_dir / name).write_text(json.dumps(payload) + "\n")
+
+    exit_code = bundler.main(
+        [
+            "--gb10-report-dir",
+            str(report_dir),
+            "--gb10-output-dir",
+            str(output_dir),
+            "--gb10-bundle-name",
+            "evidence",
+            "--gb10-image-ref",
+            "ghcr.io/gardner/vllm-gb10:test",
+            "--gb10-release-tag",
+            "gb10-vllm-test",
+            "--gb10-commit",
+            "abc123",
+        ]
+    )
+
+    assert exit_code == 0
+    metadata_path = output_dir / "release-evidence-metadata.json"
+    checksum_path = output_dir / "SHA256SUMS"
+    archive_path = output_dir / "evidence.tar.gz"
+    archive_checksum_path = output_dir / "evidence.tar.gz.sha256"
+    assert metadata_path.exists()
+    assert checksum_path.exists()
+    assert archive_path.exists()
+    assert archive_checksum_path.exists()
+
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["status"] == "complete"
+    assert metadata["missing_reports"] == []
+    assert metadata["source"] == {
+        "report_dir": str(report_dir.resolve()),
+        "commit": "abc123",
+        "release_tag": "gb10-vllm-test",
+        "image_ref": "ghcr.io/gardner/vllm-gb10:test",
+    }
+    assert {
+        report["name"]: report["present"] for report in metadata["expected_reports"]
+    } == {
+        "gb10-nvfp4-smoke.json": True,
+        "gb10-openai-server-smoke-image.json": True,
+        "gb10-release-evidence-image.json": True,
+    }
+    included_paths = {
+        item["relative_path"] for item in metadata["included_files"]
+    }
+    assert included_paths == {
+        "reports/gb10-nvfp4-smoke.json",
+        "reports/gb10-openai-server-smoke-image.json",
+        "reports/gb10-release-evidence-image.json",
+        "reports/gb10-extra-local-note.json",
+    }
+
+    checksum_text = checksum_path.read_text()
+    assert "reports/gb10-nvfp4-smoke.json" in checksum_text
+    assert "release-evidence-metadata.json" in checksum_text
+
+    with tarfile.open(archive_path, "r:gz") as tar:
+        tar_names = set(tar.getnames())
+    assert "evidence/SHA256SUMS" in tar_names
+    assert "evidence/release-evidence-metadata.json" in tar_names
+    assert "evidence/reports/gb10-nvfp4-smoke.json" in tar_names
+    assert "evidence/reports/gb10-openai-server-smoke-image.json" in tar_names
+    assert "evidence/reports/gb10-release-evidence-image.json" in tar_names
 
 
 def test_gb10_openai_server_smoke_reports_api_evidence():
