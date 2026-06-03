@@ -510,6 +510,134 @@ def _build_backend_summary(
     }
 
 
+def _capability_status(
+    backend_summary: dict[str, Any],
+    capability_name: str,
+) -> str | None:
+    capability = backend_summary.get("capabilities", {}).get(capability_name)
+    if not isinstance(capability, dict):
+        return None
+    status = capability.get("status")
+    return str(status) if status is not None else None
+
+
+def _nested_get(mapping: dict[str, Any] | None, *keys: str) -> Any:
+    value: Any = mapping
+    for key in keys:
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return value
+
+
+def _build_gb10_release_summary(
+    *,
+    args: argparse.Namespace,
+    status: str,
+    required_paths: Sequence[str],
+    selections: Sequence[Any],
+    fallbacks: Sequence[Any],
+    backend_summary: dict[str, Any],
+    vllm_config_summary: dict[str, Any] | None,
+) -> dict[str, Any]:
+    native_gemm_status = _capability_status(backend_summary, "native_nvfp4_gemm")
+    native_moe_status = _capability_status(
+        backend_summary,
+        "native_nvfp4_moe_non_ep",
+    )
+    moe_required = "moe" in required_paths
+    fallback_selection_count = sum(1 for event in selections if event.is_fallback)
+    fallback_event_count = len(fallbacks)
+    fallback_free = fallback_selection_count == 0 and fallback_event_count == 0
+    configured_cache_dtype = _nested_get(vllm_config_summary, "cache", "cache_dtype")
+    configured_cudagraph_mode = _nested_get(
+        vllm_config_summary,
+        "compilation",
+        "cudagraph_mode",
+    )
+    configured_cudagraph_enabled = _nested_get(
+        vllm_config_summary,
+        "compilation",
+        "cudagraph_enabled",
+    )
+
+    smoke_checks = {
+        "model_smoke": {
+            "status": "passed" if status == "passed" else "failed",
+        },
+        "native_nvfp4_gemm": {
+            "status": native_gemm_status,
+            "required": True,
+        },
+        "native_nvfp4_moe_non_ep": {
+            "status": native_moe_status,
+            "required": moe_required,
+        },
+        "fallback_free": {
+            "status": "passed" if fallback_free else "failed",
+            "fallback_selection_count": fallback_selection_count,
+            "fallback_event_count": fallback_event_count,
+        },
+        "kv_cache_dtype": {
+            "status": (
+                "passed"
+                if configured_cache_dtype == args.kv_cache_dtype
+                else "not_observed"
+            ),
+            "expected": args.kv_cache_dtype,
+            "configured": configured_cache_dtype,
+        },
+        "attention_backend": {
+            "status": (
+                "configured"
+                if vllm_config_summary is not None
+                else "not_observed_by_report"
+            ),
+            "requested_backend": _nested_get(
+                vllm_config_summary,
+                "attention",
+                "requested_backend",
+            ),
+            "mla_prefill_backend": _nested_get(
+                vllm_config_summary,
+                "attention",
+                "mla_prefill_backend",
+            ),
+        },
+        "cuda_graph": {
+            "status": "not_validated_by_smoke",
+            "configured_mode": configured_cudagraph_mode,
+            "configured_enabled": configured_cudagraph_enabled,
+        },
+    }
+
+    smoke_blockers = []
+    if smoke_checks["model_smoke"]["status"] != "passed":
+        smoke_blockers.append("model smoke failed")
+    if native_gemm_status != "observed":
+        smoke_blockers.append("native NVFP4 dense GEMM was not observed")
+    if moe_required and native_moe_status != "observed":
+        smoke_blockers.append("required native NVFP4 non-EP MoE was not observed")
+    if not fallback_free:
+        smoke_blockers.append("NVFP4 fallback events or selections were observed")
+    if smoke_checks["kv_cache_dtype"]["status"] != "passed":
+        smoke_blockers.append("configured KV cache dtype did not match smoke request")
+
+    return {
+        "first_path_smoke_passed": not smoke_blockers,
+        "smoke_blockers": smoke_blockers,
+        "checks": smoke_checks,
+        "release_ready": False,
+        "remaining_release_evidence": [
+            "final runtime image smoke with the published GB10 dependency wheels",
+            "OpenAI-compatible server smoke",
+            "CUDA graph capture/replay validation",
+            "correctness or deterministic generation evidence for the target model",
+            "prefill/decode benchmark evidence",
+        ],
+    }
+
+
 def _build_report(
     *,
     args: argparse.Namespace,
@@ -548,17 +676,27 @@ def _build_report(
                 for path, backend_substring in args.gb10_expect_backend
             ],
         },
-        "backend_summary": _build_backend_summary(
-            status=status,
-            required_paths=required_paths,
-            selections=selections,
-            fallbacks=fallbacks,
-            vllm_config_summary=vllm_config_summary,
-        ),
         "backend_selections": _events_to_dicts(selections),
         "fallback_events": _events_to_dicts(fallbacks),
         "generated_texts": generated_texts,
     }
+    backend_summary = _build_backend_summary(
+        status=status,
+        required_paths=required_paths,
+        selections=selections,
+        fallbacks=fallbacks,
+        vllm_config_summary=vllm_config_summary,
+    )
+    report["backend_summary"] = backend_summary
+    report["gb10_release_summary"] = _build_gb10_release_summary(
+        args=args,
+        status=status,
+        required_paths=required_paths,
+        selections=selections,
+        fallbacks=fallbacks,
+        backend_summary=backend_summary,
+        vllm_config_summary=vllm_config_summary,
+    )
     if error is not None:
         report["error"] = error
     return report

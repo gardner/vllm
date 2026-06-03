@@ -614,7 +614,11 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert "_build_backend_summary" in script
     assert "_collect_runtime_metadata" in script
     assert '"schema_version": 1' in script
-    assert '"backend_summary": _build_backend_summary(' in script
+    assert "report[\"backend_summary\"] = backend_summary" in script
+    assert '"gb10_release_summary"' in script
+    assert "_build_gb10_release_summary(" in script
+    assert '"first_path_smoke_passed"' in script
+    assert '"remaining_release_evidence"' in script
     assert '"vllm_config": vllm_config_summary' in script
     assert "_collect_vllm_config_summary(llm)" in script
     assert '"native_nvfp4_gemm"' in script
@@ -731,6 +735,76 @@ def test_gb10_nvfp4_model_smoke_summarizes_vllm_config():
         backend_summary["capabilities"]["cuda_graph"]["configured_cudagraph_enabled"]
         is True
     )
+
+
+def test_gb10_nvfp4_model_smoke_builds_release_summary():
+    smoke = _load_gb10_smoke_module()
+    args = SimpleNamespace(
+        model="gb10-model",
+        quantization="modelopt_fp4",
+        kv_cache_dtype="fp8_e4m3",
+        gb10_max_tokens=8,
+        gb10_temperature=0.0,
+        gb10_sampling_seed=0,
+        gb10_skip_generate=False,
+        gb10_allow_fallback=False,
+        gb10_expect_backend=[],
+    )
+    selections = (
+        SimpleNamespace(
+            path="linear",
+            backend="FlashInferB12xNvFp4LinearKernel",
+            is_fallback=False,
+        ),
+        SimpleNamespace(path="moe", backend="FLASHINFER_B12X", is_fallback=False),
+    )
+    vllm_config_summary = {
+        "attention": {
+            "requested_backend": "FLASHINFER",
+            "mla_prefill_backend": None,
+        },
+        "cache": {"cache_dtype": "fp8_e4m3"},
+        "compilation": {
+            "cudagraph_mode": "PIECEWISE",
+            "cudagraph_enabled": True,
+        },
+    }
+
+    report = smoke._build_report(
+        args=args,
+        required_paths=("linear", "moe"),
+        selections=selections,
+        fallbacks=(),
+        outputs=(),
+        status="passed",
+        vllm_config_summary=vllm_config_summary,
+    )
+    release_summary = report["gb10_release_summary"]
+
+    assert release_summary["first_path_smoke_passed"] is True
+    assert release_summary["release_ready"] is False
+    assert release_summary["smoke_blockers"] == []
+    assert release_summary["checks"]["native_nvfp4_gemm"]["status"] == "observed"
+    assert release_summary["checks"]["native_nvfp4_moe_non_ep"]["status"] == "observed"
+    assert release_summary["checks"]["fallback_free"]["status"] == "passed"
+    assert release_summary["checks"]["kv_cache_dtype"] == {
+        "status": "passed",
+        "expected": "fp8_e4m3",
+        "configured": "fp8_e4m3",
+    }
+    assert release_summary["checks"]["attention_backend"] == {
+        "status": "configured",
+        "requested_backend": "FLASHINFER",
+        "mla_prefill_backend": None,
+    }
+    assert release_summary["checks"]["cuda_graph"] == {
+        "status": "not_validated_by_smoke",
+        "configured_mode": "PIECEWISE",
+        "configured_enabled": True,
+    }
+    assert "OpenAI-compatible server smoke" in release_summary[
+        "remaining_release_evidence"
+    ]
 
 
 def test_gb10_image_smoke_wraps_nvfp4_model_harness():
