@@ -36,6 +36,11 @@ on:
         required: true
         default: true
         type: boolean
+      preflight-only:
+        description: "Only validate GB10 FlashInfer wheels and build-cache wiring"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -80,6 +85,7 @@ jobs:
             flash_attn_repo="https://github.com/gardner/vllm-flash-attention.git"
             flash_attn_ref="de3849e75d07edd1c00aec02c92ec852ba757adc"
             push_image="true"
+            preflight_only="false"
           else
             release_tag="${{ inputs.release-tag }}"
             image_name="${{ inputs.image-name }}"
@@ -87,6 +93,7 @@ jobs:
             flash_attn_repo="${{ inputs.vllm-flash-attn-git-repository }}"
             flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
             push_image="${{ inputs.push-image }}"
+            preflight_only="${{ inputs['preflight-only'] }}"
           fi
           if [ -z "${prebuilt_wheel_urls}" ]; then
             prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
@@ -118,6 +125,7 @@ jobs:
             echo "GB10_FLASH_ATTN_REPO=${flash_attn_repo}"
             echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
             echo "GB10_PUSH_IMAGE=${push_image}"
+            echo "GB10_PREFLIGHT_ONLY=${preflight_only}"
           } >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
@@ -147,6 +155,7 @@ jobs:
             .
 
       - name: Build wheel stage
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
           docker buildx build \
             --file docker/Dockerfile \
@@ -169,6 +178,7 @@ jobs:
             .
 
       - name: Extract vLLM wheel
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
           mkdir -p dist
           cid="$(docker create vllm-gb10-wheel:${GITHUB_SHA::12})"
@@ -177,6 +187,7 @@ jobs:
           ls -lh dist
 
       - name: Verify wheel contains only SM121A CUDA images
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
           wheel="$(ls dist/vllm-*.whl | head -n1)"
           docker run --rm \
@@ -219,13 +230,14 @@ jobs:
           PY
 
       - name: Upload wheel artifact
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: gb10-vllm-wheel
           path: dist/*.whl
 
       - name: Publish wheel to GitHub Release
-        if: env.GB10_RELEASE_TAG != ''
+        if: env.GB10_PREFLIGHT_ONLY != 'true' && env.GB10_RELEASE_TAG != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -235,6 +247,7 @@ jobs:
           gh release upload "$GB10_RELEASE_TAG" dist/*.whl --clobber
 
       - name: Build runtime image
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
           output_arg="--load"
           if [ "$GB10_PUSH_IMAGE" = "true" ]; then

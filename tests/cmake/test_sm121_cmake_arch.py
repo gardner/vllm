@@ -260,6 +260,30 @@ def test_gb10_release_workflow_preflights_before_expensive_build():
     )
 
 
+def test_gb10_release_workflow_supports_manual_preflight_only():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert "preflight-only:" in gb10_workflow
+    assert "GB10_PREFLIGHT_ONLY=${preflight_only}" in gb10_workflow
+    assert "preflight_only=\"${{ inputs['preflight-only'] }}\"" in gb10_workflow
+
+    for step_name in (
+        "Build wheel stage",
+        "Extract vLLM wheel",
+        "Verify wheel contains only SM121A CUDA images",
+        "Upload wheel artifact",
+        "Publish wheel to GitHub Release",
+        "Build runtime image",
+    ):
+        step_block = gb10_workflow.split(f"- name: {step_name}", 1)[1].split(
+            "\n      - name:",
+            1,
+        )[0]
+        assert "env.GB10_PREFLIGHT_ONLY != 'true'" in step_block
+
+
 def test_gb10_release_workflow_uses_durable_split_build_caches():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
