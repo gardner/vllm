@@ -215,6 +215,23 @@ def test_gb10_release_workflow_uses_vllm_dockerfile():
     assert gb10_workflow.count("--file docker/Dockerfile") == 2
 
 
+def test_gb10_release_workflow_overrides_pep440_wheel_version():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+
+    assert 'vllm_version_base="0.22.1rc0"' in gb10_workflow
+    assert 'vllm_version="${vllm_version_base}+gb10.${GITHUB_SHA::12}"' in gb10_workflow
+    assert "GB10_VLLM_VERSION=${vllm_version}" in gb10_workflow
+    assert '--build-arg vllm_version_override="$GB10_VLLM_VERSION"' in gb10_workflow
+    assert 'ARG vllm_version_override=""' in dockerfile
+    assert 'export VLLM_VERSION_OVERRIDE="${vllm_version_override}"' in dockerfile
+    assert dockerfile.index('ARG vllm_version_override=""') > dockerfile.index(
+        "FROM base AS build"
+    )
+
+
 def test_gb10_dockerfile_exports_cuda_home_for_extension_builds():
     dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
     cuda_home_env = "ENV CUDA_HOME=/usr/local/cuda"

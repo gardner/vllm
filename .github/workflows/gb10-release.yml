@@ -98,10 +98,16 @@ jobs:
           done
 
           image_tag="${release_tag:-gb10-${GITHUB_SHA::12}}"
+          vllm_version_base="0.22.1rc0"
+          if [[ "${release_tag}" =~ ^gb10-vllm-v([^-]+)-[0-9a-f]{7,40}$ ]]; then
+            vllm_version_base="${BASH_REMATCH[1]}"
+          fi
+          vllm_version="${vllm_version_base}+gb10.${GITHUB_SHA::12}"
           {
             echo "GB10_RELEASE_TAG=${release_tag}"
             echo "GB10_IMAGE_NAME=${image_name}"
             echo "GB10_IMAGE_TAG=${image_tag}"
+            echo "GB10_VLLM_VERSION=${vllm_version}"
             echo "GB10_PREBUILT_WHEEL_URLS=${prebuilt_wheel_urls}"
             echo "GB10_FLASH_ATTN_REPO=${flash_attn_repo}"
             echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
@@ -131,6 +137,7 @@ jobs:
             --cache-to type=gha,scope=gb10-vllm,mode=max \
             --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
             --build-arg gb10_require_flashinfer_wheels=true \
+            --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
             --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
             --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
             .
@@ -218,6 +225,7 @@ jobs:
             --cache-to type=gha,scope=gb10-vllm,mode=max \
             --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
             --build-arg gb10_require_flashinfer_wheels=true \
+            --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
             --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
             --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
             $output_arg \

@@ -555,6 +555,7 @@ RUN --mount=type=bind,source=.git,target=.git \
 
 ARG vllm_target_device="cuda"
 ENV VLLM_TARGET_DEVICE=${vllm_target_device}
+ARG vllm_version_override=""
 
 # Skip adding +precompiled suffix to version (preserves git-derived version)
 ENV VLLM_SKIP_PRECOMPILED_VERSION_SUFFIX=1
@@ -568,6 +569,9 @@ RUN --mount=type=cache,target=/opt/uv/cache \
 # Build the vLLM wheel
 RUN --mount=type=cache,target=/opt/uv/cache \
     --mount=type=bind,source=.git,target=.git \
+    if [ -n "${vllm_version_override}" ]; then \
+        export VLLM_VERSION_OVERRIDE="${vllm_version_override}"; \
+    fi && \
     if [ "${vllm_target_device}" = "cuda" ]; then \
         export VLLM_USE_PRECOMPILED=1; \
         export VLLM_PRECOMPILED_WHEEL_LOCATION=$(ls /precompiled-wheels/*.whl); \
