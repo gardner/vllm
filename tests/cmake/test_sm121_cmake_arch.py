@@ -865,6 +865,11 @@ def test_gb10_openai_server_smoke_reports_api_evidence():
     assert "--gb10-endpoint" in script
     assert "--gb10-report-json" in script
     assert '"schema_version": 1' in script
+    assert '"served_models": served_models' in script
+    assert '"selected": selected' in script
+    assert '"system_fingerprint": completion_body.get("system_fingerprint")' in script
+    assert '"finish_reason": first_choice.get("finish_reason")' in script
+    assert '"stop_reason": first_choice.get("stop_reason")' in script
     assert '"gb10_release_evidence"' in script
     assert '"openai_compatible_server_smoke"' in script
     assert '"offline NVFP4 backend-selection smoke report"' in script
@@ -932,10 +937,35 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
         base_url="http://127.0.0.1:8000",
         model="gb10-model",
         models_status=200,
-        models_body={"data": [{"id": "gb10-model"}]},
+        models_body={
+            "data": [
+                {
+                    "id": "gb10-model",
+                    "object": "model",
+                    "created": 123,
+                    "owned_by": "vllm",
+                    "root": "org/gb10-model",
+                    "parent": None,
+                    "max_model_len": 4096,
+                    "permission": [{"allow_sampling": True}],
+                }
+            ]
+        },
         completion_status=200,
         completion_body={
-            "choices": [{"message": {"content": "native chat output"}}],
+            "id": "chatcmpl-gb10",
+            "object": "chat.completion",
+            "created": 456,
+            "model": "gb10-model",
+            "system_fingerprint": "vllm-0.22.1rc1.dev-gb10",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"content": "native chat output"},
+                    "finish_reason": "stop",
+                    "stop_reason": None,
+                }
+            ],
             "usage": {"completion_tokens": 3},
         },
         generated_text="native chat output",
@@ -946,9 +976,40 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
     assert report["status"] == "passed"
     assert report["model"] == "gb10-model"
     assert report["models"]["ids"] == ["gb10-model"]
+    assert report["models"]["raw_count"] == 1
+    assert report["models"]["served_models"] == [
+        {
+            "id": "gb10-model",
+            "object": "model",
+            "created": 123,
+            "owned_by": "vllm",
+            "root": "org/gb10-model",
+            "parent": None,
+            "max_model_len": 4096,
+        }
+    ]
+    assert report["models"]["selected"] == {
+        "id": "gb10-model",
+        "object": "model",
+        "created": 123,
+        "owned_by": "vllm",
+        "root": "org/gb10-model",
+        "parent": None,
+        "max_model_len": 4096,
+    }
     assert report["endpoint"] == {
         "name": "chat",
         "path": "/v1/chat/completions",
+    }
+    assert report["response"]["id"] == "chatcmpl-gb10"
+    assert report["response"]["object"] == "chat.completion"
+    assert report["response"]["created"] == 456
+    assert report["response"]["model"] == "gb10-model"
+    assert report["response"]["system_fingerprint"] == "vllm-0.22.1rc1.dev-gb10"
+    assert report["response"]["choice"] == {
+        "index": 0,
+        "finish_reason": "stop",
+        "stop_reason": None,
     }
     assert report["response"]["usage"] == {"completion_tokens": 3}
     assert report["response"]["generated_text_source"] == "message.content"

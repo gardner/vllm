@@ -191,6 +191,64 @@ def _extract_model_ids(models_body: dict[str, Any] | None) -> list[str]:
     ]
 
 
+def _summarize_model_entry(model_entry: Any) -> dict[str, Any] | None:
+    if not isinstance(model_entry, dict):
+        return None
+    model_id = model_entry.get("id")
+    if not isinstance(model_id, str):
+        return None
+    return {
+        "id": model_id,
+        "object": model_entry.get("object"),
+        "created": model_entry.get("created"),
+        "owned_by": model_entry.get("owned_by"),
+        "root": model_entry.get("root"),
+        "parent": model_entry.get("parent"),
+        "max_model_len": model_entry.get("max_model_len"),
+    }
+
+
+def _summarize_models(
+    models_body: dict[str, Any] | None,
+    requested_model: str | None,
+) -> dict[str, Any]:
+    if not isinstance(models_body, dict):
+        return {
+            "status": None,
+            "ids": [],
+            "raw_count": None,
+            "served_models": [],
+            "selected": None,
+        }
+    data = models_body.get("data", [])
+    if not isinstance(data, list):
+        data = []
+
+    served_models = [
+        summary
+        for summary in (_summarize_model_entry(model_entry) for model_entry in data)
+        if summary is not None
+    ]
+    selected = None
+    if requested_model is not None:
+        selected = next(
+            (
+                served_model
+                for served_model in served_models
+                if served_model["id"] == requested_model
+            ),
+            None,
+        )
+
+    return {
+        "status": None,
+        "ids": [served_model["id"] for served_model in served_models],
+        "raw_count": len(data),
+        "served_models": served_models,
+        "selected": selected,
+    }
+
+
 def _completion_path(endpoint: str) -> str:
     if endpoint == "chat":
         return "/v1/chat/completions"
@@ -242,11 +300,8 @@ def _extract_generated_text_with_source(
     endpoint: str,
     response: dict[str, Any],
 ) -> tuple[str, str | None]:
-    choices = response.get("choices", [])
-    if not isinstance(choices, list) or not choices:
-        return "", None
-    first_choice = choices[0]
-    if not isinstance(first_choice, dict):
+    first_choice = _first_choice(response)
+    if first_choice is None:
         return "", None
 
     if endpoint == "chat":
@@ -271,6 +326,31 @@ def _extract_generated_text_with_source(
     return (text, "text") if isinstance(text, str) and text else ("", None)
 
 
+def _first_choice(response: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(response, dict):
+        return None
+    choices = response.get("choices", [])
+    if not isinstance(choices, list) or not choices:
+        return None
+    first_choice = choices[0]
+    return first_choice if isinstance(first_choice, dict) else None
+
+
+def _extract_choice_metadata(response: dict[str, Any] | None) -> dict[str, Any]:
+    first_choice = _first_choice(response)
+    if first_choice is None:
+        return {
+            "index": None,
+            "finish_reason": None,
+            "stop_reason": None,
+        }
+    return {
+        "index": first_choice.get("index"),
+        "finish_reason": first_choice.get("finish_reason"),
+        "stop_reason": first_choice.get("stop_reason"),
+    }
+
+
 def _build_report(
     *,
     args: argparse.Namespace,
@@ -286,9 +366,10 @@ def _build_report(
     error: str | None = None,
 ) -> dict[str, Any]:
     completion_body = completion_body or {}
-    models_body = models_body or {}
-    model_ids = _extract_model_ids(models_body)
+    models_summary = _summarize_models(models_body, model)
+    models_summary["status"] = models_status
     endpoint_path = _completion_path(args.gb10_endpoint)
+    choice_metadata = _extract_choice_metadata(completion_body)
 
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -299,13 +380,7 @@ def _build_report(
             "path": endpoint_path,
         },
         "model": model,
-        "models": {
-            "status": models_status,
-            "ids": model_ids,
-            "raw_count": len(models_body.get("data", []))
-            if isinstance(models_body.get("data"), list)
-            else None,
-        },
+        "models": models_summary,
         "request": {
             "prompt": args.gb10_prompt,
             "max_tokens": args.gb10_max_tokens,
@@ -316,6 +391,12 @@ def _build_report(
         },
         "response": {
             "status": completion_status,
+            "id": completion_body.get("id"),
+            "object": completion_body.get("object"),
+            "created": completion_body.get("created"),
+            "model": completion_body.get("model"),
+            "system_fingerprint": completion_body.get("system_fingerprint"),
+            "choice": choice_metadata,
             "generated_text": generated_text,
             "generated_text_source": generated_text_source,
             "usage": completion_body.get("usage"),
