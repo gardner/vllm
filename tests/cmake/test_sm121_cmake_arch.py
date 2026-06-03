@@ -372,6 +372,26 @@ def test_gb10_release_workflow_uses_durable_split_build_caches():
     )
 
 
+def test_gb10_release_workflows_cancel_superseded_runs():
+    release_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    smoke_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
+    ).read_text()
+
+    assert "concurrency:" in release_workflow
+    assert "group: ${{ github.workflow }}-${{ github.ref }}" in release_workflow
+    assert "cancel-in-progress: true" in release_workflow
+
+    assert "concurrency:" in smoke_workflow
+    assert (
+        "group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs['image-ref'] }}"
+        in smoke_workflow
+    )
+    assert "cancel-in-progress: true" in smoke_workflow
+
+
 def test_gb10_release_workflow_uses_modest_remote_parallelism():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
