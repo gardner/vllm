@@ -151,6 +151,78 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Download release provenance artifact
+        if: inputs['release-workflow-run-id'] != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$GB10_RELEASE_PROVENANCE_DIR"
+          gh run download "$GB10_RELEASE_WORKFLOW_RUN_ID" \
+            --name gb10-release-manifest \
+            --dir "$GB10_RELEASE_PROVENANCE_DIR"
+
+          manifest="$GB10_RELEASE_PROVENANCE_DIR/gb10-release-manifest.json"
+          runtime_metadata="$GB10_RELEASE_PROVENANCE_DIR/buildx-runtime-image-metadata.json"
+          runtime_image_ref="$GB10_RELEASE_PROVENANCE_DIR/gb10-runtime-image-ref.txt"
+          runtime_image_digest="$GB10_RELEASE_PROVENANCE_DIR/gb10-runtime-image-digest.txt"
+          if [ ! -f "$manifest" ]; then
+            echo "GB10 release manifest artifact is missing $manifest" >&2
+            find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
+            exit 1
+          fi
+
+          manifest_image_ref="$(
+            python3 - "$manifest" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              manifest = json.load(stream)
+          image = manifest.get("image") or {}
+          name = image.get("name")
+          tag = image.get("tag")
+          if name and tag:
+              print(f"{name}:{tag}")
+          PY
+          )"
+          if [ -z "$manifest_image_ref" ]; then
+            echo "GB10 release manifest does not include image.name:image.tag." >&2
+            exit 1
+          fi
+          if [ "$manifest_image_ref" != "$GB10_IMAGE_REF" ]; then
+            echo "GB10 release manifest image ref does not match input image-ref." >&2
+            echo "  manifest: $manifest_image_ref" >&2
+            echo "  input:    $GB10_IMAGE_REF" >&2
+            exit 1
+          fi
+
+          echo "GB10_RELEASE_MANIFEST_JSON=$manifest" >> "$GITHUB_ENV"
+          if [ -f "$runtime_metadata" ]; then
+            echo "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" >> "$GITHUB_ENV"
+          fi
+
+          if [ -f "$runtime_image_ref" ]; then
+            expected_ref="$(sed -n '1p' "$runtime_image_ref")"
+            if [ -n "$expected_ref" ] && [ "$expected_ref" != "$GB10_IMAGE_REF" ]; then
+              echo "GB10 runtime image ref file does not match input image-ref." >&2
+              echo "  ref file: $expected_ref" >&2
+              echo "  input:    $GB10_IMAGE_REF" >&2
+              exit 1
+            fi
+            if [ -n "$expected_ref" ]; then
+              echo "GB10_EXPECTED_IMAGE_REF=$expected_ref" >> "$GITHUB_ENV"
+            fi
+          fi
+
+          if [ -f "$runtime_image_digest" ]; then
+            expected_digest="$(sed -n '1p' "$runtime_image_digest")"
+            if [ -n "$expected_digest" ]; then
+              echo "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" >> "$GITHUB_ENV"
+            fi
+          fi
+
+          find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print
+
       - name: Pull candidate image
         run: |
           docker pull "$GB10_IMAGE_REF"
@@ -164,34 +236,19 @@ jobs:
             echo "Unable to resolve pulled image digest for $GB10_IMAGE_REF" >&2
             exit 1
           fi
+          if [ -n "${GB10_EXPECTED_IMAGE_DIGEST:-}" ]; then
+            pulled_digest="${image_digest##*@}"
+            expected_digest="${GB10_EXPECTED_IMAGE_DIGEST##*@}"
+            if [ "$pulled_digest" != "$expected_digest" ]; then
+              echo "GB10 pulled image digest does not match release provenance." >&2
+              echo "  pulled:   $pulled_digest" >&2
+              echo "  expected: $expected_digest" >&2
+              exit 1
+            fi
+          fi
           echo "GB10_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
           printf '%s\n' "$image_digest" \
             > "$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-smoked-image-digest.txt"
-
-      - name: Download release provenance artifact
-        if: inputs['release-workflow-run-id'] != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p "$GB10_RELEASE_PROVENANCE_DIR"
-          gh run download "$GB10_RELEASE_WORKFLOW_RUN_ID" \
-            --name gb10-release-manifest \
-            --dir "$GB10_RELEASE_PROVENANCE_DIR"
-
-          manifest="$GB10_RELEASE_PROVENANCE_DIR/gb10-release-manifest.json"
-          runtime_metadata="$GB10_RELEASE_PROVENANCE_DIR/buildx-runtime-image-metadata.json"
-          if [ ! -f "$manifest" ]; then
-            echo "GB10 release manifest artifact is missing $manifest" >&2
-            find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
-            exit 1
-          fi
-
-          echo "GB10_RELEASE_MANIFEST_JSON=$manifest" >> "$GITHUB_ENV"
-          if [ -f "$runtime_metadata" ]; then
-            echo "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" >> "$GITHUB_ENV"
-          fi
-
-          find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print
 
       - name: Run final-image smoke and evidence verifier
         run: |

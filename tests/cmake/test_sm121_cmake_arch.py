@@ -621,9 +621,22 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "packages: read" in smoke_workflow
     assert "actions: read" in smoke_workflow
     assert "docker/login-action@v3" in smoke_workflow
+    assert smoke_workflow.index("Download release provenance artifact") < (
+        smoke_workflow.index("Pull candidate image")
+    )
     assert "docker pull \"$GB10_IMAGE_REF\"" in smoke_workflow
     assert "docker image inspect \"$GB10_IMAGE_REF\"" in smoke_workflow
     assert "GB10_IMAGE_DIGEST=$image_digest" in smoke_workflow
+    assert "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" in smoke_workflow
+    assert "GB10 release manifest image ref does not match input image-ref" in (
+        smoke_workflow
+    )
+    assert "GB10 runtime image ref file does not match input image-ref" in (
+        smoke_workflow
+    )
+    assert "GB10 pulled image digest does not match release provenance" in (
+        smoke_workflow
+    )
     assert "gb10-smoked-image-digest.txt" in smoke_workflow
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
         smoke_workflow
@@ -645,6 +658,8 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "--dir \"$GB10_RELEASE_PROVENANCE_DIR\"" in smoke_workflow
     assert "GB10_RELEASE_MANIFEST_JSON=$manifest" in smoke_workflow
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" in smoke_workflow
+    assert "gb10-runtime-image-ref.txt" in smoke_workflow
+    assert "gb10-runtime-image-digest.txt" in smoke_workflow
     assert "GB10 release manifest artifact is missing" in smoke_workflow
     assert "Bundle available evidence after failure" in smoke_workflow
     assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
