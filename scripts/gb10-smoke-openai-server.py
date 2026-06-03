@@ -96,6 +96,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Delay in seconds between failed request attempts.",
     )
     parser.add_argument(
+        "--gb10-repeat-count",
+        type=int,
+        default=1,
+        help=(
+            "Number of identical generation requests to send. Values greater "
+            "than one add deterministic-generation evidence to the report."
+        ),
+    )
+    parser.add_argument(
+        "--gb10-require-deterministic",
+        action="store_true",
+        help=(
+            "Fail if repeated generation requests do not return identical "
+            "generated text."
+        ),
+    )
+    parser.add_argument(
         "--gb10-allow-empty",
         action="store_true",
         help="Allow an empty generated text field in the response.",
@@ -351,6 +368,48 @@ def _extract_choice_metadata(response: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _build_response_summary(
+    *,
+    completion_status: int | None,
+    completion_body: dict[str, Any] | None,
+    generated_text: str,
+    generated_text_source: str | None,
+) -> dict[str, Any]:
+    completion_body = completion_body or {}
+    return {
+        "status": completion_status,
+        "id": completion_body.get("id"),
+        "object": completion_body.get("object"),
+        "created": completion_body.get("created"),
+        "model": completion_body.get("model"),
+        "system_fingerprint": completion_body.get("system_fingerprint"),
+        "choice": _extract_choice_metadata(completion_body),
+        "generated_text": generated_text,
+        "generated_text_source": generated_text_source,
+        "usage": completion_body.get("usage"),
+    }
+
+
+def _build_deterministic_summary(
+    response_summaries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    generated_texts = [
+        str(response_summary.get("generated_text", ""))
+        for response_summary in response_summaries
+    ]
+    unique_generated_texts = sorted(set(generated_texts))
+    status = "not_requested"
+    if len(response_summaries) > 1:
+        status = "passed" if len(unique_generated_texts) == 1 else "failed"
+
+    return {
+        "status": status,
+        "repeat_count": len(response_summaries),
+        "unique_generated_text_count": len(unique_generated_texts),
+        "generated_texts_match": len(unique_generated_texts) <= 1,
+    }
+
+
 def _build_report(
     *,
     args: argparse.Namespace,
@@ -362,14 +421,22 @@ def _build_report(
     completion_body: dict[str, Any] | None,
     generated_text: str,
     generated_text_source: str | None,
+    response_summaries: list[dict[str, Any]] | None = None,
     status: str,
     error: str | None = None,
 ) -> dict[str, Any]:
-    completion_body = completion_body or {}
     models_summary = _summarize_models(models_body, model)
     models_summary["status"] = models_status
     endpoint_path = _completion_path(args.gb10_endpoint)
-    choice_metadata = _extract_choice_metadata(completion_body)
+    fallback_response_summary = _build_response_summary(
+        completion_status=completion_status,
+        completion_body=completion_body,
+        generated_text=generated_text,
+        generated_text_source=generated_text_source,
+    )
+    response_summaries = response_summaries or [fallback_response_summary]
+    first_response_summary = response_summaries[0]
+    deterministic_summary = _build_deterministic_summary(response_summaries)
 
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -388,25 +455,19 @@ def _build_report(
             "seed": args.gb10_seed,
             "timeout": args.gb10_timeout,
             "retries": args.gb10_retries,
+            "repeat_count": args.gb10_repeat_count,
+            "require_deterministic": args.gb10_require_deterministic,
         },
-        "response": {
-            "status": completion_status,
-            "id": completion_body.get("id"),
-            "object": completion_body.get("object"),
-            "created": completion_body.get("created"),
-            "model": completion_body.get("model"),
-            "system_fingerprint": completion_body.get("system_fingerprint"),
-            "choice": choice_metadata,
-            "generated_text": generated_text,
-            "generated_text_source": generated_text_source,
-            "usage": completion_body.get("usage"),
-        },
+        "response": first_response_summary,
+        "responses": response_summaries,
+        "deterministic_generation": deterministic_summary,
         "gb10_release_evidence": {
             "openai_compatible_server_smoke": {
                 "status": "passed" if status == "passed" else "failed",
                 "endpoint": endpoint_path,
                 "generated_text_observed": bool(generated_text),
             },
+            "deterministic_generation": deterministic_summary,
             "release_ready": False,
             "remaining_release_evidence": [
                 "final runtime image smoke with the published GB10 dependency wheels",
@@ -446,8 +507,12 @@ def main(argv: list[str] | None = None) -> int:
     completion_body: dict[str, Any] | None = None
     generated_text = ""
     generated_text_source: str | None = None
+    response_summaries: list[dict[str, Any]] = []
 
     try:
+        if args.gb10_repeat_count < 1:
+            raise RuntimeError("--gb10-repeat-count must be at least 1")
+
         models_status, models_body = _request_with_retries(
             method="GET",
             url=_join_url(base_url, "/v1/models"),
@@ -471,22 +536,40 @@ def main(argv: list[str] | None = None) -> int:
             temperature=args.gb10_temperature,
             seed=args.gb10_seed,
         )
-        completion_status, completion_body = _request_with_retries(
-            method="POST",
-            url=_join_url(base_url, _completion_path(args.gb10_endpoint)),
-            payload=payload,
-            timeout=args.gb10_timeout,
-            retries=args.gb10_retries,
-            retry_delay=args.gb10_retry_delay,
-        )
-        generated_text, generated_text_source = _extract_generated_text_with_source(
-            args.gb10_endpoint,
-            completion_body,
-        )
-        if not generated_text and not args.gb10_allow_empty:
-            raise RuntimeError(
-                "Generation response did not contain non-empty generated text"
+        for _ in range(args.gb10_repeat_count):
+            completion_status, completion_body = _request_with_retries(
+                method="POST",
+                url=_join_url(base_url, _completion_path(args.gb10_endpoint)),
+                payload=payload,
+                timeout=args.gb10_timeout,
+                retries=args.gb10_retries,
+                retry_delay=args.gb10_retry_delay,
             )
+            generated_text, generated_text_source = (
+                _extract_generated_text_with_source(
+                    args.gb10_endpoint,
+                    completion_body,
+                )
+            )
+            if not generated_text and not args.gb10_allow_empty:
+                raise RuntimeError(
+                    "Generation response did not contain non-empty generated text"
+                )
+            response_summaries.append(
+                _build_response_summary(
+                    completion_status=completion_status,
+                    completion_body=completion_body,
+                    generated_text=generated_text,
+                    generated_text_source=generated_text_source,
+                )
+            )
+
+        deterministic_summary = _build_deterministic_summary(response_summaries)
+        if (
+            args.gb10_require_deterministic
+            and deterministic_summary["status"] != "passed"
+        ):
+            raise RuntimeError("Repeated generation responses were not deterministic")
 
         report = _build_report(
             args=args,
@@ -498,6 +581,7 @@ def main(argv: list[str] | None = None) -> int:
             completion_body=completion_body,
             generated_text=generated_text,
             generated_text_source=generated_text_source,
+            response_summaries=response_summaries,
             status="passed",
         )
         _write_report(args.gb10_report_json, report)
@@ -514,6 +598,7 @@ def main(argv: list[str] | None = None) -> int:
             completion_body=completion_body,
             generated_text=generated_text,
             generated_text_source=generated_text_source,
+            response_summaries=response_summaries,
             status="failed",
             error=str(exc),
         )

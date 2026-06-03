@@ -870,6 +870,10 @@ def test_gb10_openai_server_smoke_reports_api_evidence():
     assert '"system_fingerprint": completion_body.get("system_fingerprint")' in script
     assert '"finish_reason": first_choice.get("finish_reason")' in script
     assert '"stop_reason": first_choice.get("stop_reason")' in script
+    assert "--gb10-repeat-count" in script
+    assert "--gb10-require-deterministic" in script
+    assert '"deterministic_generation"' in script
+    assert '"responses": response_summaries' in script
     assert '"gb10_release_evidence"' in script
     assert '"openai_compatible_server_smoke"' in script
     assert '"offline NVFP4 backend-selection smoke report"' in script
@@ -931,7 +935,43 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
         gb10_seed=0,
         gb10_timeout=30.0,
         gb10_retries=1,
+        gb10_repeat_count=2,
+        gb10_require_deterministic=True,
     )
+    response_summaries = [
+        {
+            "status": 200,
+            "id": "chatcmpl-gb10-a",
+            "object": "chat.completion",
+            "created": 456,
+            "model": "gb10-model",
+            "system_fingerprint": "vllm-0.22.1rc1.dev-gb10",
+            "choice": {
+                "index": 0,
+                "finish_reason": "stop",
+                "stop_reason": None,
+            },
+            "generated_text": "native chat output",
+            "generated_text_source": "message.content",
+            "usage": {"completion_tokens": 3},
+        },
+        {
+            "status": 200,
+            "id": "chatcmpl-gb10-b",
+            "object": "chat.completion",
+            "created": 457,
+            "model": "gb10-model",
+            "system_fingerprint": "vllm-0.22.1rc1.dev-gb10",
+            "choice": {
+                "index": 0,
+                "finish_reason": "stop",
+                "stop_reason": None,
+            },
+            "generated_text": "native chat output",
+            "generated_text_source": "message.content",
+            "usage": {"completion_tokens": 3},
+        },
+    ]
     report = smoke._build_report(
         args=args,
         base_url="http://127.0.0.1:8000",
@@ -970,6 +1010,7 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
         },
         generated_text="native chat output",
         generated_text_source="message.content",
+        response_summaries=response_summaries,
         status="passed",
     )
 
@@ -1001,7 +1042,7 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
         "name": "chat",
         "path": "/v1/chat/completions",
     }
-    assert report["response"]["id"] == "chatcmpl-gb10"
+    assert report["response"]["id"] == "chatcmpl-gb10-a"
     assert report["response"]["object"] == "chat.completion"
     assert report["response"]["created"] == 456
     assert report["response"]["model"] == "gb10-model"
@@ -1013,10 +1054,23 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
     }
     assert report["response"]["usage"] == {"completion_tokens": 3}
     assert report["response"]["generated_text_source"] == "message.content"
+    assert report["responses"] == response_summaries
+    assert report["deterministic_generation"] == {
+        "status": "passed",
+        "repeat_count": 2,
+        "unique_generated_text_count": 1,
+        "generated_texts_match": True,
+    }
     assert report["gb10_release_evidence"]["openai_compatible_server_smoke"] == {
         "status": "passed",
         "endpoint": "/v1/chat/completions",
         "generated_text_observed": True,
+    }
+    assert report["gb10_release_evidence"]["deterministic_generation"] == {
+        "status": "passed",
+        "repeat_count": 2,
+        "unique_generated_text_count": 1,
+        "generated_texts_match": True,
     }
     assert report["gb10_release_evidence"]["release_ready"] is False
     assert "CUDA graph capture/replay validation" in report[
