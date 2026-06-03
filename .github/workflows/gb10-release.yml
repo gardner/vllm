@@ -287,6 +287,42 @@ jobs:
             .
           cat "$GB10_RUNTIME_IMAGE_METADATA_JSON"
 
+      - name: Write GB10 runtime image refs
+        if: env.GB10_PREFLIGHT_ONLY != 'true'
+        run: |
+          image_ref="$GB10_IMAGE_NAME:$GB10_IMAGE_TAG"
+          image_digest="$(
+            python3 - "$GB10_RUNTIME_IMAGE_METADATA_JSON" <<'PY'
+          import json
+          import sys
+
+          metadata_path = sys.argv[1]
+          with open(metadata_path, encoding="utf-8") as stream:
+              metadata = json.load(stream)
+
+          candidates = [
+              metadata.get("containerimage.digest"),
+              (metadata.get("containerimage.descriptor") or {}).get("digest"),
+              (metadata.get("image") or {}).get("digest"),
+          ]
+          for candidate in candidates:
+              if candidate:
+                  print(candidate)
+                  break
+          PY
+          )"
+
+          printf '%s\n' "$image_ref" \
+            > "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
+          if [ -z "$image_digest" ] && [ "$GB10_PUSH_IMAGE" = "true" ]; then
+            echo "GB10 pushed runtime image metadata did not include a digest." >&2
+            exit 1
+          fi
+          if [ -n "$image_digest" ]; then
+            printf '%s\n' "$image_digest" \
+              > "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt"
+          fi
+
       - name: Write GB10 release checksums
         if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
@@ -294,9 +330,13 @@ jobs:
           checksum_inputs=(
             dist/*.whl
             "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
           )
           if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]; then
             checksum_inputs+=("$GB10_RUNTIME_IMAGE_METADATA_JSON")
+          fi
+          if [ -f "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" ]; then
+            checksum_inputs+=("$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt")
           fi
           sha256sum "${checksum_inputs[@]}" > "$checksum_file"
           cat "$checksum_file"
@@ -319,9 +359,13 @@ jobs:
           release_assets=(
             dist/*.whl
             "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
             "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
           )
           if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]; then
             release_assets+=("$GB10_RUNTIME_IMAGE_METADATA_JSON")
+          fi
+          if [ -f "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" ]; then
+            release_assets+=("$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt")
           fi
           gh release upload "$GB10_RELEASE_TAG" "${release_assets[@]}" --clobber

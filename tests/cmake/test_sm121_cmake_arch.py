@@ -451,7 +451,10 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "scripts/gb10-write-release-manifest.py" in gb10_workflow
     assert "gb10-release-manifest.json" in gb10_workflow
     assert "buildx-runtime-image-metadata.json" in gb10_workflow
+    assert "gb10-runtime-image-ref.txt" in gb10_workflow
+    assert "gb10-runtime-image-digest.txt" in gb10_workflow
     assert "gb10-vllm-release-SHA256SUMS" in gb10_workflow
+    assert "Write GB10 runtime image refs" in gb10_workflow
     assert "Write GB10 release checksums" in gb10_workflow
     assert "Upload GB10 release manifest" in gb10_workflow
     assert "name: gb10-release-manifest" in gb10_workflow
@@ -467,6 +470,9 @@ def test_gb10_release_workflow_publishes_release_manifest():
         gb10_workflow.index("Preflight GB10 FlashInfer wheels")
     )
     assert gb10_workflow.index("Build runtime image") < (
+        gb10_workflow.index("Write GB10 runtime image refs")
+    )
+    assert gb10_workflow.index("Write GB10 runtime image refs") < (
         gb10_workflow.index("Write GB10 release checksums")
     )
     assert gb10_workflow.index("Write GB10 release checksums") < (
@@ -486,7 +492,18 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "release_assets=(" in release_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json" in release_step
     assert "$GB10_RUNTIME_IMAGE_METADATA_JSON" in release_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in release_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in release_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS" in release_step
+
+    refs_step = gb10_workflow.split(
+        "- name: Write GB10 runtime image refs",
+        1,
+    )[1].split("- name: Write GB10 release checksums", 1)[0]
+    assert "containerimage.digest" in refs_step
+    assert "GB10 pushed runtime image metadata did not include a digest" in refs_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in refs_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in refs_step
 
 
 def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
