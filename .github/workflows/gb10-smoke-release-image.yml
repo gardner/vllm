@@ -1,0 +1,258 @@
+name: GB10 vLLM image smoke evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-ref:
+        description: "Candidate vLLM runtime image to smoke test"
+        required: true
+        default: "ghcr.io/gardner/vllm-gb10:latest-gb10"
+        type: string
+      release-tag:
+        description: "Optional GitHub Release tag to attach evidence files to"
+        required: false
+        default: ""
+        type: string
+      publish-to-release:
+        description: "Attach the evidence bundle to release-tag"
+        required: true
+        default: false
+        type: boolean
+      model:
+        description: "NVFP4 model id/path used for offline and server smoke"
+        required: true
+        default: "nvidia/Qwen3.6-35B-A3B-NVFP4"
+        type: string
+      served-model-name:
+        description: "Served model name used by the OpenAI-compatible smoke"
+        required: true
+        default: "qwen3.6"
+        type: string
+      max-model-len:
+        description: "Max model length for the smoke run"
+        required: true
+        default: "4096"
+        type: string
+      require-moe:
+        description: "Require native non-EP MoE backend evidence"
+        required: true
+        default: true
+        type: boolean
+      require-openai-deterministic:
+        description: "Require deterministic OpenAI-compatible generation"
+        required: true
+        default: true
+        type: boolean
+      openai-endpoint:
+        description: "OpenAI-compatible endpoint to smoke"
+        required: true
+        default: "chat"
+        type: choice
+        options:
+          - chat
+          - completions
+      openai-max-tokens:
+        description: "OpenAI-compatible smoke max tokens"
+        required: true
+        default: "32"
+        type: string
+      openai-repeat-count:
+        description: "Repeat count for deterministic OpenAI-compatible smoke"
+        required: true
+        default: "2"
+        type: string
+      extra-offline-args:
+        description: "Extra args for scripts/gb10-smoke-image.sh after --"
+        required: false
+        default: ""
+        type: string
+      extra-serve-args:
+        description: "Extra vLLM serve args for the temporary image server"
+        required: false
+        default: ""
+        type: string
+      extra-openai-args:
+        description: "Extra args for the OpenAI-compatible smoke harness"
+        required: false
+        default: ""
+        type: string
+      extra-verify-args:
+        description: "Extra args for scripts/gb10-verify-release-evidence.py"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+  packages: read
+
+defaults:
+  run:
+    shell: bash -e -u -o pipefail {0}
+
+jobs:
+  smoke:
+    name: Smoke final GB10 image
+    runs-on: [self-hosted, linux, aarch64, cuda13, dgx-spark, sm121]
+    timeout-minutes: 240
+    env:
+      GB10_IMAGE_REF: ${{ inputs['image-ref'] }}
+      GB10_RELEASE_TAG: ${{ inputs['release-tag'] }}
+      GB10_PUBLISH_TO_RELEASE: ${{ inputs['publish-to-release'] }}
+      GB10_MODEL: ${{ inputs['model'] }}
+      GB10_SERVED_MODEL_NAME: ${{ inputs['served-model-name'] }}
+      GB10_MAX_MODEL_LEN: ${{ inputs['max-model-len'] }}
+      GB10_REQUIRE_MOE: ${{ inputs['require-moe'] }}
+      GB10_REQUIRE_OPENAI_DETERMINISTIC: ${{ inputs['require-openai-deterministic'] }}
+      GB10_OPENAI_ENDPOINT: ${{ inputs['openai-endpoint'] }}
+      GB10_OPENAI_MAX_TOKENS: ${{ inputs['openai-max-tokens'] }}
+      GB10_OPENAI_REPEAT_COUNT: ${{ inputs['openai-repeat-count'] }}
+      GB10_EXTRA_OFFLINE_ARGS: ${{ inputs['extra-offline-args'] }}
+      GB10_EXTRA_SERVE_ARGS: ${{ inputs['extra-serve-args'] }}
+      GB10_EXTRA_OPENAI_ARGS: ${{ inputs['extra-openai-args'] }}
+      GB10_EXTRA_VERIFY_ARGS: ${{ inputs['extra-verify-args'] }}
+      GB10_RELEASE_SMOKE_REPORT_DIR: ${{ github.workspace }}/gb10-smoke-reports
+      GB10_RELEASE_EVIDENCE_OUTPUT_DIR: ${{ github.workspace }}/dist/gb10-release-evidence
+      GB10_SMOKE_CACHE_DIR: ${{ runner.temp }}/gb10-hf-cache
+      GB10_OPENAI_IMAGE_CACHE_DIR: ${{ runner.temp }}/gb10-hf-cache
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HUGGING_FACE_HUB_TOKEN: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Show GB10 runner
+        run: |
+          uname -a
+          command -v nvidia-smi >/dev/null
+          nvidia-smi
+          command -v docker >/dev/null
+          docker version
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull candidate image
+        run: |
+          docker pull "$GB10_IMAGE_REF"
+
+      - name: Run final-image smoke and evidence verifier
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          mkdir -p "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"
+
+          if [ "$GB10_REQUIRE_MOE" = "true" ]; then
+            export GB10_RELEASE_REQUIRE_MOE=1
+          else
+            export GB10_RELEASE_REQUIRE_MOE=0
+          fi
+
+          if [ "$GB10_REQUIRE_OPENAI_DETERMINISTIC" = "true" ]; then
+            export GB10_RELEASE_REQUIRE_OPENAI_DETERMINISTIC=1
+          else
+            export GB10_RELEASE_REQUIRE_OPENAI_DETERMINISTIC=0
+          fi
+
+          append_extra_args() {
+            local value="$1"
+            local -n target="$2"
+            if [ -n "$value" ]; then
+              # Inputs are intentionally shell-split for advanced smoke flags.
+              # Avoid spaces inside individual argument values.
+              # shellcheck disable=SC2206
+              local extra_args=($value)
+              target+=("${extra_args[@]}")
+            fi
+          }
+
+          offline_args=(
+            --model "$GB10_MODEL"
+            --trust-remote-code
+            --max-model-len "$GB10_MAX_MODEL_LEN"
+            --gb10-require-path linear
+            --gb10-expect-backend linear=FlashInferB12x
+          )
+          if [ "$GB10_REQUIRE_MOE" = "true" ]; then
+            offline_args+=(
+              --gb10-require-path moe
+              --gb10-expect-backend moe=FLASHINFER_B12X
+            )
+          fi
+          append_extra_args "$GB10_EXTRA_OFFLINE_ARGS" offline_args
+
+          serve_args=(
+            "$GB10_MODEL"
+            --served-model-name "$GB10_SERVED_MODEL_NAME"
+            --trust-remote-code
+            --quantization modelopt
+            --attention-backend flashinfer
+            --kv-cache-dtype fp8
+            --max-model-len "$GB10_MAX_MODEL_LEN"
+          )
+          append_extra_args "$GB10_EXTRA_SERVE_ARGS" serve_args
+
+          openai_args=(
+            --model "$GB10_SERVED_MODEL_NAME"
+            --gb10-endpoint "$GB10_OPENAI_ENDPOINT"
+            --gb10-max-tokens "$GB10_OPENAI_MAX_TOKENS"
+            --gb10-repeat-count "$GB10_OPENAI_REPEAT_COUNT"
+          )
+          if [ "$GB10_REQUIRE_OPENAI_DETERMINISTIC" = "true" ]; then
+            openai_args+=(--gb10-require-deterministic)
+          fi
+          append_extra_args "$GB10_EXTRA_OPENAI_ARGS" openai_args
+
+          verify_args=()
+          append_extra_args "$GB10_EXTRA_VERIFY_ARGS" verify_args
+
+          scripts/gb10-smoke-release-image.sh "$GB10_IMAGE_REF" \
+            --offline "${offline_args[@]}" \
+            --serve "${serve_args[@]}" \
+            --openai "${openai_args[@]}" \
+            --verify "${verify_args[@]}"
+
+      - name: Bundle available evidence after failure
+        if: always()
+        run: |
+          if [ -d "$GB10_RELEASE_SMOKE_REPORT_DIR" ]; then
+            scripts/gb10-bundle-release-evidence.py \
+              --gb10-report-dir "$GB10_RELEASE_SMOKE_REPORT_DIR" \
+              --gb10-output-dir "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" \
+              --gb10-image-ref "$GB10_IMAGE_REF" \
+              --gb10-release-tag "$GB10_RELEASE_TAG" \
+              --gb10-allow-partial || true
+          fi
+
+      - name: Upload GB10 evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gb10-release-evidence
+          if-no-files-found: warn
+          path: |
+            gb10-smoke-reports/**
+            dist/gb10-release-evidence/**
+
+      - name: Attach evidence to GitHub Release
+        if: always() && inputs['publish-to-release'] && inputs['release-tag'] != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$GB10_RELEASE_TAG" \
+              --title "$GB10_RELEASE_TAG" \
+              --notes "GB10/DGX Spark vLLM release smoke evidence"
+          fi
+          gh release upload "$GB10_RELEASE_TAG" \
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/gb10-release-evidence.tar.gz \
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/gb10-release-evidence.tar.gz.sha256 \
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/release-evidence-metadata.json \
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/SHA256SUMS \
+            --clobber

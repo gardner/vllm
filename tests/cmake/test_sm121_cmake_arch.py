@@ -384,6 +384,52 @@ def test_gb10_release_workflow_uses_modest_remote_parallelism():
     assert gb10_workflow.count('--build-arg nvcc_threads="$GB10_NVCC_THREADS"') == 2
 
 
+def test_gb10_image_smoke_workflow_publishes_durable_evidence():
+    smoke_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
+    ).read_text()
+
+    assert "workflow_dispatch:" in smoke_workflow
+    assert "image-ref:" in smoke_workflow
+    assert "release-tag:" in smoke_workflow
+    assert "publish-to-release:" in smoke_workflow
+    assert "model:" in smoke_workflow
+    assert "served-model-name:" in smoke_workflow
+    assert "require-moe:" in smoke_workflow
+    assert "require-openai-deterministic:" in smoke_workflow
+    assert "runs-on: [self-hosted, linux, aarch64, cuda13, dgx-spark, sm121]" in (
+        smoke_workflow
+    )
+    assert "permissions:" in smoke_workflow
+    assert "contents: write" in smoke_workflow
+    assert "packages: read" in smoke_workflow
+    assert "docker/login-action@v3" in smoke_workflow
+    assert "docker pull \"$GB10_IMAGE_REF\"" in smoke_workflow
+    assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
+        smoke_workflow
+    )
+    assert "--gb10-require-path linear" in smoke_workflow
+    assert "--gb10-expect-backend linear=FlashInferB12x" in smoke_workflow
+    assert "--gb10-require-path moe" in smoke_workflow
+    assert "--gb10-expect-backend moe=FLASHINFER_B12X" in smoke_workflow
+    assert "--quantization modelopt" in smoke_workflow
+    assert "--attention-backend flashinfer" in smoke_workflow
+    assert "--kv-cache-dtype fp8" in smoke_workflow
+    assert "GB10_RELEASE_SMOKE_REPORT_DIR" in smoke_workflow
+    assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in smoke_workflow
+    assert "Bundle available evidence after failure" in smoke_workflow
+    assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
+    assert "--gb10-allow-partial || true" in smoke_workflow
+    assert "actions/upload-artifact@v4" in smoke_workflow
+    assert "gb10-smoke-reports/**" in smoke_workflow
+    assert "dist/gb10-release-evidence/**" in smoke_workflow
+    assert "Attach evidence to GitHub Release" in smoke_workflow
+    assert "gh release upload \"$GB10_RELEASE_TAG\"" in smoke_workflow
+    assert "gb10-release-evidence.tar.gz" in smoke_workflow
+    assert "release-evidence-metadata.json" in smoke_workflow
+    assert "SHA256SUMS" in smoke_workflow
+
+
 def test_gb10_local_cached_build_script_defaults_to_serial_builds():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 
