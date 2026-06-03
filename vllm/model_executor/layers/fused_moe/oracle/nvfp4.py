@@ -57,6 +57,11 @@ FLASHINFER_NVFP4_MOE_BACKENDS = [
     NvFp4MoeBackend.FLASHINFER_B12X,
 ]
 
+_NVFP4_MOE_FALLBACK_BACKENDS = {
+    NvFp4MoeBackend.MARLIN,
+    NvFp4MoeBackend.EMULATION,
+}
+
 fi_2_vllm_backend_map: dict[FlashinferMoeBackend, NvFp4MoeBackend] = {
     FlashinferMoeBackend.CUTLASS: NvFp4MoeBackend.FLASHINFER_CUTLASS,
     FlashinferMoeBackend.TENSORRT_LLM: NvFp4MoeBackend.FLASHINFER_TRTLLM,
@@ -191,6 +196,7 @@ def select_nvfp4_moe_backend(
             b for b in AVAILABLE_BACKENDS if b in NVFP4_BACKENDS_WITH_CLAMP
         ]
 
+    unavailable_native_backend_reasons: list[str] = []
     use_batched = config.moe_parallel_config.use_batched_activation_format
     activation_format = (
         mk.FusedMoEActivationFormat.BatchedExperts
@@ -217,6 +223,34 @@ def select_nvfp4_moe_backend(
                 "deployment configuration."
             )
 
+    def _log_backend_selection(backend: NvFp4MoeBackend) -> None:
+        logger.info_once(_make_log_backend(backend))
+        if backend not in _NVFP4_MOE_FALLBACK_BACKENDS:
+            return
+
+        reason_suffix = ""
+        if unavailable_native_backend_reasons:
+            reason_suffix = (
+                " Unavailable native backend reasons:\n - "
+                + "\n - ".join(unavailable_native_backend_reasons)
+            )
+        logger.warning_once(
+            "NVFP4 MoE selected fallback backend '%s'. This is not the native "
+            "GB10 W4A4 FP4 fused MoE path; verify this fallback is intentional "
+            "before publishing GB10 artifacts.%s",
+            backend.value,
+            reason_suffix,
+        )
+
+    def _log_unsupported_backend(
+        backend: NvFp4MoeBackend,
+        reason: str | None,
+    ) -> None:
+        unsupported_reason = _make_log_unsupported(backend, reason)
+        if backend not in _NVFP4_MOE_FALLBACK_BACKENDS:
+            unavailable_native_backend_reasons.append(unsupported_reason)
+        logger.debug_once(unsupported_reason)
+
     def _return_or_raise(
         backend: NvFp4MoeBackend,
         config: FusedMoEConfig,
@@ -229,7 +263,7 @@ def select_nvfp4_moe_backend(
                 k_cls, config, weight_key, activation_key, activation_format
             )
             if supported:
-                logger.info_once(_make_log_backend(backend))
+                _log_backend_selection(backend)
                 return backend, k_cls
 
         raise ValueError(_make_log_unsupported(backend, reason))
@@ -264,6 +298,10 @@ def select_nvfp4_moe_backend(
             for b in FLASHINFER_NVFP4_MOE_BACKENDS:
                 if b in AVAILABLE_BACKENDS:
                     AVAILABLE_BACKENDS.remove(b)
+            unavailable_native_backend_reasons.append(
+                "FlashInfer NVFP4 MoE backends disabled by "
+                "VLLM_USE_FLASHINFER_MOE_FP4=0."
+            )
 
         elif envs.is_set("VLLM_FLASHINFER_MOE_BACKEND"):
             # If user is explicit about backend, validate it.
@@ -297,10 +335,10 @@ def select_nvfp4_moe_backend(
                         activation_format,
                     )
                     if supported:
-                        logger.info_once(_make_log_backend(backend))
+                        _log_backend_selection(backend)
                         return backend, k_cls
                     else:
-                        logger.debug_once(_make_log_unsupported(backend, reason))
+                        _log_unsupported_backend(backend, reason)
 
             raise NotImplementedError(
                 "Found VLLM_USE_FLASHINFER_MOE_FP4=1, but no "
@@ -324,10 +362,10 @@ def select_nvfp4_moe_backend(
                 activation_format,
             )
             if supported:
-                logger.info_once(_make_log_backend(backend))
+                _log_backend_selection(backend)
                 return backend, k_cls
             else:
-                logger.debug_once(_make_log_unsupported(backend, reason))
+                _log_unsupported_backend(backend, reason)
 
     raise NotImplementedError(
         "No NvFp4 MoE backend supports the deployment configuration."

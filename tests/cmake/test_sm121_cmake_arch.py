@@ -480,3 +480,22 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "Core path; verify this fallback is intentional " in modelopt_quant
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
+
+
+def test_gb10_nvfp4_moe_fallbacks_are_reported():
+    nvfp4_oracle = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "fused_moe" / "oracle" / "nvfp4.py"
+    ).read_text()
+
+    assert "_NVFP4_MOE_FALLBACK_BACKENDS" in nvfp4_oracle
+    assert "NvFp4MoeBackend.MARLIN" in nvfp4_oracle
+    assert "NvFp4MoeBackend.EMULATION" in nvfp4_oracle
+    assert "unavailable_native_backend_reasons" in nvfp4_oracle
+    assert "NVFP4 MoE selected fallback backend '%s'" in nvfp4_oracle
+    assert "not the native " in nvfp4_oracle
+    assert "GB10 W4A4 FP4 fused MoE path" in nvfp4_oracle
+    assert "verify this fallback is intentional " in nvfp4_oracle
+    assert "before publishing GB10 artifacts" in nvfp4_oracle
+    assert "Unavailable native backend reasons" in nvfp4_oracle
+    assert "VLLM_USE_FLASHINFER_MOE_FP4=0" in nvfp4_oracle
