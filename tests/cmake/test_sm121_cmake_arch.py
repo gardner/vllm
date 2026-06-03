@@ -588,14 +588,24 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert "--gb10-report-json" in script
     assert "_write_report" in script
     assert "_build_report" in script
+    assert "_build_backend_summary" in script
     assert "_collect_runtime_metadata" in script
     assert '"schema_version": 1' in script
+    assert '"backend_summary": _build_backend_summary(' in script
+    assert '"native_nvfp4_gemm"' in script
+    assert '"native_nvfp4_moe_non_ep"' in script
+    assert '"native_nvfp4_moe_ep"' in script
+    assert '"cuda_graph"' in script
+    assert '"model_shape"' in script
+    assert '"not_validated_by_smoke"' in script
+    assert "Expert-parallel/all2all/EPLB NVFP4 MoE is blocked" in script
     assert '"backend_selections": _events_to_dicts(selections)' in script
     assert '"fallback_events": _events_to_dicts(fallbacks)' in script
     assert '"device_capability"' in script
     assert '"flashinfer_version"' in script
     assert 'status="passed"' in script
     assert 'status="failed"' in script
+    assert "except Exception as exc:" in script
     assert "linear=FlashInferB12x" in script
     assert "moe=FLASHINFER_B12X" in script
     assert 'choices=("linear", "linear_w4a16", "moe")' in script

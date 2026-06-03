@@ -216,6 +216,107 @@ def _collect_runtime_metadata() -> dict[str, Any]:
     return metadata
 
 
+def _unique_sorted(values: Iterable[str]) -> list[str]:
+    return sorted(set(values))
+
+
+def _backend_status_for_path(
+    path: str,
+    selections: Sequence[Any],
+    fallbacks: Sequence[Any],
+    *,
+    missing_status: str,
+) -> str:
+    path_selections = [event for event in selections if event.path == path]
+    path_fallbacks = [event for event in fallbacks if event.path == path]
+    if any(not event.is_fallback for event in path_selections):
+        return "observed"
+    if path_fallbacks or any(event.is_fallback for event in path_selections):
+        return "fallback_observed"
+    return missing_status
+
+
+def _build_backend_summary(
+    *,
+    status: str,
+    required_paths: Sequence[str],
+    selections: Sequence[Any],
+    fallbacks: Sequence[Any],
+) -> dict[str, Any]:
+    paths = _unique_sorted(
+        [
+            *required_paths,
+            *(event.path for event in selections),
+            *(event.path for event in fallbacks),
+        ]
+    )
+    path_summaries = {}
+    for path in paths:
+        path_selections = [event for event in selections if event.path == path]
+        path_fallbacks = [event for event in fallbacks if event.path == path]
+        path_summaries[path] = {
+            "selected_backends": _unique_sorted(
+                event.backend for event in path_selections
+            ),
+            "fallback_backends": _unique_sorted(
+                [
+                    *(event.backend for event in path_selections if event.is_fallback),
+                    *(event.backend for event in path_fallbacks),
+                ]
+            ),
+            "selection_count": len(path_selections),
+            "fallback_event_count": len(path_fallbacks),
+            "native_backend_selected": any(
+                not event.is_fallback for event in path_selections
+            ),
+            "fallback_selected": bool(path_fallbacks)
+            or any(event.is_fallback for event in path_selections),
+        }
+
+    moe_missing_status = "not_observed" if "moe" in required_paths else "not_requested"
+    return {
+        "paths": path_summaries,
+        "capabilities": {
+            "native_nvfp4_gemm": {
+                "status": _backend_status_for_path(
+                    "linear",
+                    selections,
+                    fallbacks,
+                    missing_status="not_observed",
+                ),
+                "evidence_path": "linear",
+            },
+            "native_nvfp4_moe_non_ep": {
+                "status": _backend_status_for_path(
+                    "moe",
+                    selections,
+                    fallbacks,
+                    missing_status=moe_missing_status,
+                ),
+                "evidence_path": "moe",
+            },
+            "native_nvfp4_moe_ep": {
+                "status": "not_validated",
+                "reason": (
+                    "Expert-parallel/all2all/EPLB NVFP4 MoE is blocked until "
+                    "multi-Spark contracts are validated."
+                ),
+            },
+            "cuda_graph": {
+                "status": "not_validated_by_smoke",
+                "reason": (
+                    "The GB10 smoke harness validates model startup and one "
+                    "short generation only."
+                ),
+            },
+            "model_shape": {
+                "status": "smoke_passed" if status == "passed" else "smoke_failed",
+                "required_paths": list(required_paths),
+            },
+        },
+    }
+
+
 def _build_report(
     *,
     args: argparse.Namespace,
@@ -252,6 +353,12 @@ def _build_report(
                 for path, backend_substring in args.gb10_expect_backend
             ],
         },
+        "backend_summary": _build_backend_summary(
+            status=status,
+            required_paths=required_paths,
+            selections=selections,
+            fallbacks=fallbacks,
+        ),
         "backend_selections": _events_to_dicts(selections),
         "fallback_events": _events_to_dicts(fallbacks),
         "generated_texts": generated_texts,
@@ -352,6 +459,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     llm = None
     outputs: Sequence[Any] = ()
+    selections: Sequence[Any] = ()
+    fallbacks: Sequence[Any] = ()
     try:
         llm = LLM.from_engine_args(engine_args)
         if not args.gb10_skip_generate:
@@ -365,28 +474,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         selections = get_nvfp4_backend_selection_events()
         fallbacks = get_nvfp4_fallback_events()
         _print_event_summary(selections, fallbacks)
-        try:
-            _assert_backend_events(
-                selections=selections,
-                fallbacks=fallbacks,
-                required_paths=required_paths,
-                expected_backends=tuple(args.gb10_expect_backend),
-                allow_fallback=args.gb10_allow_fallback,
-            )
-        except RuntimeError as exc:
-            _write_report(
-                args.gb10_report_json,
-                _build_report(
-                    args=args,
-                    required_paths=required_paths,
-                    selections=selections,
-                    fallbacks=fallbacks,
-                    outputs=outputs,
-                    status="failed",
-                    error=str(exc),
-                ),
-            )
-            raise
+        _assert_backend_events(
+            selections=selections,
+            fallbacks=fallbacks,
+            required_paths=required_paths,
+            expected_backends=tuple(args.gb10_expect_backend),
+            allow_fallback=args.gb10_allow_fallback,
+        )
         _write_report(
             args.gb10_report_json,
             _build_report(
@@ -398,6 +492,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 status="passed",
             ),
         )
+    except Exception as exc:
+        selections = get_nvfp4_backend_selection_events()
+        fallbacks = get_nvfp4_fallback_events()
+        _write_report(
+            args.gb10_report_json,
+            _build_report(
+                args=args,
+                required_paths=required_paths,
+                selections=selections,
+                fallbacks=fallbacks,
+                outputs=outputs,
+                status="failed",
+                error=str(exc),
+            ),
+        )
+        raise
     finally:
         _shutdown_llm(llm)
 
