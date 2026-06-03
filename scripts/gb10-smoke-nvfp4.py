@@ -13,9 +13,11 @@ visible to the assertion code.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import Any
 
 DEFAULT_PROMPT = "NVIDIA DGX Spark native NVFP4 support means"
@@ -116,6 +118,13 @@ def _build_parser(engine_args_cls: Any) -> argparse.ArgumentParser:
         action="store_true",
         help="Only initialize the model and assert backend selections.",
     )
+    parser.add_argument(
+        "--gb10-report-json",
+        help=(
+            "Optional path for a JSON report containing runtime metadata, "
+            "backend selections, fallback events, and generated text."
+        ),
+    )
 
     parser = engine_args_cls.add_cli_args(parser)
     parser.set_defaults(
@@ -151,6 +160,114 @@ def _print_event_summary(selections: Sequence[Any], fallbacks: Sequence[Any]) ->
     print(_format_events(selections))
     print("GB10 NVFP4 fallback events:")
     print(_format_events(fallbacks))
+
+
+def _events_to_dicts(events: Sequence[Any]) -> list[dict[str, Any]]:
+    result = []
+    for event in events:
+        event_dict = {
+            "path": event.path,
+            "backend": event.backend,
+        }
+        if hasattr(event, "is_fallback"):
+            event_dict["is_fallback"] = event.is_fallback
+        if hasattr(event, "message"):
+            event_dict["message"] = event.message
+        result.append(event_dict)
+    return result
+
+
+def _collect_runtime_metadata() -> dict[str, Any]:
+    import torch
+
+    from vllm.version import __version__ as vllm_version
+
+    metadata: dict[str, Any] = {
+        "vllm_version": vllm_version,
+        "torch_version": torch.__version__,
+        "torch_cuda_version": torch.version.cuda,
+        "cuda_available": torch.cuda.is_available(),
+        "env": {
+            "VLLM_FAIL_ON_NVFP4_FALLBACK": os.environ.get(
+                "VLLM_FAIL_ON_NVFP4_FALLBACK"
+            ),
+            "VLLM_ENABLE_V1_MULTIPROCESSING": os.environ.get(
+                "VLLM_ENABLE_V1_MULTIPROCESSING"
+            ),
+            "VLLM_NO_USAGE_STATS": os.environ.get("VLLM_NO_USAGE_STATS"),
+        },
+    }
+    if torch.cuda.is_available():
+        capability = torch.cuda.get_device_capability()
+        metadata["device_name"] = torch.cuda.get_device_name()
+        metadata["device_capability"] = {
+            "major": capability[0],
+            "minor": capability[1],
+            "arch": f"sm_{capability[0]}{capability[1]}",
+        }
+
+    try:
+        import flashinfer  # type: ignore[import-untyped]
+    except ImportError:
+        metadata["flashinfer_version"] = None
+    else:
+        metadata["flashinfer_version"] = getattr(flashinfer, "__version__", None)
+
+    return metadata
+
+
+def _build_report(
+    *,
+    args: argparse.Namespace,
+    required_paths: Sequence[str],
+    selections: Sequence[Any],
+    fallbacks: Sequence[Any],
+    outputs: Sequence[Any],
+    status: str,
+    error: str | None = None,
+) -> dict[str, Any]:
+    generated_texts = []
+    for output in outputs:
+        completions = getattr(output, "outputs", [])
+        generated_texts.append(completions[0].text if completions else "")
+
+    report = {
+        "schema_version": 1,
+        "status": status,
+        "runtime": _collect_runtime_metadata(),
+        "model": args.model,
+        "quantization": args.quantization,
+        "kv_cache_dtype": args.kv_cache_dtype,
+        "sampling": {
+            "max_tokens": args.gb10_max_tokens,
+            "temperature": args.gb10_temperature,
+            "seed": args.gb10_sampling_seed,
+            "skip_generate": args.gb10_skip_generate,
+        },
+        "checks": {
+            "allow_fallback": args.gb10_allow_fallback,
+            "required_paths": list(required_paths),
+            "expected_backends": [
+                {"path": path, "backend_substring": backend_substring}
+                for path, backend_substring in args.gb10_expect_backend
+            ],
+        },
+        "backend_selections": _events_to_dicts(selections),
+        "fallback_events": _events_to_dicts(fallbacks),
+        "generated_texts": generated_texts,
+    }
+    if error is not None:
+        report["error"] = error
+    return report
+
+
+def _write_report(report_path: str | None, report: dict[str, Any]) -> None:
+    if report_path is None:
+        return
+    path = Path(report_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    print(f"GB10 NVFP4 smoke report written to {path}")
 
 
 def _assert_backend_events(
@@ -234,6 +351,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     llm = None
+    outputs: Sequence[Any] = ()
     try:
         llm = LLM.from_engine_args(engine_args)
         if not args.gb10_skip_generate:
@@ -247,12 +365,38 @@ def main(argv: Sequence[str] | None = None) -> int:
         selections = get_nvfp4_backend_selection_events()
         fallbacks = get_nvfp4_fallback_events()
         _print_event_summary(selections, fallbacks)
-        _assert_backend_events(
-            selections=selections,
-            fallbacks=fallbacks,
-            required_paths=required_paths,
-            expected_backends=tuple(args.gb10_expect_backend),
-            allow_fallback=args.gb10_allow_fallback,
+        try:
+            _assert_backend_events(
+                selections=selections,
+                fallbacks=fallbacks,
+                required_paths=required_paths,
+                expected_backends=tuple(args.gb10_expect_backend),
+                allow_fallback=args.gb10_allow_fallback,
+            )
+        except RuntimeError as exc:
+            _write_report(
+                args.gb10_report_json,
+                _build_report(
+                    args=args,
+                    required_paths=required_paths,
+                    selections=selections,
+                    fallbacks=fallbacks,
+                    outputs=outputs,
+                    status="failed",
+                    error=str(exc),
+                ),
+            )
+            raise
+        _write_report(
+            args.gb10_report_json,
+            _build_report(
+                args=args,
+                required_paths=required_paths,
+                selections=selections,
+                fallbacks=fallbacks,
+                outputs=outputs,
+                status="passed",
+            ),
         )
     finally:
         _shutdown_llm(llm)

@@ -15,6 +15,8 @@ Required:
 
 Useful environment:
   GB10_SMOKE_CACHE_DIR     Host cache dir mounted as /root/.cache (default: ~/.cache)
+  GB10_SMOKE_REPORT_DIR    Host report dir mounted as /gb10-smoke-reports
+                           (default: ./gb10-smoke-reports)
   GB10_SMOKE_SHM_SIZE      Docker --shm-size value (default: 16g)
   GB10_SMOKE_IPC           Docker --ipc value (default: host)
   GB10_SMOKE_ENV_FILE      Optional Docker --env-file
@@ -28,6 +30,9 @@ Examples:
       --gb10-require-path linear --gb10-require-path moe \
       --gb10-expect-backend linear=FlashInferB12x \
       --gb10-expect-backend moe=FLASHINFER_B12X
+
+The default JSON report is written to:
+  ${GB10_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-nvfp4-smoke.json
 EOF
 }
 
@@ -56,10 +61,14 @@ if [ ! -f "$smoke_script" ]; then
 fi
 
 has_model_arg=0
+has_report_arg=0
 for arg in "$@"; do
     case "$arg" in
         --model|--model=*)
             has_model_arg=1
+            ;;
+        --gb10-report-json|--gb10-report-json=*)
+            has_report_arg=1
             ;;
     esac
 done
@@ -70,7 +79,9 @@ if [ "$has_model_arg" = "0" ] && [ -z "${GB10_NVFP4_MODEL:-}" ]; then
 fi
 
 cache_dir="${GB10_SMOKE_CACHE_DIR:-$HOME/.cache}"
+report_dir="${GB10_SMOKE_REPORT_DIR:-$PWD/gb10-smoke-reports}"
 mkdir -p "$cache_dir"
+mkdir -p "$report_dir"
 
 docker_args=(
     run
@@ -84,6 +95,7 @@ docker_args=(
     -e HF_HOME=/root/.cache/huggingface
     -e TRANSFORMERS_CACHE=/root/.cache/huggingface
     -v "$cache_dir:/root/.cache"
+    -v "$report_dir:/gb10-smoke-reports"
     -v "$smoke_script:/tmp/gb10-smoke-nvfp4.py:ro"
 )
 
@@ -107,6 +119,10 @@ if [ -n "${GB10_SMOKE_EXTRA_DOCKER_ARGS:-}" ]; then
     # shellcheck disable=SC2206
     extra_docker_args=($GB10_SMOKE_EXTRA_DOCKER_ARGS)
     docker_args+=("${extra_docker_args[@]}")
+fi
+
+if [ "$has_report_arg" = "0" ]; then
+    set -- "$@" --gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json
 fi
 
 exec docker "${docker_args[@]}" "$image" python3 /tmp/gb10-smoke-nvfp4.py "$@"

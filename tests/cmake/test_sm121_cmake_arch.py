@@ -585,6 +585,17 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
 
     assert "--gb10-require-path" in script
     assert "--gb10-expect-backend" in script
+    assert "--gb10-report-json" in script
+    assert "_write_report" in script
+    assert "_build_report" in script
+    assert "_collect_runtime_metadata" in script
+    assert '"schema_version": 1' in script
+    assert '"backend_selections": _events_to_dicts(selections)' in script
+    assert '"fallback_events": _events_to_dicts(fallbacks)' in script
+    assert '"device_capability"' in script
+    assert '"flashinfer_version"' in script
+    assert 'status="passed"' in script
+    assert 'status="failed"' in script
     assert "linear=FlashInferB12x" in script
     assert "moe=FLASHINFER_B12X" in script
     assert 'choices=("linear", "linear_w4a16", "moe")' in script
@@ -602,7 +613,11 @@ def test_gb10_image_smoke_wraps_nvfp4_model_harness():
     assert "--shm-size" in script
     assert 'GB10_SMOKE_SHM_SIZE:-16g' in script
     assert "GB10_SMOKE_CACHE_DIR" in script
+    assert "GB10_SMOKE_REPORT_DIR" in script
     assert "-v \"$cache_dir:/root/.cache\"" in script
+    assert "-v \"$report_dir:/gb10-smoke-reports\"" in script
+    assert "--gb10-report-json" in script
+    assert "/gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
     assert "VLLM_FAIL_ON_NVFP4_FALLBACK=1" in script
     assert "VLLM_ENABLE_V1_MULTIPROCESSING=0" in script
     assert "VLLM_NO_USAGE_STATS=1" in script
