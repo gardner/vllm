@@ -588,3 +588,26 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert "linear=FlashInferB12x" in script
     assert "moe=FLASHINFER_B12X" in script
     assert 'choices=("linear", "linear_w4a16", "moe")' in script
+
+
+def test_gb10_image_smoke_wraps_nvfp4_model_harness():
+    script = (REPO_ROOT / "scripts" / "gb10-smoke-image.sh").read_text()
+
+    assert "GB10_NVFP4_MODEL is required unless --model is passed after --." in script
+    assert "scripts/gb10-smoke-nvfp4.py" in script
+    assert "/tmp/gb10-smoke-nvfp4.py:ro" in script
+    assert "--gpus all" in script
+    assert "--ipc" in script
+    assert 'GB10_SMOKE_IPC:-host' in script
+    assert "--shm-size" in script
+    assert 'GB10_SMOKE_SHM_SIZE:-16g' in script
+    assert "GB10_SMOKE_CACHE_DIR" in script
+    assert "-v \"$cache_dir:/root/.cache\"" in script
+    assert "VLLM_FAIL_ON_NVFP4_FALLBACK=1" in script
+    assert "VLLM_ENABLE_V1_MULTIPROCESSING=0" in script
+    assert "VLLM_NO_USAGE_STATS=1" in script
+    assert "GB10_SMOKE_ENV_FILE" in script
+    assert "GB10_SMOKE_EXTRA_DOCKER_ARGS" in script
+    assert "HF_TOKEN" in script
+    assert "HUGGING_FACE_HUB_TOKEN" in script
+    assert 'python3 /tmp/gb10-smoke-nvfp4.py "$@"' in script
