@@ -556,3 +556,35 @@ def test_gb10_nvfp4_backend_recorder_can_fail_fast(monkeypatch):
     monkeypatch.setattr(envs, "VLLM_FAIL_ON_NVFP4_FALLBACK", True)
     with pytest.raises(RuntimeError, match="fallback selected"):
         record_nvfp4_fallback("moe", "MARLIN", "fallback selected")
+
+
+def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
+    script = (REPO_ROOT / "scripts" / "gb10-smoke-nvfp4.py").read_text()
+
+    assert "VLLM_FAIL_ON_NVFP4_FALLBACK" in script
+    assert 'os.environ["VLLM_FAIL_ON_NVFP4_FALLBACK"] = "1"' in script
+    assert "VLLM_ENABLE_V1_MULTIPROCESSING" in script
+    assert 'os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")' in script
+    assert "GB10_NVFP4_MODEL" in script
+    assert 'parser.error("--model or GB10_NVFP4_MODEL is required")' in script
+
+    assert "engine_args_cls.add_cli_args" in script
+    assert "EngineArgs.from_cli_args" in script
+    assert "LLM.from_engine_args" in script
+    assert "SamplingParams" in script
+    assert 'quantization="modelopt_fp4"' in script
+    assert 'kv_cache_dtype="fp8_e4m3"' in script
+    assert "enable_prefix_caching=False" in script
+
+    assert "clear_nvfp4_backend_events" in script
+    assert "get_nvfp4_backend_selection_events" in script
+    assert "get_nvfp4_fallback_events" in script
+    assert "NVFP4 fallback events were recorded during GB10 smoke" in script
+    assert "NVFP4 backend selections included fallback paths" in script
+    assert "No NVFP4 backend-selection event was recorded" in script
+
+    assert "--gb10-require-path" in script
+    assert "--gb10-expect-backend" in script
+    assert "linear=FlashInferB12x" in script
+    assert "moe=FLASHINFER_B12X" in script
+    assert 'choices=("linear", "linear_w4a16", "moe")' in script
