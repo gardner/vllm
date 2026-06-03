@@ -833,6 +833,34 @@ _NVFP4_BACKEND_TO_KERNEL: dict[str, type[NvFp4LinearKernel]] = {
     "emulation": EmulationNvFp4LinearKernel,
 }
 
+_NVFP4_LINEAR_FALLBACK_KERNELS = {
+    MarlinNvFp4LinearKernel,
+    EmulationNvFp4LinearKernel,
+}
+
+
+def _log_nvfp4_linear_kernel_selection(
+    kernel_cls: type[NvFp4LinearKernel],
+    failure_reasons: list[str] | None = None,
+) -> None:
+    logger.info_once("Using %s for NVFP4 GEMM", kernel_cls.__name__)
+    if kernel_cls not in _NVFP4_LINEAR_FALLBACK_KERNELS:
+        return
+
+    reason_suffix = ""
+    if failure_reasons:
+        reason_suffix = (
+            " Unavailable native backend reasons:\n - "
+            + "\n - ".join(failure_reasons)
+        )
+    logger.warning_once(
+        "NVFP4 linear selected fallback backend %s. This is not the native "
+        "GB10 W4A4 FP4 Tensor Core path; verify this fallback is intentional "
+        "before publishing GB10 artifacts.%s",
+        kernel_cls.__name__,
+        reason_suffix,
+    )
+
 
 def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
     """Select and instantiate the best NVFP4 linear kernel for the
@@ -898,7 +926,7 @@ def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
                 f"Forced NVFP4 kernel {force_kernel.__name__} is not "
                 f"supported: {reason}"
             )
-        logger.info_once("Using %s for NVFP4 GEMM", force_kernel.__name__)
+        _log_nvfp4_linear_kernel_selection(force_kernel)
         return force_kernel(config)
 
     # Auto-select from registry (or --linear-backend filtered).
@@ -933,17 +961,7 @@ def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
             failure_reasons.append(f"{kernel_cls.__name__}: {reason}")
             continue
 
-        if kernel_cls is EmulationNvFp4LinearKernel and failure_reasons:
-            logger.warning_once(
-                "NVFP4 linear falling back to the slow and unoptimized "
-                "emulation backend as no optimized backend is available "
-                "(unavailable reasons:\n - %s\n). "
-                "In case you expect one of these backends to be used, "
-                "please verify your environment.",
-                "\n - ".join(failure_reasons),
-            )
-
-        logger.info_once("Using %s for NVFP4 GEMM", kernel_cls.__name__)
+        _log_nvfp4_linear_kernel_selection(kernel_cls, failure_reasons)
         return kernel_cls(config)
 
     raise ValueError(

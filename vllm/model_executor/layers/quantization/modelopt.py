@@ -1267,6 +1267,12 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         # silently try to quantize activations (we have no input_scale). For
         # W4A16 there is exactly one valid kernel, so we pin it.
         self.kernel = MarlinNvFp4LinearKernel(NvFp4LinearLayerConfig())
+        logger.warning_once(
+            "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel. This is a "
+            "weight-only fallback path, not the native GB10 W4A4 FP4 Tensor "
+            "Core path; verify this fallback is intentional before publishing "
+            "GB10 artifacts."
+        )
 
     def create_weights(
         self,

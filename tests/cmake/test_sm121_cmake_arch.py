@@ -429,3 +429,30 @@ def test_nvfp4_swiglu_limit_uses_sm12x_capable_flashinfer_cutlass():
     assert "NvFp4MoeBackend.FLASHINFER_TRTLLM" in clamp_allowlist
     assert "NvFp4MoeBackend.FLASHINFER_CUTLASS" in clamp_allowlist
     assert "NvFp4MoeBackend.FLASHINFER_B12X" not in clamp_allowlist
+
+
+def test_gb10_nvfp4_linear_fallbacks_are_reported():
+    linear_selector = (
+        REPO_ROOT / "vllm" / "model_executor" / "kernels" / "linear" /
+        "__init__.py"
+    ).read_text()
+    modelopt_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "modelopt.py"
+    ).read_text()
+
+    assert "_log_nvfp4_linear_kernel_selection" in linear_selector
+    assert "NVFP4 linear selected fallback backend %s" in linear_selector
+    assert "not the native " in linear_selector
+    assert "GB10 W4A4 FP4 Tensor Core path" in linear_selector
+    assert "verify this fallback is intentional " in linear_selector
+    assert "before publishing GB10 artifacts" in linear_selector
+    assert "MarlinNvFp4LinearKernel" in linear_selector
+    assert "EmulationNvFp4LinearKernel" in linear_selector
+
+    assert "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel" in modelopt_quant
+    assert "weight-only fallback path" in modelopt_quant
+    assert "not the native GB10 W4A4 FP4 Tensor " in modelopt_quant
+    assert "Core path; verify this fallback is intentional " in modelopt_quant
+    assert "before publishing " in modelopt_quant
+    assert "GB10 artifacts" in modelopt_quant
