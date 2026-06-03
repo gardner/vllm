@@ -44,7 +44,11 @@ Useful environment:
   GB10_RELEASE_MANIFEST_JSON          Optional release manifest path to verify
                                       and bundle.
   GB10_RUNTIME_IMAGE_METADATA_JSON    Optional BuildKit runtime-image metadata
-                                      path to bundle.
+                                      path to verify and bundle.
+  GB10_IMAGE_DIGEST                   Optional immutable digest for IMAGE. If
+                                      unset, the script records the first
+                                      docker RepoDigest for IMAGE when
+                                      available.
 
 Argument sections:
   --offline OFFLINE_ARGS...  Extra args for scripts/gb10-smoke-image.sh after --.
@@ -163,7 +167,22 @@ report_dir="${GB10_RELEASE_SMOKE_REPORT_DIR:-$PWD/gb10-smoke-reports}"
 nvfp4_report="$report_dir/gb10-nvfp4-smoke.json"
 openai_report="$report_dir/gb10-openai-server-smoke-image.json"
 evidence_report="$report_dir/gb10-release-evidence-image.json"
+smoked_image_digest_report="$report_dir/gb10-smoked-image-digest.txt"
 mkdir -p "$report_dir"
+
+if [ -z "${GB10_IMAGE_DIGEST:-}" ] && command -v docker >/dev/null 2>&1; then
+    image_digest="$(
+        docker image inspect "$image" \
+            --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null \
+            | sed -n '1p'
+    )"
+    if [ -n "$image_digest" ]; then
+        export GB10_IMAGE_DIGEST="$image_digest"
+    fi
+fi
+if [ -n "${GB10_IMAGE_DIGEST:-}" ]; then
+    printf '%s\n' "$GB10_IMAGE_DIGEST" > "$smoked_image_digest_report"
+fi
 
 if ! has_arg --gb10-report-json "${offline_args[@]}"; then
     offline_args+=(--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json)
@@ -192,6 +211,14 @@ fi
 if [ -n "${GB10_RELEASE_MANIFEST_JSON:-}" ] \
     && ! has_arg --gb10-release-manifest-json "${verify_args[@]}"; then
     verify_args+=(--gb10-release-manifest-json "$GB10_RELEASE_MANIFEST_JSON")
+fi
+if [ -n "${GB10_RUNTIME_IMAGE_METADATA_JSON:-}" ] \
+    && ! has_arg --gb10-runtime-image-metadata-json "${verify_args[@]}"; then
+    verify_args+=(--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON")
+fi
+if [ -n "${GB10_IMAGE_DIGEST:-}" ] \
+    && ! has_arg --gb10-image-digest "${verify_args[@]}"; then
+    verify_args+=(--gb10-image-digest "$GB10_IMAGE_DIGEST")
 fi
 if ! has_arg --gb10-require-moe "${verify_args[@]}" \
     && [ "${GB10_RELEASE_REQUIRE_MOE:-1}" = "1" ]; then

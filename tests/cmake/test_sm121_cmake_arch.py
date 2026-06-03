@@ -605,6 +605,9 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "actions: read" in smoke_workflow
     assert "docker/login-action@v3" in smoke_workflow
     assert "docker pull \"$GB10_IMAGE_REF\"" in smoke_workflow
+    assert "docker image inspect \"$GB10_IMAGE_REF\"" in smoke_workflow
+    assert "GB10_IMAGE_DIGEST=$image_digest" in smoke_workflow
+    assert "gb10-smoked-image-digest.txt" in smoke_workflow
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
         smoke_workflow
     )
@@ -628,7 +631,18 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 release manifest artifact is missing" in smoke_workflow
     assert "Bundle available evidence after failure" in smoke_workflow
     assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
-    assert "--gb10-allow-partial || true" in smoke_workflow
+    assert "--gb10-allow-partial" in smoke_workflow
+    manifest_arg = (
+        'bundle_args+=(--gb10-release-manifest-json '
+        '"$GB10_RELEASE_MANIFEST_JSON")'
+    )
+    metadata_arg = (
+        'bundle_args+=(--gb10-runtime-image-metadata-json '
+        '"$GB10_RUNTIME_IMAGE_METADATA_JSON")'
+    )
+    assert manifest_arg in smoke_workflow
+    assert metadata_arg in smoke_workflow
+    assert '"${bundle_args[@]}" || true' in smoke_workflow
     assert "actions/upload-artifact@v4" in smoke_workflow
     assert "gb10-smoke-reports/**" in smoke_workflow
     assert "gb10-release-provenance/**" in smoke_workflow
@@ -1184,23 +1198,34 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_RELEASE_BUNDLE_ALLOW_PARTIAL" in script
     assert "GB10_RELEASE_MANIFEST_JSON" in script
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in script
+    assert "GB10_IMAGE_DIGEST" in script
     assert "GB10_RELEASE_TAG" in script
     assert "gb10-nvfp4-smoke.json" in script
     assert "gb10-openai-server-smoke-image.json" in script
     assert "gb10-release-evidence-image.json" in script
+    assert "gb10-smoked-image-digest.txt" in script
     assert "gb10-release-evidence.tar.gz" in script
     assert "--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
     assert "--gb10-release-manifest-json" in script
+    assert "--gb10-runtime-image-metadata-json" in script
     assert "--gb10-image-ref" in script
+    assert "--gb10-image-digest" in script
     assert "--gb10-release-tag" in script
     assert "--gb10-output-json" in script
     assert "--gb10-require-moe" in script
     assert "--gb10-require-openai-deterministic" in script
+    assert "docker image inspect \"$image\"" in script
     assert "GB10_SMOKE_REPORT_DIR=\"$report_dir\"" in script
     assert "GB10_OPENAI_IMAGE_REPORT_DIR=\"$report_dir\"" in script
     assert 'verify_args+=(--gb10-image-ref "$image")' in script
+    metadata_arg = (
+        'verify_args+=(--gb10-runtime-image-metadata-json '
+        '"$GB10_RUNTIME_IMAGE_METADATA_JSON")'
+    )
+    assert metadata_arg in script
+    assert 'verify_args+=(--gb10-image-digest "$GB10_IMAGE_DIGEST")' in script
     assert 'verify_args+=(--gb10-release-tag "$GB10_RELEASE_TAG")' in script
     assert 'verify_args+=(--gb10-release-manifest-json' in script
     assert '"$offline_wrapper" "$image" -- "${offline_args[@]}"' in script
@@ -1603,7 +1628,9 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
     assert "--gb10-release-manifest-json" in script
+    assert "--gb10-runtime-image-metadata-json" in script
     assert "--gb10-image-ref" in script
+    assert "--gb10-image-digest" in script
     assert "--gb10-release-tag" in script
     assert "--gb10-output-json" in script
     assert "--gb10-require-moe" in script
@@ -1620,6 +1647,8 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"release_manifest_image_pushed_for_tagged_release"' in script
     assert '"release_manifest_image_ref_matches_smoke"' in script
     assert '"release_manifest_tag_matches_expected"' in script
+    assert '"runtime_image_metadata_has_digest"' in script
+    assert '"runtime_image_digest_matches_smoke"' in script
     assert "GB10 release evidence gate failed" in script
 
 
@@ -1715,6 +1744,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         },
         "build": {"local_gb10_dependency_checkouts": False},
     }
+    runtime_image_digest = "sha256:" + "a" * 64
+    runtime_image_metadata = {"containerimage.digest": runtime_image_digest}
 
     summary = verifier._build_summary(
         nvfp4_report=nvfp4_report,
@@ -1723,9 +1754,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
+        runtime_image_metadata=runtime_image_metadata,
+        runtime_image_metadata_error=None,
         image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_digest=f"ghcr.io/gardner/vllm-gb10@{runtime_image_digest}",
         release_tag="gb10-vllm-test",
         require_release_manifest=True,
+        require_runtime_image_metadata=True,
         require_moe=True,
         require_openai_deterministic=True,
         allow_partial=False,
@@ -1747,6 +1782,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     )
     assert check_statuses["release_manifest_image_ref_matches_smoke"] == "passed"
     assert check_statuses["release_manifest_tag_matches_expected"] == "passed"
+    assert check_statuses["runtime_image_metadata_has_digest"] == "passed"
+    assert check_statuses["runtime_image_digest_matches_smoke"] == "passed"
 
     nvfp4_report["fallback_events"] = [
         {
@@ -1848,4 +1885,29 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "release_manifest_tag_matches_expected"
         for failure in tag_mismatch_summary["failures"]
+    )
+
+    digest_mismatch_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        runtime_image_metadata=runtime_image_metadata,
+        runtime_image_metadata_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_digest="ghcr.io/gardner/vllm-gb10@sha256:" + "b" * 64,
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_runtime_image_metadata=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert digest_mismatch_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "runtime_image_digest_matches_smoke"
+        for failure in digest_mismatch_summary["failures"]
     )

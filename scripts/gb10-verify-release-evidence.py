@@ -45,10 +45,25 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--gb10-runtime-image-metadata-json",
+        help=(
+            "Optional BuildKit runtime-image metadata JSON. When provided, "
+            "the runtime image digest recorded by the release build becomes "
+            "part of the gate."
+        ),
+    )
+    parser.add_argument(
         "--gb10-image-ref",
         help=(
             "Optional runtime image ref being smoked. When provided with a "
             "release manifest, it must match image.name:image.tag."
+        ),
+    )
+    parser.add_argument(
+        "--gb10-image-digest",
+        help=(
+            "Optional immutable digest for the runtime image that was pulled "
+            "and smoked, for example ghcr.io/gardner/vllm-gb10@sha256:..."
         ),
     )
     parser.add_argument(
@@ -394,6 +409,119 @@ def _source_refs_pinned(manifest: dict[str, Any]) -> tuple[bool, dict[str, Any]]
     return not missing, {"refs": refs, "unpinned": missing}
 
 
+def _normalize_image_digest(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    candidates = [line.strip() for line in value.splitlines() if line.strip()]
+    if not candidates:
+        return None
+    digest = candidates[0]
+    if "@" in digest:
+        digest = digest.rsplit("@", 1)[1].strip()
+    marker = "sha256:"
+    marker_index = digest.find(marker)
+    if marker_index >= 0:
+        digest = digest[marker_index:]
+    digest = digest.split()[0].strip().strip('",')
+    return digest or None
+
+
+def _runtime_image_metadata_digest(metadata: dict[str, Any] | None) -> str | None:
+    if not isinstance(metadata, dict):
+        return None
+
+    candidates: list[Any] = [
+        metadata.get("containerimage.digest"),
+        _nested_get(metadata, "containerimage.descriptor", "digest"),
+        _nested_get(metadata, "image", "digest"),
+    ]
+    for candidate in candidates:
+        digest = _normalize_image_digest(candidate)
+        if digest:
+            return digest
+    return None
+
+
+def _check_runtime_image_metadata(
+    metadata: dict[str, Any] | None,
+    error: str | None,
+    *,
+    required: bool,
+    image_digest: str | None,
+) -> list[dict[str, Any]]:
+    if metadata is None:
+        if required:
+            return [
+                _missing_check(
+                    "runtime_image_metadata_present",
+                    error or "runtime image metadata missing",
+                )
+            ]
+        return [
+            {
+                "name": "runtime_image_metadata_present",
+                "status": "not_required",
+                "required": False,
+                "message": "runtime image metadata was not provided",
+                "details": {"image_digest": image_digest},
+            }
+        ]
+
+    metadata_digest = _runtime_image_metadata_digest(metadata)
+    smoked_digest = _normalize_image_digest(image_digest)
+    checks = [
+        _check(
+            name="runtime_image_metadata_present",
+            passed=True,
+            message="runtime image metadata is valid JSON",
+            details={"metadata_keys": sorted(metadata.keys())},
+        ),
+        _check(
+            name="runtime_image_metadata_has_digest",
+            passed=metadata_digest is not None,
+            message="runtime image metadata records the pushed image digest",
+            details={"runtime_image_metadata_digest": metadata_digest},
+        ),
+    ]
+
+    if image_digest is None:
+        checks.append(
+            _check(
+                name="runtime_image_digest_matches_smoke",
+                passed=False,
+                message=(
+                    "runtime image metadata was provided, but the smoked "
+                    "image digest was not recorded"
+                ),
+                details={"runtime_image_metadata_digest": metadata_digest},
+                required=required,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                name="runtime_image_digest_matches_smoke",
+                passed=(
+                    metadata_digest is not None
+                    and smoked_digest is not None
+                    and smoked_digest == metadata_digest
+                ),
+                message=(
+                    "runtime image digest from BuildKit metadata matches the "
+                    "image digest that was pulled and smoked"
+                ),
+                details={
+                    "runtime_image_metadata_digest": metadata_digest,
+                    "smoked_image_digest": smoked_digest,
+                    "smoked_image_digest_raw": image_digest,
+                },
+                required=required,
+            )
+        )
+
+    return checks
+
+
 def _check_release_manifest(
     manifest: dict[str, Any] | None,
     error: str | None,
@@ -533,9 +661,13 @@ def _build_summary(
     openai_error: str | None,
     release_manifest: dict[str, Any] | None = None,
     release_manifest_error: str | None = None,
+    runtime_image_metadata: dict[str, Any] | None = None,
+    runtime_image_metadata_error: str | None = None,
     image_ref: str | None = None,
+    image_digest: str | None = None,
     release_tag: str | None = None,
     require_release_manifest: bool = False,
+    require_runtime_image_metadata: bool = False,
     require_moe: bool,
     require_openai_deterministic: bool,
     allow_partial: bool,
@@ -558,6 +690,12 @@ def _build_summary(
             image_ref=image_ref,
             expected_release_tag=release_tag,
         ),
+        *_check_runtime_image_metadata(
+            runtime_image_metadata,
+            runtime_image_metadata_error,
+            required=require_runtime_image_metadata,
+            image_digest=image_digest,
+        ),
     ]
     failures = _required_failures(checks)
     status = "passed"
@@ -573,7 +711,9 @@ def _build_summary(
             "require_moe": require_moe,
             "require_openai_deterministic": require_openai_deterministic,
             "require_release_manifest": require_release_manifest,
+            "require_runtime_image_metadata": require_runtime_image_metadata,
             "image_ref": image_ref,
+            "image_digest": image_digest,
             "release_tag": release_tag,
         },
         "checks": checks,
@@ -604,6 +744,9 @@ def main(argv: list[str] | None = None) -> int:
     release_manifest, release_manifest_error = _load_report(
         args.gb10_release_manifest_json
     )
+    runtime_image_metadata, runtime_image_metadata_error = _load_report(
+        args.gb10_runtime_image_metadata_json
+    )
     summary = _build_summary(
         nvfp4_report=nvfp4_report,
         nvfp4_error=nvfp4_error,
@@ -611,9 +754,15 @@ def main(argv: list[str] | None = None) -> int:
         openai_error=openai_error,
         release_manifest=release_manifest,
         release_manifest_error=release_manifest_error,
+        runtime_image_metadata=runtime_image_metadata,
+        runtime_image_metadata_error=runtime_image_metadata_error,
         image_ref=args.gb10_image_ref,
+        image_digest=args.gb10_image_digest,
         release_tag=args.gb10_release_tag,
         require_release_manifest=args.gb10_release_manifest_json is not None,
+        require_runtime_image_metadata=(
+            args.gb10_runtime_image_metadata_json is not None
+        ),
         require_moe=args.gb10_require_moe,
         require_openai_deterministic=args.gb10_require_openai_deterministic,
         allow_partial=args.gb10_allow_partial,
