@@ -37,6 +37,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--gb10-release-manifest-json",
+        help=(
+            "Optional gb10-release-manifest.json from "
+            "scripts/gb10-write-release-manifest.py. When provided, release "
+            "provenance becomes part of the gate."
+        ),
+    )
+    parser.add_argument(
         "--gb10-output-json",
         help="Optional path for the combined release-evidence summary.",
     )
@@ -336,6 +344,132 @@ def _check_openai_report(
     return checks
 
 
+def _source_refs_pinned(manifest: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    dependencies = manifest.get("dependencies")
+    if not isinstance(dependencies, dict):
+        return False, {"reason": "dependencies object missing"}
+
+    source_dependencies = dependencies.get("source_dependencies")
+    if not isinstance(source_dependencies, dict):
+        return False, {"reason": "source_dependencies object missing"}
+
+    refs: dict[str, Any] = {}
+    for name, dependency in source_dependencies.items():
+        if isinstance(dependency, dict):
+            refs[name] = {
+                "ref": dependency.get("ref"),
+                "ref_is_full_git_sha": dependency.get("ref_is_full_git_sha"),
+            }
+        else:
+            refs[name] = {"ref": None, "ref_is_full_git_sha": False}
+
+    flash_attn = dependencies.get("vllm_flash_attn")
+    if isinstance(flash_attn, dict):
+        refs["vllm_flash_attn"] = {
+            "ref": flash_attn.get("ref"),
+            "ref_is_full_git_sha": flash_attn.get("ref_is_full_git_sha"),
+        }
+    else:
+        refs["vllm_flash_attn"] = {"ref": None, "ref_is_full_git_sha": False}
+
+    missing = [
+        name
+        for name, details in refs.items()
+        if details.get("ref_is_full_git_sha") is not True
+    ]
+    return not missing, {"refs": refs, "unpinned": missing}
+
+
+def _check_release_manifest(
+    manifest: dict[str, Any] | None,
+    error: str | None,
+    *,
+    required: bool,
+) -> list[dict[str, Any]]:
+    if manifest is None:
+        if required:
+            return [
+                _missing_check(
+                    "release_manifest_present",
+                    error or "release manifest missing",
+                )
+            ]
+        return [
+            {
+                "name": "release_manifest_present",
+                "status": "not_required",
+                "required": False,
+                "message": "release manifest was not provided",
+                "details": {},
+            }
+        ]
+
+    flashinfer = _nested_get(manifest, "dependencies", "flashinfer")
+    flashinfer_components_present = (
+        isinstance(flashinfer, dict)
+        and flashinfer.get("all_required_components_present") is True
+    )
+    source_refs_pinned, source_refs_details = _source_refs_pinned(manifest)
+    release_tag = _nested_get(manifest, "release", "tag")
+    preflight_only = _nested_get(manifest, "release", "preflight_only") is True
+    image_push = _nested_get(manifest, "image", "push") is True
+    tagged_full_release = bool(release_tag) and not preflight_only
+
+    return [
+        _check(
+            name="release_manifest_present",
+            passed=True,
+            message="release manifest is valid JSON",
+            details={"schema_version": manifest.get("schema_version")},
+        ),
+        _check(
+            name="release_manifest_flashinfer_components",
+            passed=flashinfer_components_present,
+            message="release manifest includes all required GB10 FlashInfer wheels",
+            details=flashinfer if isinstance(flashinfer, dict) else {},
+        ),
+        _check(
+            name="release_manifest_source_refs_pinned",
+            passed=source_refs_pinned,
+            message=(
+                "release manifest records pinned source refs for GB10 "
+                "source-built dependencies"
+            ),
+            details=source_refs_details,
+        ),
+        _check(
+            name="release_manifest_no_local_deps",
+            passed=_nested_get(
+                manifest,
+                "build",
+                "local_gb10_dependency_checkouts",
+            )
+            is False,
+            message="release build did not depend on local GB10 sibling checkouts",
+            details={
+                "local_gb10_dependency_checkouts": _nested_get(
+                    manifest,
+                    "build",
+                    "local_gb10_dependency_checkouts",
+                )
+            },
+        ),
+        _check(
+            name="release_manifest_image_pushed_for_tagged_release",
+            passed=not tagged_full_release or image_push,
+            message=(
+                "tagged full release manifest records a pushed durable "
+                "runtime image"
+            ),
+            details={
+                "release_tag": release_tag,
+                "preflight_only": preflight_only,
+                "image_push": image_push,
+            },
+        ),
+    ]
+
+
 def _required_failures(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         check
@@ -351,6 +485,9 @@ def _build_summary(
     nvfp4_error: str | None,
     openai_report: dict[str, Any] | None,
     openai_error: str | None,
+    release_manifest: dict[str, Any] | None = None,
+    release_manifest_error: str | None = None,
+    require_release_manifest: bool = False,
     require_moe: bool,
     require_openai_deterministic: bool,
     allow_partial: bool,
@@ -366,6 +503,11 @@ def _build_summary(
             openai_error,
             require_deterministic=require_openai_deterministic,
         ),
+        *_check_release_manifest(
+            release_manifest,
+            release_manifest_error,
+            required=require_release_manifest,
+        ),
     ]
     failures = _required_failures(checks)
     status = "passed"
@@ -380,6 +522,7 @@ def _build_summary(
         "requirements": {
             "require_moe": require_moe,
             "require_openai_deterministic": require_openai_deterministic,
+            "require_release_manifest": require_release_manifest,
         },
         "checks": checks,
         "failure_count": len(failures),
@@ -406,11 +549,17 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     nvfp4_report, nvfp4_error = _load_report(args.gb10_nvfp4_report_json)
     openai_report, openai_error = _load_report(args.gb10_openai_report_json)
+    release_manifest, release_manifest_error = _load_report(
+        args.gb10_release_manifest_json
+    )
     summary = _build_summary(
         nvfp4_report=nvfp4_report,
         nvfp4_error=nvfp4_error,
         openai_report=openai_report,
         openai_error=openai_error,
+        release_manifest=release_manifest,
+        release_manifest_error=release_manifest_error,
+        require_release_manifest=args.gb10_release_manifest_json is not None,
         require_moe=args.gb10_require_moe,
         require_openai_deterministic=args.gb10_require_openai_deterministic,
         allow_partial=args.gb10_allow_partial,

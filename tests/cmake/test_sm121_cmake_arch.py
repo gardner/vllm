@@ -1170,6 +1170,8 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_RELEASE_REQUIRE_OPENAI_DETERMINISTIC" in script
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
     assert "GB10_RELEASE_BUNDLE_ALLOW_PARTIAL" in script
+    assert "GB10_RELEASE_MANIFEST_JSON" in script
+    assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in script
     assert "gb10-nvfp4-smoke.json" in script
     assert "gb10-openai-server-smoke-image.json" in script
     assert "gb10-release-evidence-image.json" in script
@@ -1177,15 +1179,19 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
+    assert "--gb10-release-manifest-json" in script
     assert "--gb10-output-json" in script
     assert "--gb10-require-moe" in script
     assert "--gb10-require-openai-deterministic" in script
     assert "GB10_SMOKE_REPORT_DIR=\"$report_dir\"" in script
     assert "GB10_OPENAI_IMAGE_REPORT_DIR=\"$report_dir\"" in script
+    assert 'verify_args+=(--gb10-release-manifest-json' in script
     assert '"$offline_wrapper" "$image" -- "${offline_args[@]}"' in script
     assert '"$openai_wrapper" "$image" --serve "${serve_args[@]}" --smoke' in script
     assert '"$verifier" "${verify_args[@]}" || verify_status=$?' in script
     assert '"$bundler" "${bundle_args[@]}"' in script
+    assert 'bundle_args+=(--gb10-release-manifest-json' in script
+    assert 'bundle_args+=(--gb10-runtime-image-metadata-json' in script
     assert 'bundle_args+=(--gb10-allow-partial)' in script
     assert 'exit "$verify_status"' in script
 
@@ -1203,6 +1209,13 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "GB10_RELEASE_EVIDENCE_IMAGE_REF" in script
     assert "GB10_RELEASE_EVIDENCE_RELEASE_TAG" in script
     assert "GB10_RELEASE_EVIDENCE_COMMIT" in script
+    assert "GB10_RELEASE_EVIDENCE_MANIFEST_JSON" in script
+    assert "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON" in script
+    assert "--gb10-release-manifest-json" in script
+    assert "--gb10-runtime-image-metadata-json" in script
+    assert "included_provenance" in script
+    assert "provenance/gb10-release-manifest.json" in script
+    assert "provenance/buildx-runtime-image-metadata.json" in script
     assert "--gb10-allow-partial" in script
     assert "--gb10-include-glob" in script
     assert "release-evidence-metadata.json" in script
@@ -1233,6 +1246,23 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     for name, payload in report_payloads.items():
         (report_dir / name).write_text(json.dumps(payload) + "\n")
 
+    manifest_path = tmp_path / "gb10-release-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "dependencies": {
+                    "flashinfer": {
+                        "all_required_components_present": True,
+                    }
+                },
+            }
+        )
+        + "\n"
+    )
+    runtime_metadata_path = tmp_path / "buildx-runtime-image-metadata.json"
+    runtime_metadata_path.write_text(json.dumps({"containerimage.digest": "sha256:x"}))
+
     exit_code = bundler.main(
         [
             "--gb10-report-dir",
@@ -1247,6 +1277,10 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
             "gb10-vllm-test",
             "--gb10-commit",
             "abc123",
+            "--gb10-release-manifest-json",
+            str(manifest_path),
+            "--gb10-runtime-image-metadata-json",
+            str(runtime_metadata_path),
         ]
     )
 
@@ -1270,6 +1304,15 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "image_ref": "ghcr.io/gardner/vllm-gb10:test",
     }
     assert {
+        item["relative_path"]: item["source_path"]
+        for item in metadata["included_provenance"]
+    } == {
+        "provenance/gb10-release-manifest.json": str(manifest_path.resolve()),
+        "provenance/buildx-runtime-image-metadata.json": str(
+            runtime_metadata_path.resolve()
+        ),
+    }
+    assert {
         report["name"]: report["present"] for report in metadata["expected_reports"]
     } == {
         "gb10-nvfp4-smoke.json": True,
@@ -1288,6 +1331,8 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
 
     checksum_text = checksum_path.read_text()
     assert "reports/gb10-nvfp4-smoke.json" in checksum_text
+    assert "provenance/gb10-release-manifest.json" in checksum_text
+    assert "provenance/buildx-runtime-image-metadata.json" in checksum_text
     assert "release-evidence-metadata.json" in checksum_text
 
     with tarfile.open(archive_path, "r:gz") as tar:
@@ -1297,6 +1342,8 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     assert "evidence/reports/gb10-nvfp4-smoke.json" in tar_names
     assert "evidence/reports/gb10-openai-server-smoke-image.json" in tar_names
     assert "evidence/reports/gb10-release-evidence-image.json" in tar_names
+    assert "evidence/provenance/gb10-release-manifest.json" in tar_names
+    assert "evidence/provenance/buildx-runtime-image-metadata.json" in tar_names
 
 
 def test_gb10_openai_server_smoke_reports_api_evidence():
@@ -1537,6 +1584,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert "scripts/gb10-smoke-openai-server.py" in script
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
+    assert "--gb10-release-manifest-json" in script
     assert "--gb10-output-json" in script
     assert "--gb10-require-moe" in script
     assert "--gb10-require-openai-deterministic" in script
@@ -1546,6 +1594,10 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"native_nvfp4_moe_non_ep_observed"' in script
     assert '"openai_deterministic_generation"' in script
     assert '"kv_cache_fp8_e4m3"' in script
+    assert '"release_manifest_flashinfer_components"' in script
+    assert '"release_manifest_source_refs_pinned"' in script
+    assert '"release_manifest_no_local_deps"' in script
+    assert '"release_manifest_image_pushed_for_tagged_release"' in script
     assert "GB10 release evidence gate failed" in script
 
 
@@ -1612,12 +1664,44 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             }
         },
     }
+    release_manifest = {
+        "schema_version": 1,
+        "release": {"tag": "gb10-vllm-test", "preflight_only": False},
+        "image": {
+            "name": "ghcr.io/gardner/vllm-gb10",
+            "tag": "test",
+            "push": True,
+        },
+        "dependencies": {
+            "flashinfer": {
+                "all_required_components_present": True,
+                "missing_components": [],
+            },
+            "vllm_flash_attn": {
+                "repository": "https://github.com/gardner/vllm-flash-attention.git",
+                "ref": VLLM_FLASH_ATTN_GIT_TAG,
+                "ref_is_full_git_sha": True,
+            },
+            "source_dependencies": {
+                "deepgemm": {"ref": DEEPGEMM_GIT_TAG, "ref_is_full_git_sha": True},
+                "flashmla": {"ref": FLASHMLA_GIT_TAG, "ref_is_full_git_sha": True},
+                "triton_kernels": {
+                    "ref": TRITON_KERNELS_GIT_TAG,
+                    "ref_is_full_git_sha": True,
+                },
+            },
+        },
+        "build": {"local_gb10_dependency_checkouts": False},
+    }
 
     summary = verifier._build_summary(
         nvfp4_report=nvfp4_report,
         nvfp4_error=None,
         openai_report=openai_report,
         openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        require_release_manifest=True,
         require_moe=True,
         require_openai_deterministic=True,
         allow_partial=False,
@@ -1631,6 +1715,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["native_nvfp4_moe_non_ep_observed"] == "passed"
     assert check_statuses["nvfp4_fallback_free"] == "passed"
     assert check_statuses["openai_deterministic_generation"] == "passed"
+    assert check_statuses["release_manifest_flashinfer_components"] == "passed"
+    assert check_statuses["release_manifest_source_refs_pinned"] == "passed"
+    assert check_statuses["release_manifest_no_local_deps"] == "passed"
+    assert (
+        check_statuses["release_manifest_image_pushed_for_tagged_release"] == "passed"
+    )
 
     nvfp4_report["fallback_events"] = [
         {
@@ -1644,6 +1734,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         nvfp4_error=None,
         openai_report=openai_report,
         openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        require_release_manifest=True,
         require_moe=True,
         require_openai_deterministic=True,
         allow_partial=False,
@@ -1654,4 +1747,29 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "nvfp4_fallback_free"
         for failure in failed_summary["failures"]
+    )
+
+    release_manifest["dependencies"]["flashinfer"][
+        "all_required_components_present"
+    ] = False
+    release_manifest["dependencies"]["flashinfer"]["missing_components"] = [
+        "flashinfer_jit_cache"
+    ]
+    manifest_failed_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert manifest_failed_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "release_manifest_flashinfer_components"
+        for failure in manifest_failed_summary["failures"]
     )

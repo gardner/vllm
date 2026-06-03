@@ -39,6 +39,10 @@ Useful environment:
   GB10_RELEASE_BUNDLE_ALLOW_PARTIAL   Set to 0 to make bundling require all
                                       final-image reports even after verifier
                                       failure (default: 1)
+  GB10_RELEASE_MANIFEST_JSON          Optional release manifest path to verify
+                                      and bundle.
+  GB10_RUNTIME_IMAGE_METADATA_JSON    Optional BuildKit runtime-image metadata
+                                      path to bundle.
 
 Argument sections:
   --offline OFFLINE_ARGS...  Extra args for scripts/gb10-smoke-image.sh after --.
@@ -176,6 +180,10 @@ fi
 if ! has_arg --gb10-output-json "${verify_args[@]}"; then
     verify_args+=(--gb10-output-json "$evidence_report")
 fi
+if [ -n "${GB10_RELEASE_MANIFEST_JSON:-}" ] \
+    && ! has_arg --gb10-release-manifest-json "${verify_args[@]}"; then
+    verify_args+=(--gb10-release-manifest-json "$GB10_RELEASE_MANIFEST_JSON")
+fi
 if ! has_arg --gb10-require-moe "${verify_args[@]}" \
     && [ "${GB10_RELEASE_REQUIRE_MOE:-1}" = "1" ]; then
     verify_args+=(--gb10-require-moe)
@@ -202,6 +210,12 @@ bundle_args=(
     --gb10-report-dir "$report_dir"
     --gb10-image-ref "$image"
 )
+if [ -n "${GB10_RELEASE_MANIFEST_JSON:-}" ]; then
+    bundle_args+=(--gb10-release-manifest-json "$GB10_RELEASE_MANIFEST_JSON")
+fi
+if [ -n "${GB10_RUNTIME_IMAGE_METADATA_JSON:-}" ]; then
+    bundle_args+=(--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON")
+fi
 if [ "${GB10_RELEASE_BUNDLE_ALLOW_PARTIAL:-1}" = "1" ]; then
     bundle_args+=(--gb10-allow-partial)
 fi

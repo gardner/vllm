@@ -29,6 +29,16 @@ EXPECTED_REPORTS = (
     "gb10-release-evidence-image.json",
 )
 
+PROVENANCE_FILES = {
+    "release_manifest": "gb10-release-manifest.json",
+    "runtime_image_metadata": "buildx-runtime-image-metadata.json",
+}
+
+PROVENANCE_RELATIVE_PATHS = {
+    "release_manifest": "provenance/gb10-release-manifest.json",
+    "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",
+}
+
 
 def _default_report_dir() -> Path:
     return Path(
@@ -43,6 +53,27 @@ def _default_output_dir() -> Path:
             "dist/gb10-release-evidence",
         )
     )
+
+
+def _default_release_manifest_json() -> Path | None:
+    explicit = os.environ.get("GB10_RELEASE_EVIDENCE_MANIFEST_JSON") or os.environ.get(
+        "GB10_RELEASE_MANIFEST_JSON"
+    )
+    if explicit:
+        return Path(explicit)
+    manifest_dir = os.environ.get("GB10_RELEASE_MANIFEST_DIR")
+    if manifest_dir:
+        return Path(manifest_dir) / PROVENANCE_FILES["release_manifest"]
+    return None
+
+
+def _default_runtime_image_metadata_json() -> Path | None:
+    explicit = os.environ.get(
+        "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON"
+    ) or os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
+    if explicit:
+        return Path(explicit)
+    return None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -102,6 +133,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--gb10-commit",
         default=os.environ.get("GB10_RELEASE_EVIDENCE_COMMIT"),
         help="Source commit recorded in metadata. Defaults to git HEAD if available.",
+    )
+    parser.add_argument(
+        "--gb10-release-manifest-json",
+        type=Path,
+        default=_default_release_manifest_json(),
+        help=(
+            "Optional gb10-release-manifest.json from the release workflow. "
+            "Defaults to GB10_RELEASE_EVIDENCE_MANIFEST_JSON, "
+            "GB10_RELEASE_MANIFEST_JSON, or "
+            "GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json when set."
+        ),
+    )
+    parser.add_argument(
+        "--gb10-runtime-image-metadata-json",
+        type=Path,
+        default=_default_runtime_image_metadata_json(),
+        help=(
+            "Optional BuildKit runtime-image metadata JSON. Defaults to "
+            "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON or "
+            "GB10_RUNTIME_IMAGE_METADATA_JSON when set."
+        ),
     )
     parser.add_argument(
         "--gb10-allow-partial",
@@ -172,11 +224,52 @@ def _copy_reports(
     return included
 
 
+def _copy_optional_provenance(
+    *,
+    output_dir: Path,
+    release_manifest_json: Path | None,
+    runtime_image_metadata_json: Path | None,
+) -> list[dict[str, Any]]:
+    provenance_dir = output_dir / "provenance"
+    if provenance_dir.exists():
+        shutil.rmtree(provenance_dir)
+
+    sources = [
+        ("release_manifest", release_manifest_json),
+        ("runtime_image_metadata", runtime_image_metadata_json),
+    ]
+    included = []
+    for kind, source in sources:
+        if source is None:
+            continue
+
+        source = source.resolve()
+        if not source.exists():
+            raise RuntimeError(f"GB10 provenance file does not exist: {source}")
+        if not source.is_file():
+            raise RuntimeError(f"GB10 provenance path is not a file: {source}")
+
+        provenance_dir.mkdir(parents=True, exist_ok=True)
+        destination = output_dir / PROVENANCE_RELATIVE_PATHS[kind]
+        shutil.copy2(source, destination)
+        included.append(
+            {
+                "kind": kind,
+                "relative_path": destination.relative_to(output_dir).as_posix(),
+                "source_path": str(source),
+                "size_bytes": destination.stat().st_size,
+                "sha256": _sha256(destination),
+            }
+        )
+    return included
+
+
 def _write_metadata(
     *,
     output_dir: Path,
     report_dir: Path,
     included_files: list[dict[str, Any]],
+    included_provenance: list[dict[str, Any]],
     missing_reports: list[str],
     commit: str | None,
     release_tag: str | None,
@@ -211,6 +304,7 @@ def _write_metadata(
         "expected_reports": expected_reports,
         "missing_reports": missing_reports,
         "included_files": included_files,
+        "included_provenance": included_provenance,
     }
     metadata_path = output_dir / "release-evidence-metadata.json"
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
@@ -292,6 +386,11 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not included_files:
         raise RuntimeError(f"No GB10 JSON reports found in {report_dir}")
+    included_provenance = _copy_optional_provenance(
+        output_dir=output_dir,
+        release_manifest_json=args.gb10_release_manifest_json,
+        runtime_image_metadata_json=args.gb10_runtime_image_metadata_json,
+    )
 
     repo_root = Path(__file__).resolve().parents[1]
     commit = args.gb10_commit or _git_head(repo_root)
@@ -299,6 +398,7 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         output_dir=output_dir,
         report_dir=report_dir,
         included_files=included_files,
+        included_provenance=included_provenance,
         missing_reports=missing_reports,
         commit=commit,
         release_tag=args.gb10_release_tag,
@@ -306,7 +406,8 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     bundle_files = [
-        output_dir / item["relative_path"] for item in included_files
+        output_dir / item["relative_path"]
+        for item in [*included_files, *included_provenance]
     ] + [metadata_path]
     checksum_path = _write_checksums(output_dir, bundle_files)
     archive_path = _write_tarball(
@@ -324,6 +425,7 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         "checksum_path": str(checksum_path),
         "missing_reports": missing_reports,
         "included_count": len(included_files),
+        "included_provenance_count": len(included_provenance),
     }
 
 
