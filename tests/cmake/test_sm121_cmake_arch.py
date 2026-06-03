@@ -860,6 +860,41 @@ def test_gb10_image_smoke_wraps_nvfp4_model_harness():
     assert 'python3 /tmp/gb10-smoke-nvfp4.py "$@"' in script
 
 
+def test_gb10_openai_image_smoke_wraps_server_harness():
+    script = (REPO_ROOT / "scripts" / "gb10-smoke-openai-image.sh").read_text()
+
+    assert "scripts/gb10-smoke-openai-server.py" in script
+    assert "vLLM runtime image to test" in script
+    assert "--serve SERVE_ARGS" in script
+    assert "--smoke SMOKE_ARGS" in script
+    assert "GB10_OPENAI_IMAGE_HOST_PORT" in script
+    assert 'host_port="${GB10_OPENAI_IMAGE_HOST_PORT:-18000}"' in script
+    assert "GB10_OPENAI_IMAGE_CONTAINER_PORT" in script
+    assert 'container_port="${GB10_OPENAI_IMAGE_CONTAINER_PORT:-8000}"' in script
+    assert "--publish \"127.0.0.1:${host_port}:${container_port}\"" in script
+    assert "GB10_OPENAI_IMAGE_KEEP_CONTAINER" in script
+    assert "docker rm -f" in script
+    assert "trap cleanup EXIT" in script
+    assert "/v1/models" in script
+    assert "curl -fsS --max-time 5" in script
+    assert "docker logs" in script
+    assert "VLLM_FAIL_ON_NVFP4_FALLBACK=1" in script
+    assert "VLLM_NO_USAGE_STATS=1" in script
+    assert "GB10_OPENAI_IMAGE_CACHE_DIR" in script
+    assert "GB10_OPENAI_IMAGE_REPORT_DIR" in script
+    assert "GB10_OPENAI_IMAGE_ENV_FILE" in script
+    assert "GB10_OPENAI_IMAGE_EXTRA_DOCKER_ARGS" in script
+    assert "HF_TOKEN" in script
+    assert "HUGGING_FACE_HUB_TOKEN" in script
+    assert "gb10-openai-server-smoke-image.json" in script
+    assert "--gb10-base-url" in script
+    assert "--gb10-report-json" in script
+    assert "--gb10-repeat-count" in script
+    assert "--gb10-require-deterministic" in script
+    assert "GB10_OPENAI_IMAGE_REQUIRE_DETERMINISTIC" in script
+    assert 'python3 "$smoke_script" "${smoke_args[@]}"' in script
+
+
 def test_gb10_openai_server_smoke_reports_api_evidence():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-openai-server.py").read_text()
 
