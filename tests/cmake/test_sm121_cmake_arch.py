@@ -1,6 +1,8 @@
+import importlib.util
 import re
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,6 +18,16 @@ FLASHINFER_RELEASE_WHEELS = (
     "flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl",
     "flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl",
 )
+
+
+def _load_gb10_smoke_module():
+    script_path = REPO_ROOT / "scripts" / "gb10-smoke-nvfp4.py"
+    spec = importlib.util.spec_from_file_location("gb10_smoke_nvfp4", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _cuda13_supported_archs() -> list[str]:
@@ -603,12 +615,16 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert "_collect_runtime_metadata" in script
     assert '"schema_version": 1' in script
     assert '"backend_summary": _build_backend_summary(' in script
+    assert '"vllm_config": vllm_config_summary' in script
+    assert "_collect_vllm_config_summary(llm)" in script
     assert '"native_nvfp4_gemm"' in script
     assert '"native_nvfp4_moe_non_ep"' in script
     assert '"native_nvfp4_moe_ep"' in script
     assert '"cuda_graph"' in script
     assert '"model_shape"' in script
     assert '"not_validated_by_smoke"' in script
+    assert '"configured_cudagraph_mode"' in script
+    assert '"configured_cudagraph_enabled"' in script
     assert "Expert-parallel/all2all/EPLB NVFP4 MoE is blocked" in script
     assert '"backend_selections": _events_to_dicts(selections)' in script
     assert '"fallback_events": _events_to_dicts(fallbacks)' in script
@@ -620,6 +636,101 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert "linear=FlashInferB12x" in script
     assert "moe=FLASHINFER_B12X" in script
     assert 'choices=("linear", "linear_w4a16", "moe")' in script
+
+
+def test_gb10_nvfp4_model_smoke_summarizes_vllm_config():
+    smoke = _load_gb10_smoke_module()
+    parallel_config = SimpleNamespace(
+        tensor_parallel_size=1,
+        pipeline_parallel_size=1,
+        data_parallel_size=1,
+        decode_context_parallel_size=1,
+        world_size=1,
+        distributed_executor_backend="uni",
+    )
+    model_config = SimpleNamespace(
+        dtype="bfloat16",
+        quantization="modelopt_fp4",
+        max_model_len=4096,
+        enforce_eager=False,
+        use_mla=False,
+        is_attention_free=False,
+        get_head_size=lambda: 128,
+        get_num_attention_heads=lambda _parallel_config: 32,
+        get_num_kv_heads=lambda _parallel_config: 8,
+    )
+    attention_config = SimpleNamespace(
+        backend=SimpleNamespace(name="FLASHINFER"),
+        mla_prefill_backend=None,
+        use_trtllm_attention=None,
+        use_prefill_query_quantization=False,
+        use_non_causal=False,
+    )
+    cache_config = SimpleNamespace(
+        cache_dtype="fp8_e4m3",
+        block_size=16,
+        enable_prefix_caching=False,
+        kv_cache_dtype_skip_layers=[],
+        mamba_cache_dtype="auto",
+        mamba_ssm_cache_dtype="auto",
+    )
+    compilation_config = SimpleNamespace(
+        cudagraph_mode=SimpleNamespace(name="PIECEWISE"),
+        max_cudagraph_capture_size=256,
+        cudagraph_capture_sizes=[1, 2, 4, 8, 16, 32, 64, 128, 256],
+        cudagraph_num_of_warmups=1,
+    )
+    vllm_config = SimpleNamespace(
+        model_config=model_config,
+        attention_config=attention_config,
+        cache_config=cache_config,
+        parallel_config=parallel_config,
+        scheduler_config=SimpleNamespace(
+            max_num_seqs=32,
+            max_num_batched_tokens=4096,
+            enable_chunked_prefill=True,
+        ),
+        compilation_config=compilation_config,
+        observability_config=SimpleNamespace(cudagraph_metrics=True),
+        kv_transfer_config=None,
+    )
+    llm = SimpleNamespace(llm_engine=SimpleNamespace(vllm_config=vllm_config))
+
+    summary = smoke._collect_vllm_config_summary(llm)
+
+    assert summary["model"]["quantization"] == "modelopt_fp4"
+    assert summary["model"]["head_size"] == 128
+    assert summary["model"]["num_attention_heads"] == 32
+    assert summary["model"]["num_kv_heads"] == 8
+    assert summary["attention"]["requested_backend"] == "FLASHINFER"
+    assert summary["cache"]["cache_dtype"] == "fp8_e4m3"
+    assert summary["cache"]["enable_prefix_caching"] is False
+    assert summary["parallel"]["tensor_parallel_size"] == 1
+    assert summary["scheduler"]["enable_chunked_prefill"] is True
+    assert summary["compilation"]["cudagraph_mode"] == "PIECEWISE"
+    assert summary["compilation"]["cudagraph_enabled"] is True
+    assert summary["compilation"]["cudagraph_capture_sizes"] == {
+        "count": 9,
+        "first": [1, 2, 4, 8, 16, 32, 64, 128],
+        "last": [2, 4, 8, 16, 32, 64, 128, 256],
+        "max": 256,
+    }
+
+    backend_summary = smoke._build_backend_summary(
+        status="passed",
+        required_paths=("linear",),
+        selections=(),
+        fallbacks=(),
+        vllm_config_summary=summary,
+    )
+    assert (
+        backend_summary["capabilities"]["cuda_graph"]["configured_cudagraph_mode"]
+        == "PIECEWISE"
+    )
+    assert (
+        backend_summary["capabilities"]["cuda_graph"]["configured_cudagraph_enabled"]
+        is True
+    )
 
 
 def test_gb10_image_smoke_wraps_nvfp4_model_harness():

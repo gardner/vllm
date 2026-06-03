@@ -216,6 +216,186 @@ def _collect_runtime_metadata() -> dict[str, Any]:
     return metadata
 
 
+def _json_value(value: Any) -> Any:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    name = getattr(value, "name", None)
+    if isinstance(name, str):
+        return name
+    return str(value)
+
+
+def _summarize_int_list(values: Sequence[int] | None) -> dict[str, Any] | None:
+    if values is None:
+        return None
+    values = list(values)
+    return {
+        "count": len(values),
+        "first": values[:8],
+        "last": values[-8:],
+        "max": max(values) if values else None,
+    }
+
+
+def _call_or_none(obj: Any, method_name: str, *args: Any) -> Any:
+    method = getattr(obj, method_name, None)
+    if not callable(method):
+        return None
+    try:
+        return method(*args)
+    except Exception:
+        return None
+
+
+def _collect_vllm_config_summary(llm: Any | None) -> dict[str, Any] | None:
+    llm_engine = getattr(llm, "llm_engine", None)
+    vllm_config = getattr(llm_engine, "vllm_config", None)
+    if vllm_config is None:
+        return None
+
+    model_config = getattr(vllm_config, "model_config", None)
+    cache_config = getattr(vllm_config, "cache_config", None)
+    parallel_config = getattr(vllm_config, "parallel_config", None)
+    scheduler_config = getattr(vllm_config, "scheduler_config", None)
+    attention_config = getattr(vllm_config, "attention_config", None)
+    compilation_config = getattr(vllm_config, "compilation_config", None)
+    observability_config = getattr(vllm_config, "observability_config", None)
+    kv_transfer_config = getattr(vllm_config, "kv_transfer_config", None)
+
+    cudagraph_mode = getattr(compilation_config, "cudagraph_mode", None)
+    cudagraph_mode_name = _json_value(cudagraph_mode)
+    cudagraph_enabled = (
+        cudagraph_mode_name is not None
+        and not str(cudagraph_mode_name).upper().endswith("NONE")
+    )
+
+    return {
+        "model": {
+            "dtype": _json_value(getattr(model_config, "dtype", None)),
+            "quantization": _json_value(getattr(model_config, "quantization", None)),
+            "max_model_len": getattr(model_config, "max_model_len", None),
+            "enforce_eager": getattr(model_config, "enforce_eager", None),
+            "use_mla": getattr(model_config, "use_mla", None),
+            "is_attention_free": getattr(model_config, "is_attention_free", None),
+            "head_size": _call_or_none(model_config, "get_head_size"),
+            "num_attention_heads": _call_or_none(
+                model_config,
+                "get_num_attention_heads",
+                parallel_config,
+            ),
+            "num_kv_heads": _call_or_none(
+                model_config,
+                "get_num_kv_heads",
+                parallel_config,
+            ),
+        },
+        "attention": {
+            "requested_backend": _json_value(
+                getattr(attention_config, "backend", None)
+            ),
+            "mla_prefill_backend": _json_value(
+                getattr(attention_config, "mla_prefill_backend", None)
+            ),
+            "use_trtllm_attention": getattr(
+                attention_config,
+                "use_trtllm_attention",
+                None,
+            ),
+            "use_prefill_query_quantization": getattr(
+                attention_config,
+                "use_prefill_query_quantization",
+                None,
+            ),
+            "use_non_causal": getattr(attention_config, "use_non_causal", None),
+        },
+        "cache": {
+            "cache_dtype": _json_value(getattr(cache_config, "cache_dtype", None)),
+            "block_size": getattr(cache_config, "block_size", None),
+            "enable_prefix_caching": getattr(
+                cache_config,
+                "enable_prefix_caching",
+                None,
+            ),
+            "kv_cache_dtype_skip_layers": list(
+                getattr(cache_config, "kv_cache_dtype_skip_layers", []) or []
+            ),
+            "mamba_cache_dtype": _json_value(
+                getattr(cache_config, "mamba_cache_dtype", None)
+            ),
+            "mamba_ssm_cache_dtype": _json_value(
+                getattr(cache_config, "mamba_ssm_cache_dtype", None)
+            ),
+        },
+        "parallel": {
+            "tensor_parallel_size": getattr(
+                parallel_config,
+                "tensor_parallel_size",
+                None,
+            ),
+            "pipeline_parallel_size": getattr(
+                parallel_config,
+                "pipeline_parallel_size",
+                None,
+            ),
+            "data_parallel_size": getattr(parallel_config, "data_parallel_size", None),
+            "decode_context_parallel_size": getattr(
+                parallel_config,
+                "decode_context_parallel_size",
+                None,
+            ),
+            "world_size": getattr(parallel_config, "world_size", None),
+            "distributed_executor_backend": _json_value(
+                getattr(parallel_config, "distributed_executor_backend", None)
+            ),
+        },
+        "scheduler": {
+            "max_num_seqs": getattr(scheduler_config, "max_num_seqs", None),
+            "max_num_batched_tokens": getattr(
+                scheduler_config,
+                "max_num_batched_tokens",
+                None,
+            ),
+            "enable_chunked_prefill": getattr(
+                scheduler_config,
+                "enable_chunked_prefill",
+                None,
+            ),
+        },
+        "compilation": {
+            "cudagraph_mode": cudagraph_mode_name,
+            "cudagraph_enabled": cudagraph_enabled,
+            "max_cudagraph_capture_size": getattr(
+                compilation_config,
+                "max_cudagraph_capture_size",
+                None,
+            ),
+            "cudagraph_capture_sizes": _summarize_int_list(
+                getattr(compilation_config, "cudagraph_capture_sizes", None)
+            ),
+            "cudagraph_num_of_warmups": getattr(
+                compilation_config,
+                "cudagraph_num_of_warmups",
+                None,
+            ),
+        },
+        "observability": {
+            "cudagraph_metrics": getattr(
+                observability_config,
+                "cudagraph_metrics",
+                None,
+            ),
+        },
+        "kv_transfer": {
+            "enabled": kv_transfer_config is not None,
+            "is_kv_transfer_instance": getattr(
+                kv_transfer_config,
+                "is_kv_transfer_instance",
+                None,
+            ),
+        },
+    }
+
+
 def _unique_sorted(values: Iterable[str]) -> list[str]:
     return sorted(set(values))
 
@@ -242,6 +422,7 @@ def _build_backend_summary(
     required_paths: Sequence[str],
     selections: Sequence[Any],
     fallbacks: Sequence[Any],
+    vllm_config_summary: dict[str, Any] | None,
 ) -> dict[str, Any]:
     paths = _unique_sorted(
         [
@@ -304,6 +485,18 @@ def _build_backend_summary(
             },
             "cuda_graph": {
                 "status": "not_validated_by_smoke",
+                "configured_cudagraph_mode": (
+                    vllm_config_summary.get("compilation", {}).get("cudagraph_mode")
+                    if vllm_config_summary is not None
+                    else None
+                ),
+                "configured_cudagraph_enabled": (
+                    vllm_config_summary.get("compilation", {}).get(
+                        "cudagraph_enabled"
+                    )
+                    if vllm_config_summary is not None
+                    else None
+                ),
                 "reason": (
                     "The GB10 smoke harness validates model startup and one "
                     "short generation only."
@@ -325,6 +518,7 @@ def _build_report(
     fallbacks: Sequence[Any],
     outputs: Sequence[Any],
     status: str,
+    vllm_config_summary: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> dict[str, Any]:
     generated_texts = []
@@ -339,6 +533,7 @@ def _build_report(
         "model": args.model,
         "quantization": args.quantization,
         "kv_cache_dtype": args.kv_cache_dtype,
+        "vllm_config": vllm_config_summary,
         "sampling": {
             "max_tokens": args.gb10_max_tokens,
             "temperature": args.gb10_temperature,
@@ -358,6 +553,7 @@ def _build_report(
             required_paths=required_paths,
             selections=selections,
             fallbacks=fallbacks,
+            vllm_config_summary=vllm_config_summary,
         ),
         "backend_selections": _events_to_dicts(selections),
         "fallback_events": _events_to_dicts(fallbacks),
@@ -461,8 +657,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     outputs: Sequence[Any] = ()
     selections: Sequence[Any] = ()
     fallbacks: Sequence[Any] = ()
+    vllm_config_summary: dict[str, Any] | None = None
     try:
         llm = LLM.from_engine_args(engine_args)
+        vllm_config_summary = _collect_vllm_config_summary(llm)
         if not args.gb10_skip_generate:
             outputs = llm.generate(
                 [args.gb10_prompt],
@@ -490,11 +688,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fallbacks=fallbacks,
                 outputs=outputs,
                 status="passed",
+                vllm_config_summary=vllm_config_summary,
             ),
         )
     except Exception as exc:
         selections = get_nvfp4_backend_selection_events()
         fallbacks = get_nvfp4_fallback_events()
+        if vllm_config_summary is None:
+            vllm_config_summary = _collect_vllm_config_summary(llm)
         _write_report(
             args.gb10_report_json,
             _build_report(
@@ -504,6 +705,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fallbacks=fallbacks,
                 outputs=outputs,
                 status="failed",
+                vllm_config_summary=vllm_config_summary,
                 error=str(exc),
             ),
         )
