@@ -895,6 +895,35 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
     assert 'python3 "$smoke_script" "${smoke_args[@]}"' in script
 
 
+def test_gb10_release_image_smoke_orchestrates_final_reports():
+    script = (REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh").read_text()
+
+    assert "scripts/gb10-smoke-image.sh" in script
+    assert "scripts/gb10-smoke-openai-image.sh" in script
+    assert "scripts/gb10-verify-release-evidence.py" in script
+    assert "--offline OFFLINE_ARGS" in script
+    assert "--serve SERVE_ARGS" in script
+    assert "--openai OPENAI_ARGS" in script
+    assert "--verify VERIFY_ARGS" in script
+    assert "GB10_RELEASE_SMOKE_REPORT_DIR" in script
+    assert "GB10_RELEASE_REQUIRE_MOE" in script
+    assert "GB10_RELEASE_REQUIRE_OPENAI_DETERMINISTIC" in script
+    assert "gb10-nvfp4-smoke.json" in script
+    assert "gb10-openai-server-smoke-image.json" in script
+    assert "gb10-release-evidence-image.json" in script
+    assert "--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
+    assert "--gb10-nvfp4-report-json" in script
+    assert "--gb10-openai-report-json" in script
+    assert "--gb10-output-json" in script
+    assert "--gb10-require-moe" in script
+    assert "--gb10-require-openai-deterministic" in script
+    assert "GB10_SMOKE_REPORT_DIR=\"$report_dir\"" in script
+    assert "GB10_OPENAI_IMAGE_REPORT_DIR=\"$report_dir\"" in script
+    assert '"$offline_wrapper" "$image" -- "${offline_args[@]}"' in script
+    assert '"$openai_wrapper" "$image" --serve "${serve_args[@]}" --smoke' in script
+    assert '"$verifier" "${verify_args[@]}"' in script
+
+
 def test_gb10_openai_server_smoke_reports_api_evidence():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-openai-server.py").read_text()
 
