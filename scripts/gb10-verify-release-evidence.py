@@ -25,6 +25,11 @@ FLASHINFER_RUNTIME_DISTRIBUTIONS = (
     "flashinfer-cubin",
     "flashinfer-jit-cache",
 )
+REQUIRED_SOURCE_DEPENDENCIES = (
+    "deepgemm",
+    "flashmla",
+    "triton_kernels",
+)
 
 
 def _is_gb10_cuda13_version(value: Any) -> bool:
@@ -504,6 +509,40 @@ def _source_refs_pinned(manifest: dict[str, Any]) -> tuple[bool, dict[str, Any]]
     return not missing, {"refs": refs, "unpinned": missing}
 
 
+def _source_dependencies_present(
+    manifest: dict[str, Any],
+) -> tuple[bool, dict[str, Any]]:
+    dependencies = manifest.get("dependencies")
+    if not isinstance(dependencies, dict):
+        return False, {
+            "required": list(REQUIRED_SOURCE_DEPENDENCIES),
+            "present": [],
+            "missing": list(REQUIRED_SOURCE_DEPENDENCIES),
+            "reason": "dependencies object missing",
+        }
+
+    source_dependencies = dependencies.get("source_dependencies")
+    if not isinstance(source_dependencies, dict):
+        return False, {
+            "required": list(REQUIRED_SOURCE_DEPENDENCIES),
+            "present": [],
+            "missing": list(REQUIRED_SOURCE_DEPENDENCIES),
+            "reason": "source_dependencies object missing",
+        }
+
+    present = sorted(
+        dependency
+        for dependency in REQUIRED_SOURCE_DEPENDENCIES
+        if dependency in source_dependencies
+    )
+    missing = sorted(set(REQUIRED_SOURCE_DEPENDENCIES) - set(present))
+    return not missing, {
+        "required": list(REQUIRED_SOURCE_DEPENDENCIES),
+        "present": present,
+        "missing": missing,
+    }
+
+
 def _release_manifest_validation_errors(manifest: dict[str, Any]) -> list[str]:
     manifest_writer_path = Path(__file__).with_name("gb10-write-release-manifest.py")
     spec = importlib.util.spec_from_file_location(
@@ -667,6 +706,9 @@ def _check_release_manifest(
         isinstance(flashinfer, dict)
         and flashinfer.get("all_required_components_present") is True
     )
+    source_dependencies_present, source_dependencies_details = (
+        _source_dependencies_present(manifest)
+    )
     source_refs_pinned, source_refs_details = _source_refs_pinned(manifest)
     manifest_validation_errors = _release_manifest_validation_errors(manifest)
     release_tag = _nested_get(manifest, "release", "tag")
@@ -703,6 +745,15 @@ def _check_release_manifest(
                 "checkouts, and pushed images for tagged full releases"
             ),
             details={"errors": manifest_validation_errors},
+        ),
+        _check(
+            name="release_manifest_source_dependencies_present",
+            passed=source_dependencies_present,
+            message=(
+                "release manifest includes the required GB10 source-built "
+                "dependencies"
+            ),
+            details=source_dependencies_details,
         ),
         _check(
             name="release_manifest_source_refs_pinned",

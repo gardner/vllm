@@ -18,6 +18,11 @@ REQUIRED_FLASHINFER_COMPONENTS = (
     "flashinfer_cubin",
     "flashinfer_jit_cache",
 )
+REQUIRED_SOURCE_DEPENDENCIES = (
+    "deepgemm",
+    "flashmla",
+    "triton_kernels",
+)
 DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
 DOCKER_TAG_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
 
@@ -246,6 +251,7 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
                 "ref_is_full_git_sha": _is_full_git_sha(flash_attn_ref),
             },
             "source_dependencies": _source_dependencies(env),
+            "required_source_dependencies": list(REQUIRED_SOURCE_DEPENDENCIES),
         },
         "build": {
             "dockerfile": "docker/Dockerfile",
@@ -447,6 +453,15 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
 
     source_dependencies = _mapping_value(dependencies, "source_dependencies")
     if isinstance(source_dependencies, Mapping):
+        missing_source_dependencies = sorted(
+            set(REQUIRED_SOURCE_DEPENDENCIES) - set(source_dependencies)
+        )
+        if missing_source_dependencies:
+            errors.append(
+                "GB10 release manifest source_dependencies must include "
+                "DeepGEMM, FlashMLA, and triton_kernels; missing="
+                f"{missing_source_dependencies!r}."
+            )
         for dependency in source_dependencies.values():
             name = _mapping_value(dependency, "name") or "source dependency"
             if not _github_repository_url(_mapping_value(dependency, "repository")):

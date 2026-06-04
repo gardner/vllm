@@ -780,6 +780,19 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         for err in errors
     )
 
+    missing_source_dependency_manifest = copy.deepcopy(good_manifest)
+    del missing_source_dependency_manifest["dependencies"]["source_dependencies"][
+        "flashmla"
+    ]
+
+    errors = manifest.validate_manifest(missing_source_dependency_manifest)
+
+    assert any(
+        "GB10 release manifest source_dependencies must include" in err
+        and "flashmla" in err
+        for err in errors
+    )
+
     for malformed_image_name in (
         "ghcr.io/gardner/vllm-gb10:latest",
         "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
@@ -2360,6 +2373,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"quantization_modelopt_fp4"' in script
     assert '"release_manifest_flashinfer_components"' in script
     assert '"release_manifest_durable_inputs"' in script
+    assert '"release_manifest_source_dependencies_present"' in script
     assert '"release_manifest_source_refs_pinned"' in script
     assert '"release_manifest_no_local_deps"' in script
     assert '"release_manifest_image_pushed_for_tagged_release"' in script
@@ -2564,6 +2578,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
     assert check_statuses["release_manifest_durable_inputs"] == "passed"
+    assert (
+        check_statuses["release_manifest_source_dependencies_present"] == "passed"
+    )
     assert check_statuses["release_manifest_source_refs_pinned"] == "passed"
     assert check_statuses["release_manifest_no_local_deps"] == "passed"
     assert (
@@ -2809,6 +2826,31 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     release_manifest["dependencies"]["flashinfer"]["wheels"][0][
         "url"
     ] = original_flashinfer_python_url
+    missing_source_dependency_manifest = copy.deepcopy(release_manifest)
+    del missing_source_dependency_manifest["dependencies"]["source_dependencies"][
+        "flashmla"
+    ]
+    missing_source_dependency_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=missing_source_dependency_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert missing_source_dependency_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "release_manifest_source_dependencies_present"
+        for failure in missing_source_dependency_summary["failures"]
+    )
+
     image_mismatch_summary = verifier._build_summary(
         nvfp4_report={**nvfp4_report, "fallback_events": []},
         nvfp4_error=None,
