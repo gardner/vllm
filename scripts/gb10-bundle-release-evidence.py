@@ -324,6 +324,10 @@ def _write_metadata(
         },
         "expected_reports": expected_reports,
         "expected_evidence_files": expected_evidence_files,
+        "report_summaries": _summarize_reports(
+            output_dir=output_dir,
+            included_files=included_files,
+        ),
         "missing_reports": missing_reports,
         "missing_evidence_files": missing_evidence_files,
         "included_files": included_files,
@@ -332,6 +336,43 @@ def _write_metadata(
     metadata_path = output_dir / "release-evidence-metadata.json"
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
     return metadata_path
+
+
+def _summarize_reports(
+    *,
+    output_dir: Path,
+    included_files: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    included_by_name = {
+        Path(item["relative_path"]).name: output_dir / item["relative_path"]
+        for item in included_files
+    }
+    summaries = {}
+    for report_name in EXPECTED_REPORTS:
+        report_path = included_by_name.get(report_name)
+        report_summary: dict[str, Any] = {"present": report_path is not None}
+        if report_path is None:
+            summaries[report_name] = report_summary
+            continue
+
+        try:
+            payload = json.loads(report_path.read_text())
+        except json.JSONDecodeError as exc:
+            report_summary["parse_error"] = str(exc)
+        else:
+            if isinstance(payload, dict):
+                report_summary["status"] = payload.get("status")
+                if report_name == "gb10-release-evidence-image.json":
+                    report_summary["release_gate_passed"] = payload.get(
+                        "release_gate_passed"
+                    )
+                    report_summary["failure_count"] = payload.get("failure_count")
+            else:
+                report_summary["parse_error"] = (
+                    f"expected JSON object, got {type(payload).__name__}"
+                )
+        summaries[report_name] = report_summary
+    return summaries
 
 
 def _missing_evidence(

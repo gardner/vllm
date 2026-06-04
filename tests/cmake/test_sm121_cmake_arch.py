@@ -1829,6 +1829,9 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "gb10-*.txt" in script
     assert "release-evidence-metadata.json" in script
     assert "SHA256SUMS" in script
+    assert '"report_summaries"' in script
+    assert '"release_gate_passed"' in script
+    assert '"failure_count"' in script
     assert "tarfile.open" in script
     assert "hashlib.sha256" in script
     assert '"status": "partial" if missing_evidence_files else "complete"' in script
@@ -1849,6 +1852,7 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "gb10-release-evidence-image.json": {
             "status": "passed",
             "release_gate_passed": True,
+            "failure_count": 0,
         },
         "gb10-extra-local-note.json": {"status": "partial"},
     }
@@ -1910,6 +1914,22 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     assert metadata["status"] == "complete"
     assert metadata["missing_reports"] == []
     assert metadata["missing_evidence_files"] == []
+    assert metadata["report_summaries"] == {
+        "gb10-nvfp4-smoke.json": {
+            "present": True,
+            "status": "passed",
+        },
+        "gb10-openai-server-smoke-image.json": {
+            "present": True,
+            "status": "passed",
+        },
+        "gb10-release-evidence-image.json": {
+            "present": True,
+            "status": "passed",
+            "release_gate_passed": True,
+            "failure_count": 0,
+        },
+    }
     assert metadata["source"] == {
         "report_dir": str(report_dir.resolve()),
         "commit": "abc123",
