@@ -38,6 +38,7 @@ from vllm.model_executor.layers.quantization.utils.nvfp4_fallback import (
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     QuantKey,
 )
+from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
 
@@ -65,6 +66,27 @@ _NVFP4_MOE_FALLBACK_BACKENDS = {
     NvFp4MoeBackend.MARLIN,
     NvFp4MoeBackend.EMULATION,
 }
+
+
+def _is_sm12x_device() -> bool:
+    capability = current_platform.get_device_capability()
+    return capability is not None and capability.major == 12
+
+
+def _gb10_trtllm_gen_moe_unsupported_reason() -> str:
+    return (
+        "TRTLLM Gen MoE is not supported on GB10/SM12x. Use a validated "
+        "FlashInfer SM12x backend such as flashinfer_b12x or "
+        "flashinfer_cutlass."
+    )
+
+
+def _is_gb10_unsupported_backend(backend: NvFp4MoeBackend) -> bool:
+    return (
+        _is_sm12x_device()
+        and backend == NvFp4MoeBackend.FLASHINFER_TRTLLM
+    )
+
 
 fi_2_vllm_backend_map: dict[FlashinferMoeBackend, NvFp4MoeBackend] = {
     FlashinferMoeBackend.CUTLASS: NvFp4MoeBackend.FLASHINFER_CUTLASS,
@@ -201,6 +223,16 @@ def select_nvfp4_moe_backend(
         ]
 
     unavailable_native_backend_reasons: list[str] = []
+    if _is_sm12x_device() and NvFp4MoeBackend.FLASHINFER_TRTLLM in AVAILABLE_BACKENDS:
+        AVAILABLE_BACKENDS = [
+            b
+            for b in AVAILABLE_BACKENDS
+            if b != NvFp4MoeBackend.FLASHINFER_TRTLLM
+        ]
+        unavailable_native_backend_reasons.append(
+            _gb10_trtllm_gen_moe_unsupported_reason()
+        )
+
     use_batched = config.moe_parallel_config.use_batched_activation_format
     activation_format = (
         mk.FusedMoEActivationFormat.BatchedExperts
@@ -227,6 +259,14 @@ def select_nvfp4_moe_backend(
                 "deployment configuration."
             )
 
+    def _make_unavailable_native_backend_reason_suffix() -> str:
+        if not unavailable_native_backend_reasons:
+            return ""
+        return (
+            " Unavailable native backend reasons:\n - "
+            + "\n - ".join(unavailable_native_backend_reasons)
+        )
+
     def _log_backend_selection(backend: NvFp4MoeBackend) -> None:
         logger.info_once(_make_log_backend(backend))
         is_fallback = backend in _NVFP4_MOE_FALLBACK_BACKENDS
@@ -238,17 +278,11 @@ def select_nvfp4_moe_backend(
         if not is_fallback:
             return
 
-        reason_suffix = ""
-        if unavailable_native_backend_reasons:
-            reason_suffix = (
-                " Unavailable native backend reasons:\n - "
-                + "\n - ".join(unavailable_native_backend_reasons)
-            )
         fallback_message = (
             f"NVFP4 MoE selected fallback backend '{backend.value}'. "
             "This is not the native GB10 W4A4 FP4 fused MoE path; verify "
             "this fallback is intentional before publishing GB10 artifacts."
-            f"{reason_suffix}"
+            f"{_make_unavailable_native_backend_reason_suffix()}"
         )
         logger.warning_once("%s", fallback_message)
         record_nvfp4_fallback("moe", backend.value, fallback_message)
@@ -283,6 +317,8 @@ def select_nvfp4_moe_backend(
     runner_backend = config.moe_backend
     if runner_backend != "auto":
         requested_backend = map_nvfp4_backend(runner_backend)
+        if _is_gb10_unsupported_backend(requested_backend):
+            raise ValueError(_gb10_trtllm_gen_moe_unsupported_reason())
         # For batched activation format, use batched variant if available.
         if (
             activation_format == mk.FusedMoEActivationFormat.BatchedExperts
@@ -317,6 +353,8 @@ def select_nvfp4_moe_backend(
         elif envs.is_set("VLLM_FLASHINFER_MOE_BACKEND"):
             # If user is explicit about backend, validate it.
             backend = fi_2_vllm_backend_map[get_flashinfer_moe_backend()]
+            if _is_gb10_unsupported_backend(backend):
+                raise ValueError(_gb10_trtllm_gen_moe_unsupported_reason())
             if (
                 config.swiglu_limit is not None
                 and backend not in NVFP4_BACKENDS_WITH_CLAMP
@@ -336,6 +374,12 @@ def select_nvfp4_moe_backend(
                 for b in FLASHINFER_NVFP4_MOE_BACKENDS
                 if config.swiglu_limit is None or b in NVFP4_BACKENDS_WITH_CLAMP
             ]
+            if _is_sm12x_device():
+                fi_backends = [
+                    b
+                    for b in fi_backends
+                    if b != NvFp4MoeBackend.FLASHINFER_TRTLLM
+                ]
             for backend in fi_backends:
                 for k_cls in backend_to_kernel_cls(backend):
                     supported, reason = k_cls.is_supported_config(
@@ -354,6 +398,7 @@ def select_nvfp4_moe_backend(
             raise NotImplementedError(
                 "Found VLLM_USE_FLASHINFER_MOE_FP4=1, but no "
                 "FlashInfer NVFP4 MoE backend supports the configuration."
+                f"{_make_unavailable_native_backend_reason_suffix()}"
             )
 
     if envs.VLLM_TEST_FORCE_FP8_MARLIN:
@@ -380,6 +425,7 @@ def select_nvfp4_moe_backend(
 
     raise NotImplementedError(
         "No NvFp4 MoE backend supports the deployment configuration."
+        f"{_make_unavailable_native_backend_reason_suffix()}"
     )
 
 
