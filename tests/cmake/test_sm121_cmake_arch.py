@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 import subprocess
+import sys
 import tarfile
 import textwrap
 from pathlib import Path
@@ -62,66 +63,56 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
 }
 
 
-def _load_gb10_smoke_module():
-    script_path = REPO_ROOT / "scripts" / "gb10-smoke-nvfp4.py"
-    spec = importlib.util.spec_from_file_location("gb10_smoke_nvfp4", script_path)
+def _load_script_module(module_name: str, script_path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    script_dir = str(script_path.parent)
+    added_script_dir = script_dir not in sys.path
+    if added_script_dir:
+        sys.path.insert(0, script_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if added_script_dir:
+            sys.path.remove(script_dir)
     return module
+
+
+def _load_gb10_smoke_module():
+    return _load_script_module(
+        "gb10_smoke_nvfp4",
+        REPO_ROOT / "scripts" / "gb10-smoke-nvfp4.py",
+    )
 
 
 def _load_gb10_openai_smoke_module():
-    script_path = REPO_ROOT / "scripts" / "gb10-smoke-openai-server.py"
-    spec = importlib.util.spec_from_file_location(
+    return _load_script_module(
         "gb10_smoke_openai_server",
-        script_path,
+        REPO_ROOT / "scripts" / "gb10-smoke-openai-server.py",
     )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _load_gb10_release_evidence_module():
-    script_path = REPO_ROOT / "scripts" / "gb10-verify-release-evidence.py"
-    spec = importlib.util.spec_from_file_location(
+    return _load_script_module(
         "gb10_verify_release_evidence",
-        script_path,
+        REPO_ROOT / "scripts" / "gb10-verify-release-evidence.py",
     )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _load_gb10_release_bundle_module():
-    script_path = REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py"
-    spec = importlib.util.spec_from_file_location(
+    return _load_script_module(
         "gb10_bundle_release_evidence",
-        script_path,
+        REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py",
     )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _load_gb10_release_manifest_module():
-    script_path = REPO_ROOT / "scripts" / "gb10-write-release-manifest.py"
-    spec = importlib.util.spec_from_file_location(
+    return _load_script_module(
         "gb10_write_release_manifest",
-        script_path,
+        REPO_ROOT / "scripts" / "gb10-write-release-manifest.py",
     )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _cuda13_supported_archs() -> list[str]:
@@ -1663,6 +1654,7 @@ def test_gb10_nvfp4_backend_recorder_can_fail_fast(monkeypatch):
 
 def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-nvfp4.py").read_text()
+    smoke = _load_gb10_smoke_module()
 
     assert "VLLM_FAIL_ON_NVFP4_FALLBACK" in script
     assert 'os.environ["VLLM_FAIL_ON_NVFP4_FALLBACK"] = "1"' in script
@@ -1718,9 +1710,9 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert '"device_capability"' in script
     assert '"flashinfer_version"' in script
     assert '"flashinfer_distributions"' in script
-    assert "flashinfer-python" in script
-    assert "flashinfer-cubin" in script
-    assert "flashinfer-jit-cache" in script
+    assert smoke.FLASHINFER_RUNTIME_DISTRIBUTIONS == (
+        GB10_FLASHINFER_RUNTIME_DISTRIBUTIONS
+    )
     assert 'status="passed"' in script
     assert 'status="failed"' in script
     assert "except Exception as exc:" in script
@@ -2084,14 +2076,14 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
 
 def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     script = (REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py").read_text()
+    bundler = _load_gb10_release_bundle_module()
 
     assert "Bundle GB10 release smoke reports" in script
     assert "EXPECTED_REPORTS" in script
     assert "EXPECTED_EVIDENCE_FILES" in script
-    assert "gb10-nvfp4-smoke.json" in script
-    assert "gb10-openai-server-smoke-image.json" in script
-    assert "gb10-release-evidence-image.json" in script
-    assert "gb10-smoked-image-digest.txt" in script
+    assert "gb10_release_contract" in script
+    assert bundler.EXPECTED_REPORTS == GB10_EXPECTED_RELEASE_REPORTS
+    assert bundler.EXPECTED_EVIDENCE_FILES == GB10_EXPECTED_RELEASE_EVIDENCE_FILES
     assert "GB10_RELEASE_EVIDENCE_REPORT_DIR" in script
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
     assert "GB10_RELEASE_EVIDENCE_IMAGE_REF" in script
@@ -2102,8 +2094,10 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "--gb10-release-manifest-json" in script
     assert "--gb10-runtime-image-metadata-json" in script
     assert "included_provenance" in script
-    assert "provenance/gb10-release-manifest.json" in script
-    assert "provenance/buildx-runtime-image-metadata.json" in script
+    assert bundler.PROVENANCE_RELATIVE_PATHS == {
+        "release_manifest": "provenance/gb10-release-manifest.json",
+        "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",
+    }
     assert "--gb10-allow-partial" in script
     assert "--gb10-include-glob" in script
     assert "gb10-*.txt" in script
@@ -2121,7 +2115,7 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert '"mismatched_required_entries"' in script
     assert "status_counts" in script
     assert '"failure_count"' in script
-    assert "sha256:[0-9a-f]{64}" in script
+    assert bundler.SHA256_DIGEST_RE.pattern == "sha256:[0-9a-f]{64}"
     assert "tarfile.open" in script
     assert "hashlib.sha256" in script
     assert "_metadata_status(" in script

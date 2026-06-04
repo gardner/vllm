@@ -21,13 +21,10 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
+from gb10_release_contract import FLASHINFER_RUNTIME_DISTRIBUTIONS
+
 DEFAULT_PROMPT = "NVIDIA DGX Spark native NVFP4 support means"
 DEFAULT_REQUIRED_PATHS = ("linear",)
-FLASHINFER_RUNTIME_DISTRIBUTIONS = (
-    "flashinfer-python",
-    "flashinfer-cubin",
-    "flashinfer-jit-cache",
-)
 
 
 def _parse_backend_expectation(value: str) -> tuple[str, str]:

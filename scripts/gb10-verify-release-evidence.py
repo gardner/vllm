@@ -14,35 +14,16 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
-SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
-FLASHINFER_RUNTIME_DISTRIBUTIONS = (
-    "flashinfer-python",
-    "flashinfer-cubin",
-    "flashinfer-jit-cache",
+from gb10_release_contract import (
+    FLASHINFER_RUNTIME_DISTRIBUTIONS,
+    REQUIRED_GB10_SUPPORT_MATRIX,
+    REQUIRED_SOURCE_DEPENDENCIES,
+    SHA256_DIGEST_RE,
 )
-REQUIRED_SOURCE_DEPENDENCIES = (
-    "deepgemm",
-    "flashmla",
-    "triton_kernels",
-)
-REQUIRED_GB10_SUPPORT_MATRIX = {
-    "flashinfer_nvfp4_dense": "supported_native",
-    "flashinfer_nvfp4_quantization": "supported_native",
-    "flashinfer_attention_fa2": "supported_native",
-    "flashinfer_b12x_non_ep_moe": "supported_native",
-    "flashmla_attention": "supported_native",
-    "public_flashattention_runtime": "not_supported",
-    "trtllm_gen_attention": "not_supported",
-    "trtllm_gen_moe": "not_supported",
-    "marlin_nvfp4_fallback": "not_supported",
-    "flashinfer_b12x_ep_all2all_eplb": "deferred",
-    "multi_spark_ep_all2all_eplb": "deferred",
-}
 
 
 def _is_gb10_cuda13_version(value: Any) -> bool:

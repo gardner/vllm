@@ -13,37 +13,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-REQUIRED_FLASHINFER_COMPONENTS = (
-    "flashinfer_python",
-    "flashinfer_cubin",
-    "flashinfer_jit_cache",
+from gb10_release_contract import (
+    GB10_SUPPORT_STATUSES,
+    REQUIRED_FLASHINFER_COMPONENTS,
+    REQUIRED_GB10_SUPPORT_MATRIX,
+    REQUIRED_SOURCE_DEPENDENCIES,
 )
-REQUIRED_SOURCE_DEPENDENCIES = (
-    "deepgemm",
-    "flashmla",
-    "triton_kernels",
-)
-REQUIRED_GB10_SUPPORT_MATRIX = {
-    "flashinfer_nvfp4_dense": "supported_native",
-    "flashinfer_nvfp4_quantization": "supported_native",
-    "flashinfer_attention_fa2": "supported_native",
-    "flashinfer_b12x_non_ep_moe": "supported_native",
-    "flashmla_attention": "supported_native",
-    "public_flashattention_runtime": "not_supported",
-    "trtllm_gen_attention": "not_supported",
-    "trtllm_gen_moe": "not_supported",
-    "marlin_nvfp4_fallback": "not_supported",
-    "flashinfer_b12x_ep_all2all_eplb": "deferred",
-    "multi_spark_ep_all2all_eplb": "deferred",
-}
-GB10_SUPPORT_STATUSES = frozenset(
-    {
-        "supported_native",
-        "supported_routed",
-        "not_supported",
-        "deferred",
-    }
-)
+
 DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
 DOCKER_TAG_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
 
