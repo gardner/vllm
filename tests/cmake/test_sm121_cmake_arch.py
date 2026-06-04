@@ -181,6 +181,13 @@ def _load_gb10_release_manifest_module():
     )
 
 
+def _load_gb10_flashinfer_jit_cache_validator_module():
+    return _load_script_module(
+        "gb10_verify_flashinfer_jit_cache",
+        REPO_ROOT / "docker" / "verify_gb10_flashinfer_jit_cache.py",
+    )
+
+
 def test_gb10_release_scripts_avoid_python311_only_datetime_utc():
     scripts = sorted((REPO_ROOT / "scripts").glob("gb10*.py"))
     assert scripts
@@ -417,6 +424,33 @@ def test_gb10_flashinfer_preflight_target_is_cheap():
     assert "setup.py bdist_wheel" not in preflight_stage
     assert "requirements/cuda.txt" not in preflight_stage
     assert "uv pip install" not in preflight_stage
+
+
+def test_gb10_flashinfer_jit_cache_validator_requires_gb10_cuda13_distributions(
+    monkeypatch,
+):
+    validator = _load_gb10_flashinfer_jit_cache_validator_module()
+    versions = {
+        "flashinfer-python": "0.6.12+cu130gb10",
+        "flashinfer-cubin": "0.6.12+cu130gb10",
+        "flashinfer-jit-cache": "0.6.12+cu130gb10",
+    }
+
+    monkeypatch.setattr(
+        validator.importlib_metadata,
+        "version",
+        lambda distribution: versions[distribution],
+    )
+
+    assert validator.validate_distribution_versions() == []
+
+    versions["flashinfer-python"] = "0.6.12+cu130"
+    versions["flashinfer-jit-cache"] = "0.6.12"
+
+    errors = validator.validate_distribution_versions()
+
+    assert any("flashinfer-python" in error and "+cu13" in error for error in errors)
+    assert any("flashinfer-jit-cache" in error and "gb10" in error for error in errors)
 
 
 def test_gb10_release_workflow_preflights_before_expensive_build():

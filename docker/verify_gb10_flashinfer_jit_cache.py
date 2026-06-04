@@ -1,15 +1,48 @@
+import importlib
 import re
 import subprocess
 import sys
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-import flashinfer_jit_cache
-
-
 ALLOWED_CUDA_IMAGES = {"sm_121a", "compute_121a"}
+REQUIRED_FLASHINFER_DISTRIBUTIONS = (
+    "flashinfer-python",
+    "flashinfer-cubin",
+    "flashinfer-jit-cache",
+)
+
+
+def _is_gb10_cuda13_version(version: object) -> bool:
+    return isinstance(version, str) and "+cu13" in version and "gb10" in version
+
+
+def validate_distribution_versions(
+    distribution_names: tuple[str, ...] = REQUIRED_FLASHINFER_DISTRIBUTIONS,
+) -> list[str]:
+    errors = []
+    for distribution_name in distribution_names:
+        try:
+            version = importlib_metadata.version(distribution_name)
+        except importlib_metadata.PackageNotFoundError:
+            version = None
+        if not _is_gb10_cuda13_version(version):
+            errors.append(
+                f"{distribution_name} must be a GB10 CUDA 13 build "
+                f"with '+cu13' and 'gb10' in the version, got {version!r}."
+            )
+    return errors
 
 
 def main() -> int:
+    distribution_errors = validate_distribution_versions()
+    if distribution_errors:
+        print("GB10 FlashInfer runtime package version check failed:")
+        for error in distribution_errors:
+            print(error)
+        return 1
+
+    flashinfer_jit_cache = importlib.import_module("flashinfer_jit_cache")
     jit_cache_dir = Path(flashinfer_jit_cache.__file__).parent / "jit_cache"
     if not jit_cache_dir.is_dir():
         print(f"FlashInfer JIT cache directory not found: {jit_cache_dir}")
