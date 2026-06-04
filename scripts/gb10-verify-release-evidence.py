@@ -20,6 +20,8 @@ from typing import Any
 
 from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
+    RELEASE_NVFP4_SMOKE_REPORT_FILE,
+    RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE,
     REQUIRED_GB10_SUPPORT_MATRIX,
     REQUIRED_SOURCE_DEPENDENCIES,
     SHA256_DIGEST_RE,
@@ -39,12 +41,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--gb10-nvfp4-report-json",
-        help="Path to gb10-nvfp4-smoke.json from scripts/gb10-smoke-nvfp4.py.",
+        help=(
+            f"Path to {RELEASE_NVFP4_SMOKE_REPORT_FILE} from "
+            "scripts/gb10-smoke-nvfp4.py."
+        ),
     )
     parser.add_argument(
         "--gb10-openai-report-json",
         help=(
-            "Path to gb10-openai-server-smoke.json from "
+            f"Path to {RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE} from "
             "scripts/gb10-smoke-openai-server.py."
         ),
     )

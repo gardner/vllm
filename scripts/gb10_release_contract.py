@@ -47,15 +47,20 @@ GB10_SUPPORT_STATUSES = frozenset(
     }
 )
 
+RELEASE_NVFP4_SMOKE_REPORT_FILE = "gb10-nvfp4-smoke.json"
+RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE = "gb10-openai-server-smoke-image.json"
+RELEASE_EVIDENCE_SUMMARY_REPORT_FILE = "gb10-release-evidence-image.json"
+RELEASE_SMOKED_IMAGE_DIGEST_FILE = "gb10-smoked-image-digest.txt"
+
 EXPECTED_RELEASE_REPORTS = (
-    "gb10-nvfp4-smoke.json",
-    "gb10-openai-server-smoke-image.json",
-    "gb10-release-evidence-image.json",
+    RELEASE_NVFP4_SMOKE_REPORT_FILE,
+    RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE,
+    RELEASE_EVIDENCE_SUMMARY_REPORT_FILE,
 )
 
 EXPECTED_RELEASE_EVIDENCE_FILES = (
     *EXPECTED_RELEASE_REPORTS,
-    "gb10-smoked-image-digest.txt",
+    RELEASE_SMOKED_IMAGE_DIGEST_FILE,
 )
 
 PROVENANCE_FILES = {

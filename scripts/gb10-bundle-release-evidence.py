@@ -30,6 +30,8 @@ from gb10_release_contract import (
     PROVENANCE_RELATIVE_PATHS,
     RELEASE_EVIDENCE_CHECKSUM_FILE,
     RELEASE_EVIDENCE_METADATA_FILE,
+    RELEASE_EVIDENCE_SUMMARY_REPORT_FILE,
+    RELEASE_SMOKED_IMAGE_DIGEST_FILE,
     REQUIRED_GB10_SUPPORT_MATRIX,
     SHA256_DIGEST_RE,
     default_release_evidence_bundle_name,
@@ -278,7 +280,7 @@ def _write_metadata(
         output_dir=output_dir,
         included_files=included_files,
     )
-    release_gate_summary = report_summaries["gb10-release-evidence-image.json"]
+    release_gate_summary = report_summaries[RELEASE_EVIDENCE_SUMMARY_REPORT_FILE]
     smoked_image_digest = _summarize_smoked_image_digest(
         output_dir=output_dir,
         included_files=included_files,
@@ -349,7 +351,7 @@ def _summarize_reports(
         else:
             if isinstance(payload, dict):
                 report_summary["status"] = payload.get("status")
-                if report_name == "gb10-release-evidence-image.json":
+                if report_name == RELEASE_EVIDENCE_SUMMARY_REPORT_FILE:
                     report_summary["release_gate_passed"] = payload.get(
                         "release_gate_passed"
                     )
@@ -548,7 +550,7 @@ def _summarize_smoked_image_digest(
 ) -> dict[str, Any]:
     digest_path = None
     for item in included_files:
-        if Path(item["relative_path"]).name == "gb10-smoked-image-digest.txt":
+        if Path(item["relative_path"]).name == RELEASE_SMOKED_IMAGE_DIGEST_FILE:
             digest_path = output_dir / item["relative_path"]
             break
 

@@ -47,6 +47,7 @@ GB10_EXPECTED_RELEASE_EVIDENCE_FILES = (
     *GB10_EXPECTED_RELEASE_REPORTS,
     "gb10-smoked-image-digest.txt",
 )
+GB10_RELEASE_SMOKED_IMAGE_DIGEST_FILE = "gb10-smoked-image-digest.txt"
 GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
@@ -2703,6 +2704,7 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
 def test_gb10_release_image_smoke_orchestrates_final_reports():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh").read_text()
     bundler = _load_gb10_release_bundle_module()
+    contract = _load_gb10_release_contract_module()
 
     assert "scripts/gb10-smoke-image.sh" in script
     assert "scripts/gb10-smoke-openai-image.sh" in script
@@ -2789,12 +2791,18 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
 
     assert bundler.EXPECTED_REPORTS == GB10_EXPECTED_RELEASE_REPORTS
     assert bundler.EXPECTED_EVIDENCE_FILES == GB10_EXPECTED_RELEASE_EVIDENCE_FILES
+    assert contract.EXPECTED_RELEASE_REPORTS == GB10_EXPECTED_RELEASE_REPORTS
+    assert contract.EXPECTED_RELEASE_EVIDENCE_FILES == (
+        GB10_EXPECTED_RELEASE_EVIDENCE_FILES
+    )
     assert orchestrator_evidence_files == bundler.EXPECTED_EVIDENCE_FILES
 
 
 def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     script = (REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py").read_text()
     bundler = _load_gb10_release_bundle_module()
+    verifier = _load_gb10_release_evidence_module()
+    contract = _load_gb10_release_contract_module()
 
     assert "Bundle GB10 release smoke reports" in script
     assert "EXPECTED_REPORTS" in script
@@ -2802,6 +2810,30 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "gb10_release_contract" in script
     assert bundler.EXPECTED_REPORTS == GB10_EXPECTED_RELEASE_REPORTS
     assert bundler.EXPECTED_EVIDENCE_FILES == GB10_EXPECTED_RELEASE_EVIDENCE_FILES
+    assert GB10_EXPECTED_RELEASE_REPORTS[0] == (
+        contract.RELEASE_NVFP4_SMOKE_REPORT_FILE
+    )
+    assert GB10_EXPECTED_RELEASE_REPORTS[1] == (
+        contract.RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE
+    )
+    assert GB10_EXPECTED_RELEASE_REPORTS[2] == (
+        contract.RELEASE_EVIDENCE_SUMMARY_REPORT_FILE
+    )
+    assert GB10_RELEASE_SMOKED_IMAGE_DIGEST_FILE == (
+        contract.RELEASE_SMOKED_IMAGE_DIGEST_FILE
+    )
+    assert bundler.RELEASE_EVIDENCE_SUMMARY_REPORT_FILE == (
+        contract.RELEASE_EVIDENCE_SUMMARY_REPORT_FILE
+    )
+    assert bundler.RELEASE_SMOKED_IMAGE_DIGEST_FILE == (
+        contract.RELEASE_SMOKED_IMAGE_DIGEST_FILE
+    )
+    assert verifier.RELEASE_NVFP4_SMOKE_REPORT_FILE == (
+        contract.RELEASE_NVFP4_SMOKE_REPORT_FILE
+    )
+    assert verifier.RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE == (
+        contract.RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE
+    )
     assert "GB10_RELEASE_EVIDENCE_REPORT_DIR" in script
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
     assert "GB10_RELEASE_EVIDENCE_IMAGE_REF" in script
@@ -2821,6 +2853,10 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "gb10-*.txt" in script
     assert "RELEASE_EVIDENCE_METADATA_FILE" in script
     assert "RELEASE_EVIDENCE_CHECKSUM_FILE" in script
+    assert "RELEASE_EVIDENCE_SUMMARY_REPORT_FILE" in script
+    assert "RELEASE_SMOKED_IMAGE_DIGEST_FILE" in script
+    assert '"gb10-release-evidence-image.json"' not in script
+    assert '"gb10-smoked-image-digest.txt"' not in script
     assert "default_release_evidence_bundle_name" in script
     assert "release_evidence_bundle_archive_name" in script
     assert "release_evidence_bundle_archive_checksum_name" in script
