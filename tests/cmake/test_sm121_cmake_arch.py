@@ -2217,6 +2217,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "release-workflow-run-id:" in smoke_workflow
     assert "release-tag:" in smoke_workflow
     assert "publish-to-release:" in smoke_workflow
+    assert "provenance-only:" in smoke_workflow
     assert "model:" in smoke_workflow
     assert "served-model-name:" in smoke_workflow
     assert "require-moe:" in smoke_workflow
@@ -2242,7 +2243,13 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "actions: read" in smoke_workflow
     assert "Refuse concurrent vLLM service" in smoke_workflow
     assert "GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS" in smoke_workflow
+    assert "GB10_PROVENANCE_ONLY" in smoke_workflow
     assert "pre_smoke_resource_guard" in smoke_workflow
+    assert (
+        "inputs['allow-existing-vllm-containers'] != true && "
+        "inputs['provenance-only'] != true"
+        in smoke_workflow
+    )
     assert smoke_workflow.index("Refuse concurrent vLLM service") < (
         smoke_workflow.index("Log in to GHCR")
     )
@@ -2340,6 +2347,10 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         smoke_workflow
     )
     assert "GB10 release evidence publication requires release-tag" in smoke_workflow
+    assert "Reject provenance-only release publication" in smoke_workflow
+    assert "GB10 provenance-only evidence cannot be published as release evidence" in (
+        smoke_workflow
+    )
     missing_run_id_guard = (
         "inputs['publish-to-release'] && "
         "inputs['release-workflow-run-id'] == ''"
@@ -2349,6 +2360,11 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         smoke_workflow
     )
     assert "inputs['release-workflow-run-id'] != ''" in smoke_workflow
+    assert "Record provenance-only evidence" in smoke_workflow
+    assert "phase\": \"provenance_only\"" in smoke_workflow
+    assert "final-image model smoke was skipped" in smoke_workflow
+    assert "inputs['provenance-only'] == true" in smoke_workflow
+    assert "inputs['provenance-only'] != true" in smoke_workflow
     assert "Bundle available evidence after failure" in smoke_workflow
     assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
     assert "--gb10-allow-partial" in smoke_workflow

@@ -23,6 +23,11 @@ on:
         required: true
         default: false
         type: boolean
+      provenance-only:
+        description: "Validate release provenance and image digest, then skip model smoke"
+        required: true
+        default: false
+        type: boolean
       model:
         description: "NVFP4 model id/path used for offline and server smoke"
         required: true
@@ -115,6 +120,7 @@ jobs:
       GB10_RELEASE_WORKFLOW_RUN_ID: ${{ inputs['release-workflow-run-id'] }}
       GB10_RELEASE_TAG: ${{ inputs['release-tag'] }}
       GB10_PUBLISH_TO_RELEASE: ${{ inputs['publish-to-release'] }}
+      GB10_PROVENANCE_ONLY: ${{ inputs['provenance-only'] }}
       GB10_MODEL: ${{ inputs['model'] }}
       GB10_SERVED_MODEL_NAME: ${{ inputs['served-model-name'] }}
       GB10_MAX_MODEL_LEN: ${{ inputs['max-model-len'] }}
@@ -153,7 +159,7 @@ jobs:
           docker version
 
       - name: Refuse concurrent vLLM service
-        if: inputs['allow-existing-vllm-containers'] != true
+        if: inputs['allow-existing-vllm-containers'] != true && inputs['provenance-only'] != true
         run: |
           mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
           report_files_file="$(mktemp)"
@@ -206,6 +212,36 @@ jobs:
             echo "Stop the existing service first, or dispatch with allow-existing-vllm-containers=true on an intentionally isolated runner." >&2
             exit 1
           fi
+
+      - name: Reject provenance-only release publication
+        if: inputs['publish-to-release'] && inputs['provenance-only']
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          provenance_check_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-provenance-check.json"
+          python3 - "$provenance_check_report" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = sys.argv[1]
+          report = {
+              "schema_version": 1,
+              "status": "failed",
+              "phase": "publication",
+              "message": (
+                  "GB10 provenance-only evidence cannot be published as release "
+                  "evidence because final-image model smoke is skipped."
+              ),
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+          echo "GB10 provenance-only evidence cannot be published as release evidence." >&2
+          exit 1
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -506,7 +542,55 @@ jobs:
           smoked_image_digest_report="${release_evidence_files[3]}"
           printf '%s\n' "$image_digest" > "$smoked_image_digest_report"
 
+      - name: Record provenance-only evidence
+        if: inputs['provenance-only'] == true
+        run: |
+          release_evidence_files_file="$(mktemp)"
+          trap 'rm -f "$release_evidence_files_file"' EXIT
+          scripts/gb10-list-release-evidence-report-files.py \
+            --gb10-report-dir "$GB10_RELEASE_SMOKE_REPORT_DIR" \
+            > "$release_evidence_files_file"
+          mapfile -t release_evidence_files < "$release_evidence_files_file"
+          if [ "${#release_evidence_files[@]}" -ne 4 ]; then
+            echo "GB10 release evidence report lister returned ${#release_evidence_files[@]} files; expected 4." >&2
+            exit 1
+          fi
+          evidence_report="${release_evidence_files[2]}"
+          python3 - "$evidence_report" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = sys.argv[1]
+          report = {
+              "schema_version": 1,
+              "status": "partial",
+              "phase": "provenance_only",
+              "message": (
+                  "GB10 release provenance and image digest checks passed; "
+                  "final-image model smoke was skipped."
+              ),
+              "release_gate_passed": False,
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "manifest_image_ref": os.environ.get("GB10_MANIFEST_IMAGE_REF"),
+              "expected_image_ref": os.environ.get("GB10_EXPECTED_IMAGE_REF"),
+              "expected_image_digest": os.environ.get("GB10_EXPECTED_IMAGE_DIGEST"),
+              "pulled_image_digest": os.environ.get("GB10_IMAGE_DIGEST"),
+              "remaining_release_evidence": [
+                  "offline NVFP4 backend-selection smoke report",
+                  "OpenAI-compatible final-image server smoke report",
+                  "combined final release-evidence verifier report",
+              ],
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+
       - name: Run final-image smoke and evidence verifier
+        if: inputs['provenance-only'] != true
         run: |
           mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
           mkdir -p "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"
@@ -614,7 +698,7 @@ jobs:
 
       - name: Validate GB10 evidence release assets
         id: validate_evidence_release_assets
-        if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != ''
+        if: always() && inputs['publish-to-release'] && inputs['provenance-only'] != true && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != ''
         run: |
           scripts/gb10-list-evidence-release-assets.py \
             --gb10-output-dir "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" >/dev/null
@@ -625,7 +709,7 @@ jobs:
             --gb10-release-tag "$GB10_RELEASE_TAG"
 
       - name: Attach evidence to GitHub Release
-        if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != '' && steps.validate_evidence_release_assets.outcome == 'success'
+        if: always() && inputs['publish-to-release'] && inputs['provenance-only'] != true && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != '' && steps.validate_evidence_release_assets.outcome == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
