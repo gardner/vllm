@@ -148,6 +148,39 @@ def test_gb10_explicit_trtllm_nvfp4_moe_rejected(monkeypatch):
         )
 
 
+@pytest.mark.parametrize("moe_backend", ["marlin", "emulation"])
+def test_gb10_explicit_fallback_nvfp4_moe_rejected(monkeypatch, moe_backend):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {NvFp4MoeBackend.MARLIN, NvFp4MoeBackend.EMULATION},
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        select_nvfp4_moe_backend(
+            _make_nvfp4_moe_config(moe_backend=moe_backend),
+            weight_key=kNvfp4Static,
+            activation_key=kNvfp4Dynamic,
+        )
+
+
+def test_gb10_auto_nvfp4_moe_rejects_fallback_when_no_native_backend(
+    monkeypatch,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {NvFp4MoeBackend.MARLIN, NvFp4MoeBackend.EMULATION},
+    )
+
+    with pytest.raises(NotImplementedError, match="fallback.*not supported"):
+        select_nvfp4_moe_backend(
+            _make_nvfp4_moe_config(),
+            weight_key=kNvfp4Static,
+            activation_key=kNvfp4Dynamic,
+        )
+
+
 def test_gb10_flashinfer_env_auto_nvfp4_moe_skips_trtllm_gen(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP4", "1")

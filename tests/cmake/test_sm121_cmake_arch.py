@@ -2782,6 +2782,11 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "_NVFP4_MOE_FALLBACK_BACKENDS" in nvfp4_oracle
     assert "NvFp4MoeBackend.MARLIN" in nvfp4_oracle
     assert "NvFp4MoeBackend.EMULATION" in nvfp4_oracle
+    assert "_gb10_unsupported_backend_reason" in nvfp4_oracle
+    assert "_gb10_nvfp4_moe_fallback_unsupported_reason" in nvfp4_oracle
+    assert "not supported on GB10/SM12x" in nvfp4_oracle
+    assert "cannot satisfy native GB10 NVFP4 Tensor Core evidence" in nvfp4_oracle
+    assert "if b not in gb10_unsupported_reasons_by_backend" in nvfp4_oracle
     assert "unavailable_native_backend_reasons" in nvfp4_oracle
     assert "record_nvfp4_backend_selection" in nvfp4_oracle
     assert "record_nvfp4_fallback" in nvfp4_oracle
