@@ -3,6 +3,7 @@
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 try:
@@ -32,12 +33,24 @@ except ModuleNotFoundError:
     vllm_platforms.current_platform = _TestPlatform()
 
 import vllm._custom_ops as custom_ops  # noqa: E402
+import vllm.model_executor.kernels.linear as linear_kernels  # noqa: E402
 import vllm.model_executor.kernels.linear.nvfp4.flashinfer as flashinfer_nvfp4  # noqa: E402
 from vllm.model_executor.kernels.linear.nvfp4.flashinfer import (  # noqa: E402
     FlashInferB12xNvFp4LinearKernel,
     FlashInferCudnnNvFp4LinearKernel,
     FlashInferTrtllmNvFp4LinearKernel,
 )
+from vllm.platforms import PlatformEnum  # noqa: E402
+
+
+class _Sm12xCudaPlatform:
+    _enum = PlatformEnum.CUDA
+
+    def has_device_capability(self, capability: int) -> bool:
+        return capability <= 121
+
+    def is_device_capability_family(self, capability: int) -> bool:
+        return capability == 120
 
 
 def _layer(output_size: int = 8) -> SimpleNamespace:
@@ -65,6 +78,36 @@ def test_sm12x_rejects_unvalidated_flashinfer_nvfp4_dense_backends() -> None:
         assert not supported
         assert reason is not None
         assert "GB10/SM12x" in reason
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "flashinfer-trtllm",
+        "flashinfer-cudnn",
+    ],
+)
+def test_sm12x_forced_unvalidated_flashinfer_nvfp4_dense_backends_fail_fast(
+    monkeypatch,
+    backend: str,
+) -> None:
+    monkeypatch.setattr(
+        flashinfer_nvfp4,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.delenv("VLLM_USE_FBGEMM", raising=False)
+    monkeypatch.delenv("VLLM_USE_NVFP4_CT_EMULATIONS", raising=False)
+    monkeypatch.setenv("VLLM_NVFP4_GEMM_BACKEND", backend)
+
+    with pytest.raises(ValueError, match="GB10/SM12x"):
+        linear_kernels.init_nvfp4_linear_kernel()
 
 
 def test_scaled_fp4_quant_b12x_uses_flashinfer_128x4_quantizer(
