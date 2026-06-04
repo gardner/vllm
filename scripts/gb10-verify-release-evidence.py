@@ -761,6 +761,93 @@ def _check_attention_backend_against_support_matrix(
     ]
 
 
+def _check_quantization_against_support_matrix(
+    report: dict[str, Any] | None,
+    manifest: dict[str, Any] | None,
+    *,
+    required: bool,
+) -> list[dict[str, Any]]:
+    if manifest is None:
+        return [
+            {
+                "name": "quantization_allowed_by_support_matrix",
+                "status": "not_required",
+                "required": False,
+                "message": (
+                    "release manifest support matrix was not provided for "
+                    "quantization classification"
+                ),
+                "details": {},
+            }
+        ]
+    if report is None:
+        return [
+            _missing_check(
+                "quantization_allowed_by_support_matrix",
+                "NVFP4 report missing, so quantization cannot be checked "
+                "against the support matrix",
+                required=required,
+            )
+        ]
+
+    quantization = _nested_get(
+        report,
+        "gb10_release_summary",
+        "checks",
+        "quantization",
+    )
+    if not isinstance(quantization, dict):
+        return [
+            _check(
+                name="quantization_allowed_by_support_matrix",
+                passed=False,
+                message=(
+                    "NVFP4 report does not include quantization evidence "
+                    "to check against the support matrix"
+                ),
+                details={},
+                required=required,
+            )
+        ]
+
+    configured = quantization.get("configured")
+    expected = quantization.get("expected")
+    status = quantization.get("status")
+    configured_name = str(configured).lower() if configured is not None else ""
+    expected_name = str(expected).lower() if expected is not None else ""
+    entry_name = (
+        "flashinfer_nvfp4_quantization"
+        if configured_name == "modelopt_fp4" and expected_name == "modelopt_fp4"
+        else None
+    )
+    support_status = (
+        _support_matrix_entry_status(manifest, entry_name)
+        if entry_name is not None
+        else None
+    )
+    allowed_statuses = {"supported_native", "supported_routed"}
+    return [
+        _check(
+            name="quantization_allowed_by_support_matrix",
+            passed=(
+                status == "passed"
+                and entry_name is not None
+                and support_status in allowed_statuses
+            ),
+            message=(
+                "quantization evidence is classified by the GB10 support "
+                "matrix and only uses supported native or routed entries"
+            ),
+            details={
+                "quantization": quantization,
+                "support_matrix_entry": entry_name,
+                "support_matrix_status": support_status,
+            },
+            required=required,
+        )
+    ]
+
+
 def _check_backend_selections_against_support_matrix(
     report: dict[str, Any] | None,
     manifest: dict[str, Any] | None,
@@ -1188,6 +1275,11 @@ def _build_summary(
             expected_release_tag=release_tag,
         ),
         *_check_attention_backend_against_support_matrix(
+            nvfp4_report,
+            release_manifest,
+            required=require_release_manifest,
+        ),
+        *_check_quantization_against_support_matrix(
             nvfp4_report,
             release_manifest,
             required=require_release_manifest,

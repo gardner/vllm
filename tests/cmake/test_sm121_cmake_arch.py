@@ -2417,6 +2417,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"attention_backend_flashinfer"' in script
     assert '"attention_backend_allowed_by_support_matrix"' in script
     assert '"quantization_modelopt_fp4"' in script
+    assert '"quantization_allowed_by_support_matrix"' in script
     assert '"nvfp4_backend_selections_allowed_by_support_matrix"' in script
     assert '"release_manifest_flashinfer_components"' in script
     assert '"release_manifest_durable_inputs"' in script
@@ -2641,6 +2642,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["attention_backend_flashinfer"] == "passed"
     assert check_statuses["attention_backend_allowed_by_support_matrix"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
+    assert check_statuses["quantization_allowed_by_support_matrix"] == "passed"
     assert (
         check_statuses["nvfp4_backend_selections_allowed_by_support_matrix"]
         == "passed"
@@ -2795,6 +2797,10 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert quantization_failed_summary["status"] == "failed"
     assert any(
         failure["name"] == "quantization_modelopt_fp4"
+        for failure in quantization_failed_summary["failures"]
+    )
+    assert any(
+        failure["name"] == "quantization_allowed_by_support_matrix"
         for failure in quantization_failed_summary["failures"]
     )
 
