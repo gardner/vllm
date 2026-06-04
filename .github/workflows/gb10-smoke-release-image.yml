@@ -550,11 +550,19 @@ jobs:
 
           python3 - "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/release-evidence-metadata.json" <<'PY'
           import json
+          import os
           import sys
 
           metadata_path = sys.argv[1]
           with open(metadata_path, encoding="utf-8") as metadata_file:
               metadata = json.load(metadata_file)
+          source = metadata.get("source")
+          if not isinstance(source, dict):
+              print(
+                  "GB10 evidence release metadata is missing source provenance.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
 
           if (
               metadata.get("status") != "complete"
@@ -570,6 +578,38 @@ jobs:
                   f"{metadata.get('release_gate_passed')}",
                   file=sys.stderr,
               )
+              sys.exit(1)
+
+          if source.get("image_ref") != os.environ["GB10_IMAGE_REF"]:
+              print(
+                  "GB10 evidence release metadata image ref does not match input image-ref.",
+                  file=sys.stderr,
+              )
+              print(f"  metadata: {source.get('image_ref')}", file=sys.stderr)
+              print(f"  input:    {os.environ['GB10_IMAGE_REF']}", file=sys.stderr)
+              sys.exit(1)
+
+          if source.get("release_tag") != os.environ["GB10_RELEASE_TAG"]:
+              print(
+                  "GB10 evidence release metadata tag does not match release-tag.",
+                  file=sys.stderr,
+              )
+              print(f"  metadata: {source.get('release_tag')}", file=sys.stderr)
+              print(f"  input:    {os.environ['GB10_RELEASE_TAG']}", file=sys.stderr)
+              sys.exit(1)
+
+          provenance_kinds = {
+              item.get("kind")
+              for item in metadata.get("included_provenance", [])
+              if isinstance(item, dict)
+          }
+          required_provenance = {"release_manifest", "runtime_image_metadata"}
+          if not required_provenance.issubset(provenance_kinds):
+              print(
+                  "GB10 evidence release metadata is missing release provenance.",
+                  file=sys.stderr,
+              )
+              print(f"  provenance: {sorted(provenance_kinds)}", file=sys.stderr)
               sys.exit(1)
           PY
 

@@ -1130,6 +1130,25 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     )
     assert 'metadata.get("status") != "complete"' in smoke_workflow
     assert 'metadata.get("release_gate_passed") is not True' in smoke_workflow
+    image_ref_mismatch = (
+        "GB10 evidence release metadata image ref does not match input image-ref"
+    )
+    assert image_ref_mismatch in smoke_workflow
+    assert "GB10 evidence release metadata tag does not match release-tag" in (
+        smoke_workflow
+    )
+    assert "GB10 evidence release metadata is missing release provenance" in (
+        smoke_workflow
+    )
+    assert 'source = metadata.get("source")' in smoke_workflow
+    assert 'source.get("image_ref") != os.environ["GB10_IMAGE_REF"]' in smoke_workflow
+    assert (
+        'source.get("release_tag") != os.environ["GB10_RELEASE_TAG"]'
+        in smoke_workflow
+    )
+    assert 'required_provenance = {"release_manifest", "runtime_image_metadata"}' in (
+        smoke_workflow
+    )
     assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" in (
         smoke_workflow
     )
