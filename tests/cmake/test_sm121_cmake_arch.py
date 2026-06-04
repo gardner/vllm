@@ -647,6 +647,8 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl"
     )
     bad_manifest["image"]["push"] = False
+    bad_manifest["image"]["name"] = "docker.io/gardner/vllm-gb10"
+    bad_manifest["image"]["tag"] = "latest"
     bad_manifest["vllm"]["version"] = "v0.22.1rc0-abcdef123"
 
     errors = manifest.validate_manifest(bad_manifest)
@@ -672,6 +674,14 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         for err in errors
     )
     assert any("tagged full release requires image.push=true" in err for err in errors)
+    assert any(
+        "GB10 tagged full release image.name must be a GHCR image" in err
+        for err in errors
+    )
+    assert any(
+        "GB10 tagged full release image.tag must match release.tag" in err
+        for err in errors
+    )
 
 
 def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
@@ -2049,7 +2059,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "release": {"tag": "gb10-vllm-test", "preflight_only": False},
         "image": {
             "name": "ghcr.io/gardner/vllm-gb10",
-            "tag": "test",
+            "tag": "gb10-vllm-test",
             "push": True,
         },
         "vllm": {"version": "0.22.1rc0+gb10.abcdef123456"},
@@ -2116,7 +2126,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         release_manifest_error=None,
         runtime_image_metadata=runtime_image_metadata,
         runtime_image_metadata_error=None,
-        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
         image_digest=f"ghcr.io/gardner/vllm-gb10@{runtime_image_digest}",
         release_tag="gb10-vllm-test",
         require_release_manifest=True,
@@ -2160,7 +2170,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
-        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
         release_tag="gb10-vllm-test",
         require_release_manifest=True,
         require_moe=True,
@@ -2188,7 +2198,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
-        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
         release_tag="gb10-vllm-test",
         require_release_manifest=True,
         require_moe=True,
@@ -2220,7 +2230,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
-        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
         release_tag="gb10-vllm-test",
         require_release_manifest=True,
         require_moe=True,
@@ -2265,7 +2275,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         openai_error=None,
         release_manifest=release_manifest,
         release_manifest_error=None,
-        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
         release_tag="gb10-other-release",
         require_release_manifest=True,
         require_moe=True,
@@ -2288,7 +2298,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         release_manifest_error=None,
         runtime_image_metadata=runtime_image_metadata,
         runtime_image_metadata_error=None,
-        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
         image_digest="ghcr.io/gardner/vllm-gb10@sha256:" + "b" * 64,
         release_tag="gb10-vllm-test",
         require_release_manifest=True,

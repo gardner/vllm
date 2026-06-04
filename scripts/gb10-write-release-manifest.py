@@ -431,12 +431,27 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
 
     release = _mapping_value(manifest, "release")
     image = _mapping_value(manifest, "image")
-    if (
-        _mapping_value(release, "tag")
+    release_tag = _mapping_value(release, "tag")
+    tagged_full_release = (
+        isinstance(release_tag, str)
+        and bool(release_tag)
         and _mapping_value(release, "preflight_only") is not True
-        and _mapping_value(image, "push") is not True
-    ):
-        errors.append("GB10 tagged full release requires image.push=true.")
+    )
+    if tagged_full_release:
+        image_name = _mapping_value(image, "name")
+        image_tag = _mapping_value(image, "tag")
+        if _mapping_value(image, "push") is not True:
+            errors.append("GB10 tagged full release requires image.push=true.")
+        if not isinstance(image_name, str) or not image_name.startswith("ghcr.io/"):
+            errors.append(
+                "GB10 tagged full release image.name must be a GHCR image, "
+                f"got {image_name!r}."
+            )
+        if image_tag != release_tag:
+            errors.append(
+                "GB10 tagged full release image.tag must match release.tag, "
+                f"got image.tag={image_tag!r}, release.tag={release_tag!r}."
+            )
 
     return errors
 
