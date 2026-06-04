@@ -426,6 +426,8 @@ def test_gb10_release_workflow_preflights_before_expensive_build():
     )[1].split("- name: Build wheel stage", 1)[0]
 
     assert "--target gb10-flashinfer-preflight" in preflight_step
+    assert "--load" not in preflight_step
+    assert "--tag vllm-gb10-flashinfer-preflight" not in preflight_step
     assert "--cache-from type=gha,scope=gb10-vllm-preflight" in preflight_step
     assert '--cache-from type=registry,ref="$GB10_PREFLIGHT_CACHE_REF"' in (
         preflight_step

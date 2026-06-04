@@ -218,8 +218,6 @@ jobs:
             --file docker/Dockerfile \
             --target gb10-flashinfer-preflight \
             --platform linux/arm64 \
-            --load \
-            --tag vllm-gb10-flashinfer-preflight:${GITHUB_SHA::12} \
             --cache-from type=gha,scope=gb10-vllm-preflight \
             --cache-from type=registry,ref="$GB10_PREFLIGHT_CACHE_REF" \
             --cache-to type=gha,scope=gb10-vllm-preflight,mode=max \
