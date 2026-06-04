@@ -1939,6 +1939,8 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert '"release_gate_summary"' in script
     assert '"release_gate_passed"' in script
     assert '"smoked_image_digest"' in script
+    assert '"support_matrix_summary"' in script
+    assert "status_counts" in script
     assert '"failure_count"' in script
     assert "sha256:[0-9a-f]{64}" in script
     assert "tarfile.open" in script
@@ -1980,6 +1982,29 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
                     "flashinfer": {
                         "all_required_components_present": True,
                     }
+                },
+                "gb10_support_matrix": {
+                    "architecture": "sm_121a",
+                    "first_release_scope": "single_spark_first_path",
+                    "status_definitions": {
+                        "supported_native": "Runs native SM121A code.",
+                        "not_supported": "Rejected for GB10 release evidence.",
+                        "deferred": "Not required for the first release.",
+                    },
+                    "entries": {
+                        "flashinfer_nvfp4_dense": {
+                            "status": "supported_native",
+                        },
+                        "flashmla_attention": {
+                            "status": "supported_native",
+                        },
+                        "public_flashattention_runtime": {
+                            "status": "not_supported",
+                        },
+                        "multi_spark_ep_all2all_eplb": {
+                            "status": "deferred",
+                        },
+                    },
                 },
             }
         )
@@ -2032,6 +2057,30 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "present": True,
         "raw": "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
         "digest": "sha256:" + "a" * 64,
+    }
+    assert metadata["support_matrix_summary"] == {
+        "present": True,
+        "release_manifest_present": True,
+        "architecture": "sm_121a",
+        "first_release_scope": "single_spark_first_path",
+        "status_definitions": {
+            "supported_native": "Runs native SM121A code.",
+            "not_supported": "Rejected for GB10 release evidence.",
+            "deferred": "Not required for the first release.",
+        },
+        "entry_count": 4,
+        "status_counts": {
+            "deferred": 1,
+            "not_supported": 1,
+            "supported_native": 2,
+        },
+        "entries": {
+            "flashinfer_nvfp4_dense": "supported_native",
+            "flashmla_attention": "supported_native",
+            "multi_spark_ep_all2all_eplb": "deferred",
+            "public_flashattention_runtime": "not_supported",
+        },
+        "invalid_entries": [],
     }
     assert metadata["missing_reports"] == []
     assert metadata["missing_evidence_files"] == []

@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -323,6 +324,10 @@ def _write_metadata(
         output_dir=output_dir,
         included_files=included_files,
     )
+    support_matrix_summary = _summarize_support_matrix(
+        output_dir=output_dir,
+        included_provenance=included_provenance,
+    )
     metadata_status = _metadata_status(
         missing_evidence_files=missing_evidence_files,
         release_gate_summary=release_gate_summary,
@@ -345,6 +350,7 @@ def _write_metadata(
         "release_gate_summary": release_gate_summary,
         "release_gate_passed": release_gate_summary.get("release_gate_passed"),
         "smoked_image_digest": smoked_image_digest,
+        "support_matrix_summary": support_matrix_summary,
         "missing_reports": missing_reports,
         "missing_evidence_files": missing_evidence_files,
         "included_files": included_files,
@@ -390,6 +396,123 @@ def _summarize_reports(
                 )
         summaries[report_name] = report_summary
     return summaries
+
+
+def _empty_support_matrix_summary(
+    *,
+    release_manifest_present: bool,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    summary = {
+        "present": False,
+        "release_manifest_present": release_manifest_present,
+        "architecture": None,
+        "first_release_scope": None,
+        "status_definitions": {},
+        "entry_count": 0,
+        "status_counts": {},
+        "entries": {},
+        "invalid_entries": [],
+    }
+    if reason is not None:
+        summary["reason"] = reason
+    return summary
+
+
+def _release_manifest_path(
+    *,
+    output_dir: Path,
+    included_provenance: list[dict[str, Any]],
+) -> Path | None:
+    for item in included_provenance:
+        if item.get("kind") == "release_manifest":
+            return output_dir / item["relative_path"]
+    return None
+
+
+def _summarize_support_matrix(
+    *,
+    output_dir: Path,
+    included_provenance: list[dict[str, Any]],
+) -> dict[str, Any]:
+    manifest_path = _release_manifest_path(
+        output_dir=output_dir,
+        included_provenance=included_provenance,
+    )
+    if manifest_path is None:
+        return _empty_support_matrix_summary(
+            release_manifest_present=False,
+            reason="release manifest was not included",
+        )
+
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except json.JSONDecodeError as exc:
+        summary = _empty_support_matrix_summary(
+            release_manifest_present=True,
+            reason="release manifest is not valid JSON",
+        )
+        summary["parse_error"] = str(exc)
+        return summary
+
+    if not isinstance(manifest, dict):
+        return _empty_support_matrix_summary(
+            release_manifest_present=True,
+            reason=f"expected release manifest object, got {type(manifest).__name__}",
+        )
+
+    matrix = manifest.get("gb10_support_matrix")
+    if not isinstance(matrix, dict):
+        return _empty_support_matrix_summary(
+            release_manifest_present=True,
+            reason="gb10_support_matrix is missing or is not an object",
+        )
+
+    raw_status_definitions = matrix.get("status_definitions")
+    status_definitions = (
+        dict(sorted(raw_status_definitions.items()))
+        if isinstance(raw_status_definitions, dict)
+        else {}
+    )
+    raw_entries = matrix.get("entries")
+    if not isinstance(raw_entries, dict):
+        summary = _empty_support_matrix_summary(release_manifest_present=True)
+        summary.update(
+            {
+                "present": True,
+                "architecture": matrix.get("architecture"),
+                "first_release_scope": matrix.get("first_release_scope"),
+                "status_definitions": status_definitions,
+                "reason": "gb10_support_matrix.entries is missing or is not an object",
+            }
+        )
+        return summary
+
+    entries: dict[str, str] = {}
+    invalid_entries: list[str] = []
+    status_counts: Counter[str] = Counter()
+    for entry_name, entry_payload in sorted(raw_entries.items()):
+        if not isinstance(entry_payload, dict):
+            invalid_entries.append(str(entry_name))
+            continue
+        status = entry_payload.get("status")
+        if not isinstance(status, str) or not status:
+            invalid_entries.append(str(entry_name))
+            continue
+        entries[str(entry_name)] = status
+        status_counts[status] += 1
+
+    return {
+        "present": True,
+        "release_manifest_present": True,
+        "architecture": matrix.get("architecture"),
+        "first_release_scope": matrix.get("first_release_scope"),
+        "status_definitions": status_definitions,
+        "entry_count": len(entries),
+        "status_counts": dict(sorted(status_counts.items())),
+        "entries": entries,
+        "invalid_entries": invalid_entries,
+    }
 
 
 def _normalize_image_digest(value: Any) -> str | None:
