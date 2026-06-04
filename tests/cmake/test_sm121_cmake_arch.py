@@ -1080,6 +1080,11 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "gb10-release-provenance/**" in smoke_workflow
     assert "dist/gb10-release-evidence/**" in smoke_workflow
     assert "Attach evidence to GitHub Release" in smoke_workflow
+    assert "GB10 release tag does not exist; run the release workflow first" in (
+        smoke_workflow
+    )
+    assert "gh release view \"$GB10_RELEASE_TAG\"" in smoke_workflow
+    assert "gh release create" not in smoke_workflow
     assert "gh release upload \"$GB10_RELEASE_TAG\"" in smoke_workflow
     assert "gb10-release-evidence.tar.gz" in smoke_workflow
     assert "release-evidence-metadata.json" in smoke_workflow

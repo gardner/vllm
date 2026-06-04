@@ -532,9 +532,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$GB10_RELEASE_TAG" \
-              --title "$GB10_RELEASE_TAG" \
-              --notes "GB10/DGX Spark vLLM release smoke evidence"
+            echo "GB10 release tag does not exist; run the release workflow first: $GB10_RELEASE_TAG" >&2
+            exit 1
           fi
           gh release upload "$GB10_RELEASE_TAG" \
             "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/gb10-release-evidence.tar.gz \
