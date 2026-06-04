@@ -447,6 +447,46 @@ def test_gb10_release_workflow_preflights_before_expensive_build():
     )
 
 
+def test_gb10_release_workflow_checks_native_arch_contract_before_docker_build():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    script = REPO_ROOT / "scripts" / "gb10-check-native-cuda-arch-contract.py"
+    assert script.exists()
+
+    assert "Verify GB10 native CUDA arch contract" in gb10_workflow
+    assert (
+        "python3 scripts/gb10-check-native-cuda-arch-contract.py "
+        "--gb10-require-env"
+    ) in gb10_workflow
+    assert gb10_workflow.index("Verify GB10 native CUDA arch contract") < (
+        gb10_workflow.index("Preflight GB10 FlashInfer wheels")
+    )
+    assert gb10_workflow.index("Verify GB10 native CUDA arch contract") < (
+        gb10_workflow.index("Build wheel stage")
+    )
+
+
+def test_gb10_native_cuda_arch_contract_script_passes_current_release_path():
+    script = REPO_ROOT / "scripts" / "gb10-check-native-cuda-arch-contract.py"
+    proc = subprocess.run(
+        [
+            "python3",
+            str(script),
+            "--gb10-require-env",
+        ],
+        cwd=REPO_ROOT,
+        env={**os.environ, "GB10_NATIVE_CUDA_ARCHS_ONLY": "1"},
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    assert "GB10 native CUDA arch contract OK" in proc.stdout
+
+
 def test_gb10_release_workflow_supports_manual_preflight_only():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"

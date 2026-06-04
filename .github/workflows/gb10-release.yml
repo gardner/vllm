@@ -255,6 +255,10 @@ jobs:
           name: ${{ env.GB10_RELEASE_INPUTS_ARTIFACT_NAME }}
           path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/gb10-release-manifest.json
 
+      - name: Verify GB10 native CUDA arch contract
+        run: |
+          python3 scripts/gb10-check-native-cuda-arch-contract.py --gb10-require-env
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
