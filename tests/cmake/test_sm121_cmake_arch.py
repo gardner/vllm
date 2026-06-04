@@ -382,6 +382,8 @@ def test_gb10_release_workflow_requires_durable_image_ref_for_tagged_release():
 
     assert '[[ "$image_name" != ghcr.io/* ]]' in resolve_step
     assert "requires a GHCR image-name" in resolve_step
+    assert '[[ "$image_name" == *:* || "$image_name" == *@* ]]' in resolve_step
+    assert "must not include a tag or digest" in resolve_step
     assert '[ "$image_tag" != "$release_tag" ]' in resolve_step
     assert "runtime image tag must match the release tag" in resolve_step
 
@@ -698,6 +700,22 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "GB10 tagged full release image.tag must match release.tag" in err
         for err in errors
     )
+
+    for malformed_image_name in (
+        "ghcr.io/gardner/vllm-gb10:latest",
+        "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
+        "ghcr.io/gardner/",
+    ):
+        malformed_manifest = copy.deepcopy(good_manifest)
+        malformed_manifest["image"]["name"] = malformed_image_name
+
+        errors = manifest.validate_manifest(malformed_manifest)
+
+        assert any(
+            "GB10 tagged full release image.name must be a GHCR repository name"
+            in err
+            for err in errors
+        )
 
 
 def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):

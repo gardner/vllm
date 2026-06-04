@@ -127,6 +127,10 @@ jobs:
               echo "GB10 full release publication requires a GHCR image-name, got ${image_name}." >&2
               exit 1
             fi
+            if [[ "$image_name" == *:* || "$image_name" == *@* ]]; then
+              echo "GB10 full release image-name must not include a tag or digest, got ${image_name}." >&2
+              exit 1
+            fi
             if [ "$image_tag" != "$release_tag" ]; then
               echo "GB10 full release runtime image tag must match the release tag." >&2
               echo "  image-tag:   ${image_tag}" >&2

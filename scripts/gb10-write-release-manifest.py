@@ -295,6 +295,20 @@ def _github_repository_url(value: object) -> bool:
     )
 
 
+def _ghcr_image_repository_name(value: object) -> bool:
+    if not isinstance(value, str) or not value.startswith("ghcr.io/"):
+        return False
+    repository = value.removeprefix("ghcr.io/")
+    repository_parts = repository.split("/")
+    return (
+        len(repository_parts) >= 2
+        and all(repository_parts)
+        and ":" not in repository
+        and "@" not in repository
+        and not any(character.isspace() for character in value)
+    )
+
+
 def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
     """Return release-input validation errors for a GB10 manifest."""
 
@@ -446,6 +460,11 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
             errors.append(
                 "GB10 tagged full release image.name must be a GHCR image, "
                 f"got {image_name!r}."
+            )
+        elif not _ghcr_image_repository_name(image_name):
+            errors.append(
+                "GB10 tagged full release image.name must be a GHCR repository "
+                f"name without tag or digest, got {image_name!r}."
             )
         if image_tag != release_tag:
             errors.append(
