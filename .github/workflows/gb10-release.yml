@@ -131,6 +131,18 @@ jobs:
               echo "GB10 full release image-name must not include a tag or digest, got ${image_name}." >&2
               exit 1
             fi
+            image_repository="${image_name#ghcr.io/}"
+            IFS=/ read -r -a image_repository_parts <<< "$image_repository"
+            if [ "${#image_repository_parts[@]}" -lt 2 ]; then
+              echo "GB10 full release image-name must include owner and package components, got ${image_name}." >&2
+              exit 1
+            fi
+            for image_repository_part in "${image_repository_parts[@]}"; do
+              if [[ ! "$image_repository_part" =~ ^[a-z0-9]+([._-]+[a-z0-9]+)*$ ]]; then
+                echo "GB10 full release image-name must be a lowercase Docker repository name, got ${image_name}." >&2
+                exit 1
+              fi
+            done
             if [ "$image_tag" != "$release_tag" ]; then
               echo "GB10 full release runtime image tag must match the release tag." >&2
               echo "  image-tag:   ${image_tag}" >&2

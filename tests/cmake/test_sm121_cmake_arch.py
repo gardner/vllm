@@ -384,6 +384,9 @@ def test_gb10_release_workflow_requires_durable_image_ref_for_tagged_release():
     assert "requires a GHCR image-name" in resolve_step
     assert '[[ "$image_name" == *:* || "$image_name" == *@* ]]' in resolve_step
     assert "must not include a tag or digest" in resolve_step
+    assert "image_repository=\"${image_name#ghcr.io/}\"" in resolve_step
+    assert "IFS=/ read -r -a image_repository_parts" in resolve_step
+    assert "must be a lowercase Docker repository name" in resolve_step
     assert '[ "$image_tag" != "$release_tag" ]' in resolve_step
     assert "runtime image tag must match the release tag" in resolve_step
 
@@ -705,6 +708,8 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "ghcr.io/gardner/vllm-gb10:latest",
         "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
         "ghcr.io/gardner/",
+        "ghcr.io/Gardner/vllm-gb10",
+        "ghcr.io/gardner/vllm+gb10",
     ):
         malformed_manifest = copy.deepcopy(good_manifest)
         malformed_manifest["image"]["name"] = malformed_image_name

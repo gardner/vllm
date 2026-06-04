@@ -18,6 +18,7 @@ REQUIRED_FLASHINFER_COMPONENTS = (
     "flashinfer_cubin",
     "flashinfer_jit_cache",
 )
+DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
 
 
 def _env(env: Mapping[str, str], name: str, default: str = "") -> str:
@@ -306,6 +307,10 @@ def _ghcr_image_repository_name(value: object) -> bool:
         and ":" not in repository
         and "@" not in repository
         and not any(character.isspace() for character in value)
+        and all(
+            DOCKER_REPOSITORY_COMPONENT_RE.fullmatch(part) is not None
+            for part in repository_parts
+        )
     )
 
 
