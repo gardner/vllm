@@ -262,6 +262,13 @@ jobs:
           if [ -f "$runtime_image_digest" ]; then
             expected_digest="$(sed -n '1p' "$runtime_image_digest")"
             if [ -n "$expected_digest" ]; then
+              if [[ ! "${expected_digest##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                echo "GB10 runtime image digest file is not a valid sha256 digest." >&2
+                echo "  digest file: $expected_digest" >&2
+                export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
+                write_provenance_check_report failed digest "GB10 runtime image digest file is not a valid sha256 digest"
+                exit 1
+              fi
               export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
               echo "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" >> "$GITHUB_ENV"
             fi
@@ -316,6 +323,11 @@ jobs:
           if [ -z "$image_digest" ]; then
             echo "Unable to resolve pulled image digest for $GB10_IMAGE_REF" >&2
             write_provenance_check_report failed pull "Unable to resolve pulled image digest for candidate image"
+            exit 1
+          fi
+          if [[ ! "${image_digest##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "GB10 pulled image digest is not a valid sha256 digest: $image_digest" >&2
+            write_provenance_check_report failed digest "GB10 pulled image digest is not a valid sha256 digest" "$image_digest"
             exit 1
           fi
           if [ -n "${GB10_EXPECTED_IMAGE_DIGEST:-}" ]; then

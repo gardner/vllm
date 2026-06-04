@@ -1005,6 +1005,18 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 pulled image digest does not match release provenance" in (
         smoke_workflow
     )
+    assert '[[ ! "${expected_digest##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]' in (
+        smoke_workflow
+    )
+    assert "GB10 runtime image digest file is not a valid sha256 digest" in (
+        smoke_workflow
+    )
+    assert '[[ ! "${image_digest##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]' in (
+        smoke_workflow
+    )
+    assert "GB10 pulled image digest is not a valid sha256 digest" in (
+        smoke_workflow
+    )
     assert "GB10 candidate image pull failed" in smoke_workflow
     assert "gb10-smoked-image-digest.txt" in smoke_workflow
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
