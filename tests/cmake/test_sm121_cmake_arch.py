@@ -178,6 +178,21 @@ def _load_gb10_release_manifest_module():
     )
 
 
+def test_gb10_release_scripts_avoid_python311_only_datetime_utc():
+    scripts = sorted((REPO_ROOT / "scripts").glob("gb10*.py"))
+    assert scripts
+
+    forbidden = ("from datetime import UTC", "datetime.UTC", "datetime.now(UTC)")
+    offenders = {}
+    for script in scripts:
+        text = script.read_text()
+        matches = [token for token in forbidden if token in text]
+        if matches:
+            offenders[script.name] = matches
+
+    assert offenders == {}
+
+
 def _cuda13_supported_archs() -> list[str]:
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
     match = re.search(

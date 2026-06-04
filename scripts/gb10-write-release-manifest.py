@@ -9,7 +9,7 @@ import os
 import re
 from collections import Counter
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -317,7 +317,7 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
 
     return {
         "schema_version": 1,
-        "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "github": {
             "workflow": _env(env, "GITHUB_WORKFLOW"),
             "repository": _env(env, "GITHUB_REPOSITORY"),
