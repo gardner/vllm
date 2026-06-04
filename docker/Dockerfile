@@ -328,6 +328,10 @@ ARG cmake_cuda_architectures='121a'
 ENV CMAKE_CUDA_ARCHITECTURES=${cmake_cuda_architectures}
 ARG cute_dsl_arch='sm_121a'
 ENV CUTE_DSL_ARCH=${cute_dsl_arch}
+# GB10 release builds pass this as 1 so CMake does not emit cross-major PTX
+# fallback images such as sm_80 into an SM121A-only wheel.
+ARG vllm_native_cuda_archs_only=false
+ENV VLLM_NATIVE_CUDA_ARCHS_ONLY=${vllm_native_cuda_archs_only}
 ARG vllm_flash_attn_git_repository='https://github.com/gardner/vllm-flash-attention.git'
 ARG vllm_flash_attn_git_tag='de3849e75d07edd1c00aec02c92ec852ba757adc'
 ENV VLLM_BUILD_FLASH_ATTN=1
@@ -1089,6 +1093,8 @@ ARG cmake_cuda_architectures='121a'
 ENV CMAKE_CUDA_ARCHITECTURES=${cmake_cuda_architectures}
 ARG cute_dsl_arch='sm_121a'
 ENV CUTE_DSL_ARCH=${cute_dsl_arch}
+ARG vllm_native_cuda_archs_only=false
+ENV VLLM_NATIVE_CUDA_ARCHS_ONLY=${vllm_native_cuda_archs_only}
 RUN --mount=type=cache,target=/opt/uv/cache \
     --mount=type=bind,source=requirements/kv_connectors.txt,target=/tmp/kv_connectors.txt,ro \
     CUDA_MAJOR="${CUDA_VERSION%%.*}"; \

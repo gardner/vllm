@@ -381,6 +381,10 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
                 "max_jobs": _env(env, "GB10_MAX_JOBS"),
                 "nvcc_threads": _env(env, "GB10_NVCC_THREADS"),
             },
+            "native_cuda_archs_only": _env_bool(
+                env,
+                "GB10_NATIVE_CUDA_ARCHS_ONLY",
+            ),
             "runner_labels": _env_json_string_list(env, "GB10_RUNNER_LABELS"),
             "cache_refs": {
                 "preflight": _env(env, "GB10_PREFLIGHT_CACHE_REF"),

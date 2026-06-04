@@ -261,9 +261,15 @@ file(WRITE "{tmp_path / "result.txt"}"
 
 def test_gb10_build_can_enable_native_cuda_archs_only():
     cmake_lists = (REPO_ROOT / "CMakeLists.txt").read_text()
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
 
     assert "VLLM_NATIVE_CUDA_ARCHS_ONLY" in cmake_lists
     assert "Skipping cross-major PTX fallback CUDA archs" in cmake_lists
+    assert "ARG vllm_native_cuda_archs_only=false" in dockerfile
+    assert (
+        "ENV VLLM_NATIVE_CUDA_ARCHS_ONLY=${vllm_native_cuda_archs_only}"
+        in dockerfile
+    )
 
 
 def test_gb10_build_uses_pinned_dependency_forks_without_siblings():
@@ -679,6 +685,7 @@ def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
     assert "nvcc-threads:" in gb10_workflow
     assert 'GB10_MAX_JOBS: "1"' in gb10_workflow
     assert 'GB10_NVCC_THREADS: "1"' in gb10_workflow
+    assert 'GB10_NATIVE_CUDA_ARCHS_ONLY: "1"' in gb10_workflow
     assert "1 / 1 = 1 job" in gb10_workflow
     assert 'max_jobs="${{ inputs[\'max-jobs\'] }}"' in gb10_workflow
     assert 'nvcc_threads="${{ inputs[\'nvcc-threads\'] }}"' in gb10_workflow
@@ -688,6 +695,9 @@ def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
     assert "GB10 nvcc-threads must be a positive integer" in gb10_workflow
     assert gb10_workflow.count('--build-arg max_jobs="$GB10_MAX_JOBS"') == 2
     assert gb10_workflow.count('--build-arg nvcc_threads="$GB10_NVCC_THREADS"') == 2
+    assert gb10_workflow.count(
+        '--build-arg vllm_native_cuda_archs_only="$GB10_NATIVE_CUDA_ARCHS_ONLY"'
+    ) == 2
 
 
 def test_gb10_release_workflow_publishes_release_manifest():
@@ -1567,6 +1577,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "GB10_PREFLIGHT_ONLY": "true",
         "GB10_MAX_JOBS": "1",
         "GB10_NVCC_THREADS": "1",
+        "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
         "GB10_RUNNER_LABELS": json.dumps(
             ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
         ),
@@ -1597,6 +1608,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "ref_is_full_git_sha": True,
     }
     assert data["build"]["parallelism"] == {"max_jobs": "1", "nvcc_threads": "1"}
+    assert data["build"]["native_cuda_archs_only"] is True
     assert data["build"]["runner_labels"] == [
         "self-hosted",
         "linux",
@@ -2381,6 +2393,7 @@ def test_gb10_local_cached_build_script_defaults_to_serial_builds():
     assert "preflight|wheel|runtime" in script
     assert 'GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"' in script
     assert 'GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"' in script
+    assert 'GB10_NATIVE_CUDA_ARCHS_ONLY="${GB10_NATIVE_CUDA_ARCHS_ONLY:-1}"' in script
     assert ".buildx-cache/gb10" in script
     assert 'GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"' in script
     assert 'GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"' in script
@@ -2389,6 +2402,10 @@ def test_gb10_local_cached_build_script_defaults_to_serial_builds():
     assert "GB10_USE_REGISTRY_CACHE=1" in script
     assert "--builder \"$GB10_BUILDX_BUILDER\"" in script
     assert "--target \"$docker_target\"" in script
+    assert (
+        '--build-arg "vllm_native_cuda_archs_only=$GB10_NATIVE_CUDA_ARCHS_ONLY"'
+        in script
+    )
 
 
 def test_gb10_local_cached_build_script_validates_manifest_before_buildx():

@@ -10,6 +10,7 @@ Build GB10 targets with persistent local BuildKit cache.
 Defaults are intentionally conservative for local work:
   GB10_MAX_JOBS=1
   GB10_NVCC_THREADS=1
+  GB10_NATIVE_CUDA_ARCHS_ONLY=1
   GB10_OUTPUT=load
 
 Set GB10_USE_REGISTRY_CACHE=1 to also import/export GHCR build cache.
@@ -68,6 +69,7 @@ GB10_FLASH_ATTN_REF="${GB10_FLASH_ATTN_REF:-de3849e75d07edd1c00aec02c92ec852ba75
 GB10_VLLM_VERSION="${GB10_VLLM_VERSION:-0.22.1rc0+gb10.local}"
 GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"
 GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"
+GB10_NATIVE_CUDA_ARCHS_ONLY="${GB10_NATIVE_CUDA_ARCHS_ONLY:-1}"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
@@ -108,7 +110,7 @@ fi
 export GITHUB_SHA
 export GB10_FLASH_ATTN_REF GB10_FLASH_ATTN_REPO
 export GB10_IMAGE_NAME GB10_IMAGE_TAG GB10_PUSH_IMAGE
-export GB10_MAX_JOBS GB10_NVCC_THREADS
+export GB10_MAX_JOBS GB10_NATIVE_CUDA_ARCHS_ONLY GB10_NVCC_THREADS
 export GB10_PREFLIGHT_CACHE_REF GB10_PREFLIGHT_ONLY
 export GB10_PREBUILT_WHEEL_URLS GB10_RELEASE_TAG GB10_VLLM_VERSION
 export GB10_RUNTIME_CACHE_REF GB10_WHEEL_CACHE_REF
@@ -161,6 +163,7 @@ docker buildx build \
     "${cache_args[@]}" \
     --build-arg "max_jobs=$GB10_MAX_JOBS" \
     --build-arg "nvcc_threads=$GB10_NVCC_THREADS" \
+    --build-arg "vllm_native_cuda_archs_only=$GB10_NATIVE_CUDA_ARCHS_ONLY" \
     --build-arg "gb10_prebuilt_wheel_urls=$GB10_PREBUILT_WHEEL_URLS" \
     --build-arg gb10_require_flashinfer_wheels=true \
     --build-arg "vllm_version_override=$GB10_VLLM_VERSION" \

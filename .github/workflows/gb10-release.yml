@@ -76,6 +76,7 @@ env:
   # vLLM divides MAX_JOBS by NVCC_THREADS for CUDA builds; 1 / 1 = 1 job.
   GB10_MAX_JOBS: "1"
   GB10_NVCC_THREADS: "1"
+  GB10_NATIVE_CUDA_ARCHS_ONLY: "1"
   GB10_BUILD_HEARTBEAT_SECONDS: "300"
   GB10_BUILD_HEARTBEAT_DOCKER_DF: "1"
   GB10_SELF_HOSTED_RUNNER_LABELS: '["self-hosted","linux","aarch64","cuda13","dgx-spark","sm121"]'
@@ -290,6 +291,7 @@ jobs:
               --cache-to type=registry,ref="$GB10_WHEEL_CACHE_REF",mode=max \
               --build-arg max_jobs="$GB10_MAX_JOBS" \
               --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
+              --build-arg vllm_native_cuda_archs_only="$GB10_NATIVE_CUDA_ARCHS_ONLY" \
               --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
               --build-arg gb10_require_flashinfer_wheels=true \
               --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
@@ -381,6 +383,7 @@ jobs:
               --cache-to type=registry,ref="$GB10_RUNTIME_CACHE_REF",mode=max \
               --build-arg max_jobs="$GB10_MAX_JOBS" \
               --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
+              --build-arg vllm_native_cuda_archs_only="$GB10_NATIVE_CUDA_ARCHS_ONLY" \
               --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
               --build-arg gb10_require_flashinfer_wheels=true \
               --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
