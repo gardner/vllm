@@ -2429,3 +2429,29 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         failure["name"] == "runtime_image_digest_matches_smoke"
         for failure in digest_mismatch_summary["failures"]
     )
+
+    malformed_digest_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        runtime_image_metadata={"containerimage.digest": "sha256:not-a-digest"},
+        runtime_image_metadata_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        image_digest="ghcr.io/gardner/vllm-gb10@sha256:not-a-digest",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_runtime_image_metadata=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert malformed_digest_summary["status"] == "failed"
+    malformed_digest_failures = {
+        failure["name"] for failure in malformed_digest_summary["failures"]
+    }
+    assert "runtime_image_metadata_has_digest" in malformed_digest_failures
+    assert "runtime_image_digest_matches_smoke" in malformed_digest_failures

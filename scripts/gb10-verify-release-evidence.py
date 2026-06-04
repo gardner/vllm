@@ -14,9 +14,12 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
+
+SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -441,7 +444,9 @@ def _normalize_image_digest(value: Any) -> str | None:
     if marker_index >= 0:
         digest = digest[marker_index:]
     digest = digest.split()[0].strip().strip('",')
-    return digest or None
+    if SHA256_DIGEST_RE.fullmatch(digest) is None:
+        return None
+    return digest
 
 
 def _runtime_image_metadata_digest(metadata: dict[str, Any] | None) -> str | None:
