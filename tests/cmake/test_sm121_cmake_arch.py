@@ -1124,6 +1124,12 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         "sha256sum --check "
         '"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"'
     ) in smoke_workflow
+    assert (
+        "GB10 evidence release metadata does not prove a passed release gate"
+        in smoke_workflow
+    )
+    assert 'metadata.get("status") != "complete"' in smoke_workflow
+    assert 'metadata.get("release_gate_passed") is not True' in smoke_workflow
     assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" in (
         smoke_workflow
     )

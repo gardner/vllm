@@ -548,6 +548,31 @@ jobs:
           sha256sum --check "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"
           popd >/dev/null
 
+          python3 - "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/release-evidence-metadata.json" <<'PY'
+          import json
+          import sys
+
+          metadata_path = sys.argv[1]
+          with open(metadata_path, encoding="utf-8") as metadata_file:
+              metadata = json.load(metadata_file)
+
+          if (
+              metadata.get("status") != "complete"
+              or metadata.get("release_gate_passed") is not True
+          ):
+              print(
+                  "GB10 evidence release metadata does not prove a passed release gate.",
+                  file=sys.stderr,
+              )
+              print(f"  status: {metadata.get('status')}", file=sys.stderr)
+              print(
+                  "  release_gate_passed: "
+                  f"{metadata.get('release_gate_passed')}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          PY
+
       - name: Attach evidence to GitHub Release
         if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != '' && steps.validate_evidence_release_assets.outcome == 'success'
         env:
