@@ -28,12 +28,18 @@ from gb10_release_contract import (
     EXPECTED_RELEASE_EVIDENCE_FILES,
     EXPECTED_RELEASE_REPORTS,
     PROVENANCE_RELATIVE_PATHS,
+    RELEASE_EVIDENCE_CHECKSUM_FILE,
+    RELEASE_EVIDENCE_METADATA_FILE,
     REQUIRED_GB10_SUPPORT_MATRIX,
     SHA256_DIGEST_RE,
+    default_release_evidence_bundle_name,
     default_release_evidence_manifest_json,
     default_release_evidence_output_dir,
     default_release_evidence_report_dir,
     default_release_evidence_runtime_image_metadata_json,
+    release_evidence_asset_paths,
+    release_evidence_bundle_archive_checksum_name,
+    release_evidence_bundle_archive_name,
 )
 
 EXPECTED_REPORTS = EXPECTED_RELEASE_REPORTS
@@ -68,10 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--gb10-bundle-name",
-        default=os.environ.get(
-            "GB10_RELEASE_EVIDENCE_BUNDLE_NAME",
-            "gb10-release-evidence",
-        ),
+        default=default_release_evidence_bundle_name(),
         help="Base name for the generated .tar.gz bundle.",
     )
     parser.add_argument(
@@ -317,7 +320,7 @@ def _write_metadata(
         "included_files": included_files,
         "included_provenance": included_provenance,
     }
-    metadata_path = output_dir / "release-evidence-metadata.json"
+    metadata_path = output_dir / RELEASE_EVIDENCE_METADATA_FILE
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
     return metadata_path
 
@@ -591,7 +594,7 @@ def _missing_evidence(
 
 
 def _write_checksums(output_dir: Path, files: list[Path]) -> Path:
-    checksum_path = output_dir / "SHA256SUMS"
+    checksum_path = output_dir / RELEASE_EVIDENCE_CHECKSUM_FILE
     lines = []
     for path in sorted(files, key=lambda item: item.relative_to(output_dir).as_posix()):
         relative_path = path.relative_to(output_dir).as_posix()
@@ -608,7 +611,7 @@ def _add_tar_entry(tar: tarfile.TarFile, source: Path, arcname: str) -> None:
 
 
 def _write_tarball(output_dir: Path, bundle_name: str, files: list[Path]) -> Path:
-    archive_path = output_dir / f"{bundle_name}.tar.gz"
+    archive_path = output_dir / release_evidence_bundle_archive_name(bundle_name)
     if archive_path.exists():
         archive_path.unlink()
     with tarfile.open(archive_path, "w:gz") as tar:
@@ -621,7 +624,10 @@ def _write_tarball(output_dir: Path, bundle_name: str, files: list[Path]) -> Pat
                 path,
                 f"{bundle_name}/{path.relative_to(output_dir).as_posix()}",
             )
-    (output_dir / f"{archive_path.name}.sha256").write_text(
+    archive_checksum_path = (
+        output_dir / release_evidence_bundle_archive_checksum_name(bundle_name)
+    )
+    archive_checksum_path.write_text(
         f"{_sha256(archive_path)}  {archive_path.name}\n"
     )
     return archive_path
@@ -638,13 +644,7 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError(f"GB10 report path is not a directory: {report_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    for known_file in (
-        "release-evidence-metadata.json",
-        "SHA256SUMS",
-        f"{args.gb10_bundle_name}.tar.gz",
-        f"{args.gb10_bundle_name}.tar.gz.sha256",
-    ):
-        path = output_dir / known_file
+    for path in release_evidence_asset_paths(output_dir, args.gb10_bundle_name):
         if path.exists():
             path.unlink()
 

@@ -142,6 +142,13 @@ def _load_gb10_vllm_release_asset_lister_module():
     )
 
 
+def _load_gb10_evidence_release_asset_lister_module():
+    return _load_script_module(
+        "gb10_list_evidence_release_assets",
+        REPO_ROOT / "scripts" / "gb10-list-evidence-release-assets.py",
+    )
+
+
 def _load_gb10_release_contract_module():
     return _load_script_module(
         "gb10_release_contract_for_tests",
@@ -1032,6 +1039,78 @@ def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
     )
 
 
+def test_gb10_release_evidence_asset_names_share_contract(monkeypatch):
+    contract = _load_gb10_release_contract_module()
+    bundler = _load_gb10_release_bundle_module()
+    validator = _load_gb10_release_asset_validator_module()
+    lister = _load_gb10_evidence_release_asset_lister_module()
+    smoke_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
+    ).read_text()
+    bundler_script = (
+        REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py"
+    ).read_text()
+    validator_script = (
+        REPO_ROOT / "scripts" / "gb10-validate-evidence-release-assets.py"
+    ).read_text()
+
+    monkeypatch.delenv("GB10_RELEASE_EVIDENCE_BUNDLE_NAME", raising=False)
+    assert contract.default_release_evidence_bundle_name() == (
+        "gb10-release-evidence"
+    )
+    monkeypatch.setenv("GB10_RELEASE_EVIDENCE_BUNDLE_NAME", "custom-evidence")
+    assert contract.default_release_evidence_bundle_name() == "custom-evidence"
+
+    assert contract.release_evidence_bundle_archive_name() == (
+        "gb10-release-evidence.tar.gz"
+    )
+    assert contract.release_evidence_bundle_archive_checksum_name() == (
+        "gb10-release-evidence.tar.gz.sha256"
+    )
+    assert [
+        path.as_posix()
+        for path in contract.release_evidence_asset_paths(Path("out"))
+    ] == [
+        "out/gb10-release-evidence.tar.gz",
+        "out/gb10-release-evidence.tar.gz.sha256",
+        "out/release-evidence-metadata.json",
+        "out/SHA256SUMS",
+    ]
+
+    assert bundler.RELEASE_EVIDENCE_METADATA_FILE == (
+        contract.RELEASE_EVIDENCE_METADATA_FILE
+    )
+    assert bundler.RELEASE_EVIDENCE_CHECKSUM_FILE == (
+        contract.RELEASE_EVIDENCE_CHECKSUM_FILE
+    )
+    assert validator.RELEASE_EVIDENCE_METADATA_FILE == (
+        contract.RELEASE_EVIDENCE_METADATA_FILE
+    )
+    assert validator.RELEASE_EVIDENCE_CHECKSUM_FILE == (
+        contract.RELEASE_EVIDENCE_CHECKSUM_FILE
+    )
+    assert lister.default_release_evidence_bundle_name() == "custom-evidence"
+    assert lister.release_evidence_asset_paths(Path("out")) == (
+        contract.release_evidence_asset_paths(Path("out"))
+    )
+
+    assert "default_release_evidence_bundle_name" in bundler_script
+    assert "release_evidence_asset_paths" in bundler_script
+    assert "release_evidence_bundle_archive_name" in bundler_script
+    assert "release_evidence_bundle_archive_checksum_name" in bundler_script
+    assert "default_release_evidence_bundle_name" in validator_script
+    assert "release_evidence_asset_paths" in validator_script
+    assert "release_evidence_bundle_archive_checksum_name" in validator_script
+    assert "scripts/gb10-list-evidence-release-assets.py" in smoke_workflow
+    assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" not in (
+        smoke_workflow
+    )
+    assert (
+        "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"
+        not in smoke_workflow
+    )
+
+
 def test_gb10_vllm_release_checksum_writer_writes_release_assets(tmp_path):
     checksum_writer = _load_gb10_vllm_release_checksum_writer_module()
     validator = _load_gb10_vllm_release_asset_validator_module()
@@ -1361,7 +1440,7 @@ def test_gb10_evidence_upload_support_matrix_contract_is_shared():
     release_asset_validator = _load_gb10_release_asset_validator_module()
 
     assert "scripts/gb10-validate-evidence-release-assets.py" in smoke_workflow
-    assert "--gb10-metadata-json" in smoke_workflow
+    assert "--gb10-output-dir" in smoke_workflow
     assert "--gb10-image-ref" in smoke_workflow
     assert "--gb10-image-digest" in smoke_workflow
     assert "--gb10-release-tag" in smoke_workflow
@@ -1832,19 +1911,19 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     validator_script = (
         REPO_ROOT / "scripts" / "gb10-validate-evidence-release-assets.py"
     ).read_text()
-    assert "GB10 evidence release asset is missing or empty" in smoke_workflow
-    assert "sha256sum --check \"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS\"" in (
+    lister_script = (
+        REPO_ROOT / "scripts" / "gb10-list-evidence-release-assets.py"
+    ).read_text()
+    assert "scripts/gb10-list-evidence-release-assets.py" in smoke_workflow
+    assert "GB10 evidence release upload asset is missing or empty" in lister_script
+    assert "GB10 evidence release asset is missing or empty" in validator_script
+    assert "sha256sum --check" not in smoke_workflow
+    assert "--gb10-output-dir \"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR\"" in (
         smoke_workflow
     )
-    assert (
-        "sha256sum --check "
-        '"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"'
-    ) in smoke_workflow
     assert "scripts/gb10-validate-evidence-release-assets.py" in smoke_workflow
-    assert (
-        '--gb10-metadata-json "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/'
-        'release-evidence-metadata.json"'
-    ) in smoke_workflow
+    assert "--gb10-metadata-json" not in smoke_workflow
+    assert "release-evidence-metadata.json" not in smoke_workflow
     assert '--gb10-image-ref "$GB10_IMAGE_REF"' in smoke_workflow
     assert '--gb10-image-digest "$GB10_IMAGE_DIGEST"' in smoke_workflow
     assert '--gb10-release-tag "$GB10_RELEASE_TAG"' in smoke_workflow
@@ -1913,9 +1992,6 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "SHA256_DIGEST_RE.fullmatch" in validator_script
     assert 'source.get("release_tag") != release_tag' in validator_script
     assert "REQUIRED_RELEASE_EVIDENCE_PROVENANCE" in validator_script
-    assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" in (
-        smoke_workflow
-    )
     assert "Attach evidence to GitHub Release" in smoke_workflow
     assert (
         "steps.validate_evidence_release_assets.outcome == 'success'"
@@ -1927,9 +2003,8 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "gh release view \"$GB10_RELEASE_TAG\"" in smoke_workflow
     assert "gh release create" not in smoke_workflow
     assert "gh release upload \"$GB10_RELEASE_TAG\"" in smoke_workflow
-    assert "gb10-release-evidence.tar.gz" in smoke_workflow
-    assert "release-evidence-metadata.json" in smoke_workflow
-    assert "SHA256SUMS" in smoke_workflow
+    assert '"${evidence_assets[@]}"' in smoke_workflow
+    assert "release_evidence_asset_paths" in lister_script
 
 
 def test_gb10_evidence_release_asset_validator_accepts_complete_metadata():
@@ -2725,8 +2800,20 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "--gb10-allow-partial" in script
     assert "--gb10-include-glob" in script
     assert "gb10-*.txt" in script
-    assert "release-evidence-metadata.json" in script
-    assert "SHA256SUMS" in script
+    assert "RELEASE_EVIDENCE_METADATA_FILE" in script
+    assert "RELEASE_EVIDENCE_CHECKSUM_FILE" in script
+    assert "default_release_evidence_bundle_name" in script
+    assert "release_evidence_bundle_archive_name" in script
+    assert "release_evidence_bundle_archive_checksum_name" in script
+    assert "release_evidence_asset_paths" in script
+    assert bundler.RELEASE_EVIDENCE_METADATA_FILE == "release-evidence-metadata.json"
+    assert bundler.RELEASE_EVIDENCE_CHECKSUM_FILE == "SHA256SUMS"
+    assert bundler.release_evidence_bundle_archive_name() == (
+        "gb10-release-evidence.tar.gz"
+    )
+    assert bundler.release_evidence_bundle_archive_checksum_name() == (
+        "gb10-release-evidence.tar.gz.sha256"
+    )
     assert '"report_summaries"' in script
     assert '"release_gate_summary"' in script
     assert '"release_gate_passed"' in script
@@ -2747,6 +2834,8 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
 
 def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     bundler = _load_gb10_release_bundle_module()
+    validator = _load_gb10_release_asset_validator_module()
+    lister = _load_gb10_evidence_release_asset_lister_module()
     report_dir = tmp_path / "reports"
     output_dir = tmp_path / "bundle"
     report_dir.mkdir()
@@ -2822,14 +2911,33 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     )
 
     assert exit_code == 0
-    metadata_path = output_dir / "release-evidence-metadata.json"
-    checksum_path = output_dir / "SHA256SUMS"
-    archive_path = output_dir / "evidence.tar.gz"
-    archive_checksum_path = output_dir / "evidence.tar.gz.sha256"
+    metadata_path = output_dir / bundler.RELEASE_EVIDENCE_METADATA_FILE
+    checksum_path = output_dir / bundler.RELEASE_EVIDENCE_CHECKSUM_FILE
+    archive_path = output_dir / bundler.release_evidence_bundle_archive_name(
+        "evidence"
+    )
+    archive_checksum_path = (
+        output_dir / bundler.release_evidence_bundle_archive_checksum_name("evidence")
+    )
     assert metadata_path.exists()
     assert checksum_path.exists()
     assert archive_path.exists()
     assert archive_checksum_path.exists()
+    listed_assets, list_errors = lister.list_release_evidence_assets(
+        output_dir=output_dir,
+        bundle_name="evidence",
+    )
+    assert list_errors == []
+    assert listed_assets == [
+        archive_path,
+        archive_checksum_path,
+        metadata_path,
+        checksum_path,
+    ]
+    assert validator.validate_release_assets(
+        output_dir=output_dir,
+        bundle_name="evidence",
+    ) == []
 
     metadata = json.loads(metadata_path.read_text())
     assert metadata["status"] == "complete"
@@ -2981,7 +3089,9 @@ def test_gb10_release_evidence_bundle_marks_failed_gate(tmp_path):
     )
 
     assert exit_code == 0
-    metadata = json.loads((output_dir / "release-evidence-metadata.json").read_text())
+    metadata = json.loads(
+        (output_dir / bundler.RELEASE_EVIDENCE_METADATA_FILE).read_text()
+    )
     assert metadata["status"] == "failed"
     assert metadata["release_gate_passed"] is False
     assert metadata["release_gate_summary"] == {
@@ -3029,7 +3139,9 @@ def test_gb10_release_evidence_bundle_marks_missing_support_matrix_partial(
     )
 
     assert exit_code == 0
-    metadata = json.loads((output_dir / "release-evidence-metadata.json").read_text())
+    metadata = json.loads(
+        (output_dir / bundler.RELEASE_EVIDENCE_METADATA_FILE).read_text()
+    )
     assert metadata["status"] == "partial"
     assert metadata["release_gate_passed"] is True
     assert metadata["support_matrix_complete"] is False

@@ -73,6 +73,9 @@ DEFAULT_RELEASE_MANIFEST_DIR = Path("gb10-release-manifest")
 DEFAULT_VLLM_RELEASE_DIST_DIR = Path("dist")
 DEFAULT_RELEASE_EVIDENCE_REPORT_DIR = Path("gb10-smoke-reports")
 DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR = Path("dist/gb10-release-evidence")
+RELEASE_EVIDENCE_BUNDLE_NAME = "gb10-release-evidence"
+RELEASE_EVIDENCE_METADATA_FILE = "release-evidence-metadata.json"
+RELEASE_EVIDENCE_CHECKSUM_FILE = "SHA256SUMS"
 VLLM_RELEASE_WHEEL_GLOB = "vllm-*.whl"
 
 PROVENANCE_RELATIVE_PATHS = {
@@ -145,6 +148,37 @@ def default_release_evidence_output_dir() -> Path:
             DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR,
         )
     )
+
+
+def default_release_evidence_bundle_name() -> str:
+    return os.environ.get(
+        "GB10_RELEASE_EVIDENCE_BUNDLE_NAME",
+        RELEASE_EVIDENCE_BUNDLE_NAME,
+    )
+
+
+def release_evidence_bundle_archive_name(
+    bundle_name: str = RELEASE_EVIDENCE_BUNDLE_NAME,
+) -> str:
+    return f"{bundle_name}.tar.gz"
+
+
+def release_evidence_bundle_archive_checksum_name(
+    bundle_name: str = RELEASE_EVIDENCE_BUNDLE_NAME,
+) -> str:
+    return f"{release_evidence_bundle_archive_name(bundle_name)}.sha256"
+
+
+def release_evidence_asset_paths(
+    output_dir: Path,
+    bundle_name: str = RELEASE_EVIDENCE_BUNDLE_NAME,
+) -> list[Path]:
+    return [
+        output_dir / release_evidence_bundle_archive_name(bundle_name),
+        output_dir / release_evidence_bundle_archive_checksum_name(bundle_name),
+        output_dir / RELEASE_EVIDENCE_METADATA_FILE,
+        output_dir / RELEASE_EVIDENCE_CHECKSUM_FILE,
+    ]
 
 
 def find_vllm_wheel_assets(dist_dir: Path) -> list[Path]:

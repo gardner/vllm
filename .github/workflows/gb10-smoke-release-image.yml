@@ -530,26 +530,10 @@ jobs:
         id: validate_evidence_release_assets
         if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != ''
         run: |
-          required_evidence_assets=(
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz"
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/release-evidence-metadata.json"
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS"
-          )
-          for asset in "${required_evidence_assets[@]}"; do
-            if [ ! -s "$asset" ]; then
-              echo "GB10 evidence release asset is missing or empty: $asset" >&2
-              exit 1
-            fi
-          done
-
-          pushd "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" >/dev/null
-          sha256sum --check "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS"
-          sha256sum --check "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"
-          popd >/dev/null
-
+          scripts/gb10-list-evidence-release-assets.py \
+            --gb10-output-dir "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" >/dev/null
           scripts/gb10-validate-evidence-release-assets.py \
-            --gb10-metadata-json "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/release-evidence-metadata.json" \
+            --gb10-output-dir "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" \
             --gb10-image-ref "$GB10_IMAGE_REF" \
             --gb10-image-digest "$GB10_IMAGE_DIGEST" \
             --gb10-release-tag "$GB10_RELEASE_TAG"
@@ -559,13 +543,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          evidence_assets_file="$(mktemp)"
+          trap 'rm -f "$evidence_assets_file"' EXIT
+          scripts/gb10-list-evidence-release-assets.py \
+            --gb10-output-dir "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" \
+            > "$evidence_assets_file"
+          mapfile -t evidence_assets < "$evidence_assets_file"
+
           if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
             echo "GB10 release tag does not exist; run the release workflow first: $GB10_RELEASE_TAG" >&2
             exit 1
           fi
-          gh release upload "$GB10_RELEASE_TAG" \
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/gb10-release-evidence.tar.gz \
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/gb10-release-evidence.tar.gz.sha256 \
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/release-evidence-metadata.json \
-            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR"/SHA256SUMS \
-            --clobber
+          gh release upload "$GB10_RELEASE_TAG" "${evidence_assets[@]}" --clobber

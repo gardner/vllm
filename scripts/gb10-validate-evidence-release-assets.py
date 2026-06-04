@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -13,9 +14,16 @@ from pathlib import Path
 from typing import Any
 
 from gb10_release_contract import (
+    RELEASE_EVIDENCE_CHECKSUM_FILE,
+    RELEASE_EVIDENCE_METADATA_FILE,
     REQUIRED_GB10_SUPPORT_MATRIX,
     REQUIRED_RELEASE_EVIDENCE_PROVENANCE,
     SHA256_DIGEST_RE,
+    default_release_evidence_bundle_name,
+    default_release_evidence_output_dir,
+    release_evidence_asset_paths,
+    release_evidence_bundle_archive_checksum_name,
+    release_evidence_bundle_archive_name,
 )
 
 MISSING_SOURCE_MESSAGE = (
@@ -46,6 +54,63 @@ RELEASE_TAG_MISMATCH_MESSAGE = (
 MISSING_PROVENANCE_MESSAGE = (
     "GB10 evidence release metadata is missing release provenance."
 )
+MISSING_ASSET_MESSAGE = "GB10 evidence release asset is missing or empty."
+CHECKSUM_MESSAGE = "GB10 evidence release checksum validation failed."
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_checksum_file(
+    *,
+    checksum_path: Path,
+    base_dir: Path,
+    required_relative_paths: set[str],
+) -> list[str]:
+    errors: list[str] = []
+    try:
+        lines = checksum_path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        return [f"{CHECKSUM_MESSAGE} could not read {checksum_path}: {exc}"]
+
+    seen: set[str] = set()
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            expected_digest, relative_path = line.split(maxsplit=1)
+        except ValueError:
+            errors.append(f"{CHECKSUM_MESSAGE} malformed line: {line!r}")
+            continue
+
+        relative_path = relative_path.strip()
+        path = Path(relative_path)
+        if path.is_absolute() or ".." in path.parts:
+            errors.append(f"{CHECKSUM_MESSAGE} unsafe relative path: {relative_path}")
+            continue
+        asset_path = base_dir / path
+        if not asset_path.is_file():
+            errors.append(f"{CHECKSUM_MESSAGE} missing checksummed file: {asset_path}")
+            continue
+        actual_digest = _sha256(asset_path)
+        if expected_digest != actual_digest:
+            errors.append(
+                f"{CHECKSUM_MESSAGE} digest mismatch for {relative_path}: "
+                f"expected={expected_digest} actual={actual_digest}"
+            )
+        seen.add(relative_path)
+
+    missing_required = sorted(required_relative_paths - seen)
+    if missing_required:
+        errors.append(
+            f"{CHECKSUM_MESSAGE} missing required entries: {missing_required}"
+        )
+    return errors
 
 
 def normalize_image_digest(value: Any) -> str | None:
@@ -144,6 +209,38 @@ def validate_metadata(
     return errors
 
 
+def validate_release_assets(*, output_dir: Path, bundle_name: str) -> list[str]:
+    errors: list[str] = []
+    for asset in release_evidence_asset_paths(output_dir, bundle_name):
+        if not asset.is_file() or asset.stat().st_size <= 0:
+            errors.append(f"{MISSING_ASSET_MESSAGE} path={asset}")
+
+    checksum_path = output_dir / RELEASE_EVIDENCE_CHECKSUM_FILE
+    if checksum_path.is_file():
+        errors.extend(
+            _validate_checksum_file(
+                checksum_path=checksum_path,
+                base_dir=output_dir,
+                required_relative_paths={RELEASE_EVIDENCE_METADATA_FILE},
+            )
+        )
+
+    archive_checksum_path = output_dir / release_evidence_bundle_archive_checksum_name(
+        bundle_name
+    )
+    if archive_checksum_path.is_file():
+        errors.extend(
+            _validate_checksum_file(
+                checksum_path=archive_checksum_path,
+                base_dir=output_dir,
+                required_relative_paths={
+                    release_evidence_bundle_archive_name(bundle_name)
+                },
+            )
+        )
+    return errors
+
+
 def _mismatched_support_entries(support_matrix: dict[str, Any]) -> dict[str, Any]:
     entries = support_matrix.get("entries")
     return {
@@ -164,9 +261,20 @@ def _build_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument(
+        "--gb10-output-dir",
+        type=Path,
+        default=default_release_evidence_output_dir(),
+        help="Directory containing the GB10 release-evidence bundle assets.",
+    )
+    parser.add_argument(
+        "--gb10-bundle-name",
+        default=default_release_evidence_bundle_name(),
+        help="Base name for the generated .tar.gz bundle.",
+    )
+    parser.add_argument(
         "--gb10-metadata-json",
         type=Path,
-        required=True,
+        default=None,
         help="Path to release-evidence-metadata.json.",
     )
     parser.add_argument(
@@ -197,12 +305,29 @@ def _load_metadata(path: Path) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    metadata = _load_metadata(args.gb10_metadata_json)
-    errors = validate_metadata(
-        metadata,
-        image_ref=args.gb10_image_ref,
-        image_digest=args.gb10_image_digest,
-        release_tag=args.gb10_release_tag,
+    output_dir = args.gb10_output_dir.resolve()
+    metadata_json = args.gb10_metadata_json or (
+        output_dir / RELEASE_EVIDENCE_METADATA_FILE
+    )
+    errors = validate_release_assets(
+        output_dir=output_dir,
+        bundle_name=args.gb10_bundle_name,
+    )
+    try:
+        metadata = _load_metadata(metadata_json)
+    except (OSError, TypeError, json.JSONDecodeError) as exc:
+        print(
+            f"GB10 evidence release metadata validation failed: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+    errors.extend(
+        validate_metadata(
+            metadata,
+            image_ref=args.gb10_image_ref,
+            image_digest=args.gb10_image_digest,
+            release_tag=args.gb10_release_tag,
+        )
     )
     if errors:
         for error in errors:
