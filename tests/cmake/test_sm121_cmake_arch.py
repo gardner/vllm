@@ -2221,6 +2221,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "served-model-name:" in smoke_workflow
     assert "require-moe:" in smoke_workflow
     assert "require-openai-deterministic:" in smoke_workflow
+    assert "allow-existing-vllm-containers:" in smoke_workflow
     assert "runs-on: [self-hosted, linux, aarch64, cuda13, dgx-spark, sm121]" in (
         smoke_workflow
     )
@@ -2239,6 +2240,15 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "contents: write" in smoke_workflow
     assert "packages: read" in smoke_workflow
     assert "actions: read" in smoke_workflow
+    assert "Refuse concurrent vLLM service" in smoke_workflow
+    assert "GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS" in smoke_workflow
+    assert "pre_smoke_resource_guard" in smoke_workflow
+    assert smoke_workflow.index("Refuse concurrent vLLM service") < (
+        smoke_workflow.index("Log in to GHCR")
+    )
+    assert smoke_workflow.index("Refuse concurrent vLLM service") < (
+        smoke_workflow.index("Pull candidate image")
+    )
     assert "docker/login-action@v3" in smoke_workflow
     assert smoke_workflow.index("Download release provenance artifact") < (
         smoke_workflow.index("Pull candidate image")

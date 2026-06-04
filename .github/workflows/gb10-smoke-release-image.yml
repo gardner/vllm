@@ -86,6 +86,11 @@ on:
         required: false
         default: ""
         type: string
+      allow-existing-vllm-containers:
+        description: "Allow smoke to run while another Docker vLLM service is already running"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   actions: read
@@ -122,6 +127,7 @@ jobs:
       GB10_EXTRA_SERVE_ARGS: ${{ inputs['extra-serve-args'] }}
       GB10_EXTRA_OPENAI_ARGS: ${{ inputs['extra-openai-args'] }}
       GB10_EXTRA_VERIFY_ARGS: ${{ inputs['extra-verify-args'] }}
+      GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS: ${{ inputs['allow-existing-vllm-containers'] && '1' || '0' }}
       GB10_RELEASE_SMOKE_REPORT_DIR: ${{ github.workspace }}/gb10-smoke-reports
       GB10_RELEASE_EVIDENCE_OUTPUT_DIR: ${{ github.workspace }}/dist/gb10-release-evidence
       GB10_RELEASE_PROVENANCE_DIR: ${{ github.workspace }}/gb10-release-provenance
@@ -145,6 +151,61 @@ jobs:
           nvidia-smi
           command -v docker >/dev/null
           docker version
+
+      - name: Refuse concurrent vLLM service
+        if: inputs['allow-existing-vllm-containers'] != true
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          report_files_file="$(mktemp)"
+          trap 'rm -f "$report_files_file"' EXIT
+          scripts/gb10-list-release-evidence-report-files.py \
+            --gb10-report-dir "$GB10_RELEASE_SMOKE_REPORT_DIR" \
+            > "$report_files_file"
+          mapfile -t release_evidence_files < "$report_files_file"
+          if [ "${#release_evidence_files[@]}" -lt 3 ]; then
+            echo "GB10 release evidence report lister returned fewer than 3 files." >&2
+            exit 1
+          fi
+          evidence_report="${release_evidence_files[2]}"
+          existing_vllm_containers="$(
+            docker ps --format '{{.ID}} {{.Names}} {{.Image}} {{.Command}}' \
+              | awk 'BEGIN { IGNORECASE = 1 } /vllm/ { print }'
+          )"
+          if [ -n "$existing_vllm_containers" ]; then
+            export GB10_EXISTING_VLLM_CONTAINERS="$existing_vllm_containers"
+            python3 - "$evidence_report" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = sys.argv[1]
+          report = {
+              "schema_version": 1,
+              "status": "failed",
+              "phase": "pre_smoke_resource_guard",
+              "message": (
+                  "GB10 final-image smoke refused to start while an existing "
+                  "vLLM Docker container was running."
+              ),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+              "allow_override_input": "allow-existing-vllm-containers=true",
+              "existing_vllm_containers": [
+                  line
+                  for line in os.environ.get("GB10_EXISTING_VLLM_CONTAINERS", "").splitlines()
+                  if line
+              ],
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+            echo "GB10 final-image smoke refused to start while an existing vLLM Docker container is running:" >&2
+            printf '%s\n' "$existing_vllm_containers" >&2
+            echo "Stop the existing service first, or dispatch with allow-existing-vllm-containers=true on an intentionally isolated runner." >&2
+            exit 1
+          fi
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
