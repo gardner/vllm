@@ -54,6 +54,23 @@ def _github_release_tag(url: str) -> str | None:
     return tail.split("/", 1)[0] or None
 
 
+def _github_release_identity(url: str) -> tuple[str, str] | None:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc != "github.com":
+        return None
+
+    path = unquote(parsed.path).lstrip("/")
+    marker = "/releases/download/"
+    if marker not in path:
+        return None
+
+    repository, tail = path.split(marker, 1)
+    tag = tail.split("/", 1)[0]
+    if not repository or not tag:
+        return None
+    return repository, tag
+
+
 def _wheel_component(url: str) -> str:
     filename = Path(unquote(urlparse(url).path)).name
     for component in REQUIRED_FLASHINFER_COMPONENTS:
@@ -66,10 +83,14 @@ def _flashinfer_wheels(env: Mapping[str, str]) -> list[dict[str, str | None]]:
     urls = _env(env, "GB10_PREBUILT_WHEEL_URLS").split()
     wheels = []
     for url in urls:
+        release_identity = _github_release_identity(url)
         wheels.append(
             {
                 "component": _wheel_component(url),
                 "filename": Path(unquote(urlparse(url).path)).name,
+                "release_repository": release_identity[0]
+                if release_identity is not None
+                else None,
                 "release_tag": _github_release_tag(url),
                 "url": url,
             }
@@ -272,6 +293,22 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
                     f"FlashInfer wheel must come from a GitHub Release: "
                     f"{component or url}."
                 )
+        release_identities = {
+            (
+                _mapping_value(wheel, "release_repository"),
+                _mapping_value(wheel, "release_tag"),
+            )
+            for wheel in wheels
+            if _mapping_value(wheel, "component") in REQUIRED_FLASHINFER_COMPONENTS
+        }
+        if len(release_identities) != 1:
+            release_identity_details = sorted(
+                repr(identity) for identity in release_identities
+            )
+            errors.append(
+                "FlashInfer GB10 wheels must come from one GitHub Release "
+                f"repo/tag; got {release_identity_details!r}."
+            )
     else:
         errors.append("FlashInfer release manifest must list GB10 wheel URLs.")
 

@@ -574,6 +574,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "flashinfer_cubin",
         "flashinfer_jit_cache",
     ]
+    assert {wheel["release_repository"] for wheel in wheels} == {
+        "gardner/flashinfer"
+    }
     assert {wheel["release_tag"] for wheel in wheels} == {FLASHINFER_RELEASE_TAG}
     assert data["dependencies"]["flashinfer"]["all_required_components_present"] is True
 
@@ -659,6 +662,48 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "FlashInfer wheel must come from a GitHub Release" in err for err in errors
     )
     assert any("tagged full release requires image.push=true" in err for err in errors)
+
+
+def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
+    manifest = _load_gb10_release_manifest_module()
+    env = {
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_IMAGE_TAG": "gb10-abcdef123456",
+        "GB10_PREBUILT_WHEEL_URLS": " ".join(
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+            for wheel in FLASHINFER_RELEASE_WHEELS
+        ),
+        "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
+        "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_PREFLIGHT_ONLY": "true",
+        "VLLM_USE_LOCAL_GB10_DEPS": "0",
+    }
+
+    good_manifest = manifest.write_manifest(
+        tmp_path / "gb10-release-manifest.json",
+        env=env,
+    )
+    assert manifest.validate_manifest(good_manifest) == []
+
+    mixed_manifest = copy.deepcopy(good_manifest)
+    mixed_manifest["dependencies"]["flashinfer"]["wheels"][1][
+        "release_repository"
+    ] = "gardner/flashinfer"
+    mixed_manifest["dependencies"]["flashinfer"]["wheels"][1][
+        "release_tag"
+    ] = "gb10-flashinfer-v0.6.12-deadbeef"
+    mixed_manifest["dependencies"]["flashinfer"]["wheels"][2][
+        "release_repository"
+    ] = "other/flashinfer"
+
+    errors = manifest.validate_manifest(mixed_manifest)
+
+    assert any(
+        "FlashInfer GB10 wheels must come from one GitHub Release" in err
+        for err in errors
+    )
 
 
 def test_gb10_image_smoke_workflow_publishes_durable_evidence():
