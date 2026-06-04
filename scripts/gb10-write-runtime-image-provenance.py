@@ -13,21 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from gb10_release_contract import (
-    PROVENANCE_FILES,
     SHA256_DIGEST_RE,
     VLLM_RELEASE_ASSET_FILES,
+    default_release_manifest_dir,
+    default_runtime_image_metadata_json,
 )
-
-
-def _default_manifest_dir() -> Path:
-    return Path(os.environ.get("GB10_RELEASE_MANIFEST_DIR", "gb10-release-manifest"))
-
-
-def _default_runtime_image_metadata_json() -> Path:
-    explicit = os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
-    if explicit:
-        return Path(explicit)
-    return _default_manifest_dir() / PROVENANCE_FILES["runtime_image_metadata"]
 
 
 def _parse_bool(value: str) -> bool:
@@ -117,13 +107,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gb10-runtime-image-metadata-json",
         type=Path,
-        default=_default_runtime_image_metadata_json(),
+        default=default_runtime_image_metadata_json(),
         help="Path to BuildKit runtime image metadata JSON.",
     )
     parser.add_argument(
         "--gb10-release-manifest-dir",
         type=Path,
-        default=_default_manifest_dir(),
+        default=default_release_manifest_dir(),
         help="Directory where runtime image provenance files are written.",
     )
     parser.add_argument(

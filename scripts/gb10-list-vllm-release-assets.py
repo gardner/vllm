@@ -6,26 +6,16 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 from gb10_release_contract import (
-    PROVENANCE_FILES,
+    DEFAULT_VLLM_RELEASE_DIST_DIR,
+    default_release_manifest_dir,
+    default_runtime_image_metadata_json,
     find_vllm_wheel_assets,
     vllm_release_asset_paths,
 )
-
-
-def _default_manifest_dir() -> Path:
-    return Path(os.environ.get("GB10_RELEASE_MANIFEST_DIR", "gb10-release-manifest"))
-
-
-def _default_runtime_image_metadata_json() -> Path:
-    explicit = os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
-    if explicit:
-        return Path(explicit)
-    return _default_manifest_dir() / PROVENANCE_FILES["runtime_image_metadata"]
 
 
 def list_release_assets(
@@ -61,19 +51,19 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gb10-dist-dir",
         type=Path,
-        default=Path("dist"),
+        default=DEFAULT_VLLM_RELEASE_DIST_DIR,
         help="Directory containing the built vLLM wheel.",
     )
     parser.add_argument(
         "--gb10-release-manifest-dir",
         type=Path,
-        default=_default_manifest_dir(),
+        default=default_release_manifest_dir(),
         help="Directory containing GB10 release manifest/provenance files.",
     )
     parser.add_argument(
         "--gb10-runtime-image-metadata-json",
         type=Path,
-        default=_default_runtime_image_metadata_json(),
+        default=default_runtime_image_metadata_json(),
         help="Path to BuildKit runtime image metadata JSON.",
     )
     return parser

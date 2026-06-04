@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -68,6 +69,8 @@ VLLM_RELEASE_ASSET_FILES = {
     "checksums": "gb10-vllm-release-SHA256SUMS",
 }
 
+DEFAULT_RELEASE_MANIFEST_DIR = Path("gb10-release-manifest")
+DEFAULT_VLLM_RELEASE_DIST_DIR = Path("dist")
 VLLM_RELEASE_WHEEL_GLOB = "vllm-*.whl"
 
 PROVENANCE_RELATIVE_PATHS = {
@@ -81,6 +84,19 @@ REQUIRED_RELEASE_EVIDENCE_PROVENANCE = (
 )
 
 SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+def default_release_manifest_dir() -> Path:
+    return Path(
+        os.environ.get("GB10_RELEASE_MANIFEST_DIR", DEFAULT_RELEASE_MANIFEST_DIR)
+    )
+
+
+def default_runtime_image_metadata_json() -> Path:
+    explicit = os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
+    if explicit:
+        return Path(explicit)
+    return default_release_manifest_dir() / PROVENANCE_FILES["runtime_image_metadata"]
 
 
 def find_vllm_wheel_assets(dist_dir: Path) -> list[Path]:

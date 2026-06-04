@@ -652,7 +652,8 @@ def test_gb10_release_workflow_publishes_release_manifest():
         REPO_ROOT / "scripts" / "gb10-write-vllm-release-checksums.py"
     ).read_text()
     assert "hashlib.sha256" in checksum_writer
-    assert "PROVENANCE_FILES" in checksum_writer
+    assert "default_release_manifest_dir" in checksum_writer
+    assert "default_runtime_image_metadata_json" in checksum_writer
     assert "VLLM_RELEASE_ASSET_FILES" in checksum_writer
     assert "find_vllm_wheel_assets" in checksum_writer
     assert "vllm_release_checksum_asset_paths" in checksum_writer
@@ -709,7 +710,8 @@ def test_gb10_release_workflow_publishes_release_manifest():
         REPO_ROOT / "scripts" / "gb10-list-vllm-release-assets.py"
     ).read_text()
     assert "GB10 release publication expects exactly one vLLM wheel" in asset_lister
-    assert "PROVENANCE_FILES" in asset_lister
+    assert "default_release_manifest_dir" in asset_lister
+    assert "default_runtime_image_metadata_json" in asset_lister
     assert "find_vllm_wheel_assets" in asset_lister
     assert "vllm_release_asset_paths" in asset_lister
 
@@ -870,6 +872,50 @@ def test_gb10_vllm_release_asset_helpers_share_contract(tmp_path):
     assert "vllm_release_checksum_asset_paths" in script_texts[
         "gb10-write-vllm-release-checksums.py"
     ]
+
+
+def test_gb10_vllm_release_default_paths_share_contract(monkeypatch):
+    contract = _load_gb10_release_contract_module()
+    monkeypatch.delenv("GB10_RELEASE_MANIFEST_DIR", raising=False)
+    monkeypatch.delenv("GB10_RUNTIME_IMAGE_METADATA_JSON", raising=False)
+
+    assert Path("dist") == contract.DEFAULT_VLLM_RELEASE_DIST_DIR
+    assert contract.default_release_manifest_dir() == Path("gb10-release-manifest")
+    assert contract.default_runtime_image_metadata_json() == (
+        Path("gb10-release-manifest") / "buildx-runtime-image-metadata.json"
+    )
+
+    monkeypatch.setenv("GB10_RELEASE_MANIFEST_DIR", "custom-manifest")
+    assert contract.default_release_manifest_dir() == Path("custom-manifest")
+    assert contract.default_runtime_image_metadata_json() == (
+        Path("custom-manifest") / "buildx-runtime-image-metadata.json"
+    )
+
+    monkeypatch.setenv("GB10_RUNTIME_IMAGE_METADATA_JSON", "custom/metadata.json")
+    assert contract.default_runtime_image_metadata_json() == Path(
+        "custom/metadata.json"
+    )
+
+    script_texts = {
+        name: (REPO_ROOT / "scripts" / name).read_text()
+        for name in (
+            "gb10-list-vllm-release-assets.py",
+            "gb10-write-runtime-image-provenance.py",
+            "gb10-write-vllm-release-checksums.py",
+            "gb10-validate-vllm-release-assets.py",
+        )
+    }
+    for script_text in script_texts.values():
+        assert "default_release_manifest_dir" in script_text
+        assert "default_runtime_image_metadata_json" in script_text
+        assert "def _default_manifest_dir" not in script_text
+        assert "def _default_runtime_image_metadata_json" not in script_text
+    for name in (
+        "gb10-list-vllm-release-assets.py",
+        "gb10-write-vllm-release-checksums.py",
+        "gb10-validate-vllm-release-assets.py",
+    ):
+        assert "DEFAULT_VLLM_RELEASE_DIST_DIR" in script_texts[name]
 
 
 def test_gb10_vllm_release_checksum_writer_writes_release_assets(tmp_path):
