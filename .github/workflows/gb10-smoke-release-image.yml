@@ -598,6 +598,21 @@ jobs:
               )
               sys.exit(1)
 
+          support_matrix = metadata.get("support_matrix_summary")
+          if (
+              not isinstance(support_matrix, dict)
+              or support_matrix.get("present") is not True
+              or support_matrix.get("architecture") != "sm_121a"
+              or support_matrix.get("entry_count", 0) <= 0
+              or support_matrix.get("invalid_entries")
+          ):
+              print(
+                  "GB10 evidence release metadata is missing a GB10 support matrix summary.",
+                  file=sys.stderr,
+              )
+              print(f"  support_matrix_summary: {support_matrix}", file=sys.stderr)
+              sys.exit(1)
+
           if source.get("image_ref") != os.environ["GB10_IMAGE_REF"]:
               print(
                   "GB10 evidence release metadata image ref does not match input image-ref.",

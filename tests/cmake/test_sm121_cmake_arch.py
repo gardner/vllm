@@ -1208,6 +1208,17 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 evidence release metadata tag does not match release-tag" in (
         smoke_workflow
     )
+    assert (
+        "GB10 evidence release metadata is missing a GB10 support matrix summary"
+        in smoke_workflow
+    )
+    assert 'support_matrix = metadata.get("support_matrix_summary")' in (
+        validation_block
+    )
+    assert 'support_matrix.get("present") is not True' in validation_block
+    assert 'support_matrix.get("architecture") != "sm_121a"' in validation_block
+    assert 'support_matrix.get("entry_count", 0) <= 0' in validation_block
+    assert 'support_matrix.get("invalid_entries")' in validation_block
     assert "GB10 evidence release metadata is missing release provenance" in (
         smoke_workflow
     )
