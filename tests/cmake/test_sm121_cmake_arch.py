@@ -647,6 +647,7 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl"
     )
     bad_manifest["image"]["push"] = False
+    bad_manifest["vllm"]["version"] = "v0.22.1rc0-abcdef123"
 
     errors = manifest.validate_manifest(bad_manifest)
 
@@ -665,6 +666,11 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     assert any(
         "FlashInfer wheel must come from a GitHub Release" in err for err in errors
     )
+    assert any(
+        "vLLM release manifest vllm.version must be a PEP 440 GB10 local version"
+        in err
+        for err in errors
+    )
     assert any("tagged full release requires image.push=true" in err for err in errors)
 
 
@@ -674,6 +680,7 @@ def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
         "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
         "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
         "GB10_IMAGE_TAG": "gb10-abcdef123456",
+        "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
         "GB10_PREBUILT_WHEEL_URLS": " ".join(
             f"https://github.com/gardner/flashinfer/releases/download/"
             f"{FLASHINFER_RELEASE_TAG}/{wheel}"
@@ -719,6 +726,7 @@ def test_gb10_release_manifest_rejects_duplicate_or_extra_flashinfer_wheels(
         "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
         "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
         "GB10_IMAGE_TAG": "gb10-abcdef123456",
+        "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
         "GB10_PREBUILT_WHEEL_URLS": " ".join(
             f"https://github.com/gardner/flashinfer/releases/download/"
             f"{FLASHINFER_RELEASE_TAG}/{wheel}"
@@ -792,6 +800,7 @@ def test_gb10_release_manifest_rejects_non_gb10_flashinfer_wheels(tmp_path):
         "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
         "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
         "GB10_IMAGE_TAG": "gb10-abcdef123456",
+        "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
         "GB10_PREBUILT_WHEEL_URLS": " ".join(
             [
                 (
@@ -2043,6 +2052,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             "tag": "test",
             "push": True,
         },
+        "vllm": {"version": "0.22.1rc0+gb10.abcdef123456"},
         "dependencies": {
             "flashinfer": {
                 "all_required_components_present": True,

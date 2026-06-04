@@ -32,6 +32,22 @@ def _is_full_git_sha(value: str) -> bool:
     return re.fullmatch(r"[0-9a-f]{40}", value) is not None
 
 
+def _is_gb10_vllm_version(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    return (
+        re.fullmatch(
+            r"[0-9]+(?:\.[0-9]+)*"
+            r"(?:(?:a|b|rc)[0-9]+)?"
+            r"(?:\.post[0-9]+)?"
+            r"(?:\.dev[0-9]+)?"
+            r"\+gb10\.[a-zA-Z0-9]+(?:[._-][a-zA-Z0-9]+)*",
+            value,
+        )
+        is not None
+    )
+
+
 def _run_url(env: Mapping[str, str]) -> str:
     server = _env(env, "GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     repository = _env(env, "GITHUB_REPOSITORY")
@@ -286,6 +302,13 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
     git_commit = _mapping_value(_mapping_value(manifest, "git"), "commit")
     if not isinstance(git_commit, str) or not _is_full_git_sha(git_commit):
         errors.append("vLLM release manifest git.commit must be a full Git SHA.")
+
+    vllm_version = _mapping_value(_mapping_value(manifest, "vllm"), "version")
+    if not _is_gb10_vllm_version(vllm_version):
+        errors.append(
+            "vLLM release manifest vllm.version must be a PEP 440 GB10 local "
+            f"version, got {vllm_version!r}."
+        )
 
     dependencies = _mapping_value(manifest, "dependencies")
     flashinfer = _mapping_value(dependencies, "flashinfer")
