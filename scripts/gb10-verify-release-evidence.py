@@ -644,6 +644,123 @@ def _support_matrix_entry_for_selection(selection: Any) -> str | None:
     return None
 
 
+def _normalize_backend_marker(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).replace("-", "_").replace(" ", "_").upper()
+
+
+def _support_matrix_entry_for_attention_backend(backend: Any) -> str | None:
+    backend_name = _normalize_backend_marker(backend)
+    if not backend_name:
+        return None
+
+    if "FLASHINFER" in backend_name:
+        return "flashinfer_attention_fa2"
+    if "FLASHMLA" in backend_name or backend_name == "MLA":
+        return "flashmla_attention"
+    if "FLASH_ATTN" in backend_name or "FLASHATTN" in backend_name:
+        return "public_flashattention_runtime"
+    trtllm_markers = ("TRTLLM", "TRT_LLM", "TRTLLM_GEN", "TRT_LLM_GEN")
+    if any(marker in backend_name for marker in trtllm_markers):
+        return "trtllm_gen_attention"
+    return None
+
+
+def _check_attention_backend_against_support_matrix(
+    report: dict[str, Any] | None,
+    manifest: dict[str, Any] | None,
+    *,
+    required: bool,
+) -> list[dict[str, Any]]:
+    if manifest is None:
+        return [
+            {
+                "name": "attention_backend_allowed_by_support_matrix",
+                "status": "not_required",
+                "required": False,
+                "message": (
+                    "release manifest support matrix was not provided for "
+                    "attention backend classification"
+                ),
+                "details": {},
+            }
+        ]
+    if report is None:
+        return [
+            _missing_check(
+                "attention_backend_allowed_by_support_matrix",
+                "NVFP4 report missing, so attention backend cannot be checked "
+                "against the support matrix",
+                required=required,
+            )
+        ]
+
+    attention_backend = _nested_get(
+        report,
+        "gb10_release_summary",
+        "checks",
+        "attention_backend",
+    )
+    if not isinstance(attention_backend, dict):
+        return [
+            _check(
+                name="attention_backend_allowed_by_support_matrix",
+                passed=False,
+                message=(
+                    "NVFP4 report does not include attention backend evidence "
+                    "to check against the support matrix"
+                ),
+                details={},
+                required=required,
+            )
+        ]
+
+    candidates = {
+        "requested_backend": attention_backend.get("requested_backend"),
+        "mla_prefill_backend": attention_backend.get("mla_prefill_backend"),
+    }
+    classified: list[dict[str, Any]] = []
+    unclassified: dict[str, Any] = {}
+    disallowed: list[dict[str, Any]] = []
+    allowed_statuses = {"supported_native", "supported_routed"}
+    for source, backend in candidates.items():
+        if backend in {None, ""}:
+            continue
+        entry_name = _support_matrix_entry_for_attention_backend(backend)
+        if entry_name is None:
+            unclassified[source] = backend
+            continue
+        status = _support_matrix_entry_status(manifest, entry_name)
+        details = {
+            "source": source,
+            "backend": backend,
+            "support_matrix_entry": entry_name,
+            "support_matrix_status": status,
+        }
+        classified.append(details)
+        if status not in allowed_statuses:
+            disallowed.append(details)
+
+    return [
+        _check(
+            name="attention_backend_allowed_by_support_matrix",
+            passed=bool(classified) and not unclassified and not disallowed,
+            message=(
+                "attention backend evidence is classified by the GB10 support "
+                "matrix and only uses supported native or routed entries"
+            ),
+            details={
+                "attention_backend": attention_backend,
+                "classified": classified,
+                "unclassified": unclassified,
+                "disallowed": disallowed,
+            },
+            required=required,
+        )
+    ]
+
+
 def _check_backend_selections_against_support_matrix(
     report: dict[str, Any] | None,
     manifest: dict[str, Any] | None,
@@ -1069,6 +1186,11 @@ def _build_summary(
             required=require_release_manifest,
             image_ref=image_ref,
             expected_release_tag=release_tag,
+        ),
+        *_check_attention_backend_against_support_matrix(
+            nvfp4_report,
+            release_manifest,
+            required=require_release_manifest,
         ),
         *_check_backend_selections_against_support_matrix(
             nvfp4_report,
