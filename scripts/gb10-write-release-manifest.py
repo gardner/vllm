@@ -319,6 +319,15 @@ def _docker_image_tag(value: object) -> bool:
     return isinstance(value, str) and DOCKER_TAG_RE.fullmatch(value) is not None
 
 
+def _ghcr_image_ref(value: object) -> bool:
+    if not isinstance(value, str) or "@" in value:
+        return False
+    if ":" not in value:
+        return False
+    image_name, image_tag = value.rsplit(":", 1)
+    return _ghcr_image_repository_name(image_name) and _docker_image_tag(image_tag)
+
+
 def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
     """Return release-input validation errors for a GB10 manifest."""
 
@@ -452,6 +461,18 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
         errors.append(
             "GB10 local dependency checkouts are not allowed for release builds."
         )
+    cache_refs = _mapping_value(build, "cache_refs")
+    if isinstance(cache_refs, Mapping):
+        for cache_name in ("preflight", "wheel", "runtime"):
+            cache_ref = _mapping_value(cache_refs, cache_name)
+            if not _ghcr_image_ref(cache_ref):
+                errors.append(
+                    f"GB10 release manifest build.cache_refs.{cache_name} "
+                    "must be a GHCR image ref with a Docker-compatible tag, "
+                    f"got {cache_ref!r}."
+                )
+    else:
+        errors.append("GB10 release manifest must list BuildKit cache refs.")
 
     release = _mapping_value(manifest, "release")
     image = _mapping_value(manifest, "image")

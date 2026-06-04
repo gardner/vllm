@@ -21,6 +21,11 @@ FLASHINFER_RELEASE_WHEELS = (
     "flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl",
     "flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl",
 )
+GB10_RELEASE_CACHE_REF_ENV = {
+    "GB10_PREFLIGHT_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:preflight",
+    "GB10_WHEEL_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:wheel",
+    "GB10_RUNTIME_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:runtime",
+}
 
 
 def _load_gb10_smoke_module():
@@ -588,9 +593,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "GB10_PREFLIGHT_ONLY": "true",
         "GB10_MAX_JOBS": "24",
         "GB10_NVCC_THREADS": "8",
-        "GB10_PREFLIGHT_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:preflight",
-        "GB10_WHEEL_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:wheel",
-        "GB10_RUNTIME_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:runtime",
+        **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
 
@@ -675,6 +678,7 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PUSH_IMAGE": "true",
         "GB10_PREFLIGHT_ONLY": "false",
+        **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
 
@@ -768,6 +772,23 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
             for err in errors
         )
 
+    for cache_name, malformed_cache_ref in (
+        ("preflight", "docker.io/gardner/vllm-gb10-buildcache:preflight"),
+        ("wheel", "ghcr.io/gardner/vllm-gb10-buildcache"),
+        ("runtime", "ghcr.io/Gardner/vllm-gb10-buildcache:runtime"),
+    ):
+        malformed_manifest = copy.deepcopy(good_manifest)
+        malformed_manifest["build"]["cache_refs"][cache_name] = malformed_cache_ref
+
+        errors = manifest.validate_manifest(malformed_manifest)
+
+        assert any(
+            f"GB10 release manifest build.cache_refs.{cache_name} "
+            "must be a GHCR image ref"
+            in err
+            for err in errors
+        )
+
 
 def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
     manifest = _load_gb10_release_manifest_module()
@@ -784,6 +805,7 @@ def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
         "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PREFLIGHT_ONLY": "true",
+        **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
 
@@ -830,6 +852,7 @@ def test_gb10_release_manifest_rejects_duplicate_or_extra_flashinfer_wheels(
         "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PREFLIGHT_ONLY": "true",
+        **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
 
@@ -919,6 +942,7 @@ def test_gb10_release_manifest_rejects_non_gb10_flashinfer_wheels(tmp_path):
         "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PREFLIGHT_ONLY": "true",
+        **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
 
@@ -2197,7 +2221,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
             },
         },
-        "build": {"local_gb10_dependency_checkouts": False},
+        "build": {
+            "cache_refs": {
+                "preflight": GB10_RELEASE_CACHE_REF_ENV["GB10_PREFLIGHT_CACHE_REF"],
+                "wheel": GB10_RELEASE_CACHE_REF_ENV["GB10_WHEEL_CACHE_REF"],
+                "runtime": GB10_RELEASE_CACHE_REF_ENV["GB10_RUNTIME_CACHE_REF"],
+            },
+            "local_gb10_dependency_checkouts": False,
+        },
     }
     runtime_image_digest = "sha256:" + "a" * 64
     runtime_image_metadata = {"containerimage.digest": runtime_image_digest}
