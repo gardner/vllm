@@ -18,6 +18,7 @@ from gb10_release_contract import (
     REQUIRED_FLASHINFER_COMPONENTS,
     REQUIRED_GB10_SUPPORT_MATRIX,
     REQUIRED_SOURCE_DEPENDENCIES,
+    default_release_manifest_json,
 )
 
 DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
@@ -685,10 +686,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--gb10-output-json",
-        default=os.environ.get(
-            "GB10_RELEASE_MANIFEST_JSON",
-            "gb10-release-manifest/gb10-release-manifest.json",
-        ),
+        default=default_release_manifest_json(),
         help="Output path for the GB10 release manifest JSON.",
     )
     parser.add_argument(

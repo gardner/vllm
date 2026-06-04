@@ -92,6 +92,13 @@ def default_release_manifest_dir() -> Path:
     )
 
 
+def default_release_manifest_json() -> Path:
+    explicit = os.environ.get("GB10_RELEASE_MANIFEST_JSON")
+    if explicit:
+        return Path(explicit)
+    return default_release_manifest_dir() / PROVENANCE_FILES["release_manifest"]
+
+
 def default_runtime_image_metadata_json() -> Path:
     explicit = os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
     if explicit:

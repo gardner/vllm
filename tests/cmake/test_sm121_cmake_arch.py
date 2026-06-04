@@ -881,15 +881,24 @@ def test_gb10_vllm_release_default_paths_share_contract(monkeypatch):
 
     assert Path("dist") == contract.DEFAULT_VLLM_RELEASE_DIST_DIR
     assert contract.default_release_manifest_dir() == Path("gb10-release-manifest")
+    assert contract.default_release_manifest_json() == (
+        Path("gb10-release-manifest") / "gb10-release-manifest.json"
+    )
     assert contract.default_runtime_image_metadata_json() == (
         Path("gb10-release-manifest") / "buildx-runtime-image-metadata.json"
     )
 
     monkeypatch.setenv("GB10_RELEASE_MANIFEST_DIR", "custom-manifest")
     assert contract.default_release_manifest_dir() == Path("custom-manifest")
+    assert contract.default_release_manifest_json() == (
+        Path("custom-manifest") / "gb10-release-manifest.json"
+    )
     assert contract.default_runtime_image_metadata_json() == (
         Path("custom-manifest") / "buildx-runtime-image-metadata.json"
     )
+
+    monkeypatch.setenv("GB10_RELEASE_MANIFEST_JSON", "custom/manifest.json")
+    assert contract.default_release_manifest_json() == Path("custom/manifest.json")
 
     monkeypatch.setenv("GB10_RUNTIME_IMAGE_METADATA_JSON", "custom/metadata.json")
     assert contract.default_runtime_image_metadata_json() == Path(
@@ -903,13 +912,20 @@ def test_gb10_vllm_release_default_paths_share_contract(monkeypatch):
             "gb10-write-runtime-image-provenance.py",
             "gb10-write-vllm-release-checksums.py",
             "gb10-validate-vllm-release-assets.py",
+            "gb10-write-release-manifest.py",
         )
     }
-    for script_text in script_texts.values():
+    for name, script_text in script_texts.items():
+        if name == "gb10-write-release-manifest.py":
+            assert "default_release_manifest_json" in script_text
+            continue
         assert "default_release_manifest_dir" in script_text
         assert "default_runtime_image_metadata_json" in script_text
         assert "def _default_manifest_dir" not in script_text
         assert "def _default_runtime_image_metadata_json" not in script_text
+    assert "gb10-release-manifest/gb10-release-manifest.json" not in script_texts[
+        "gb10-write-release-manifest.py"
+    ]
     for name in (
         "gb10-list-vllm-release-assets.py",
         "gb10-write-vllm-release-checksums.py",
