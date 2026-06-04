@@ -12,6 +12,7 @@ turns them into one release-gate summary.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -409,6 +410,23 @@ def _source_refs_pinned(manifest: dict[str, Any]) -> tuple[bool, dict[str, Any]]
     return not missing, {"refs": refs, "unpinned": missing}
 
 
+def _release_manifest_validation_errors(manifest: dict[str, Any]) -> list[str]:
+    manifest_writer_path = Path(__file__).with_name("gb10-write-release-manifest.py")
+    spec = importlib.util.spec_from_file_location(
+        "gb10_write_release_manifest",
+        manifest_writer_path,
+    )
+    if spec is None or spec.loader is None:
+        return [f"could not load manifest validator: {manifest_writer_path}"]
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    validate_manifest = getattr(module, "validate_manifest", None)
+    if validate_manifest is None:
+        return [f"manifest validator missing from {manifest_writer_path}"]
+    return list(validate_manifest(manifest))
+
+
 def _normalize_image_digest(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -554,6 +572,7 @@ def _check_release_manifest(
         and flashinfer.get("all_required_components_present") is True
     )
     source_refs_pinned, source_refs_details = _source_refs_pinned(manifest)
+    manifest_validation_errors = _release_manifest_validation_errors(manifest)
     release_tag = _nested_get(manifest, "release", "tag")
     preflight_only = _nested_get(manifest, "release", "preflight_only") is True
     image_push = _nested_get(manifest, "image", "push") is True
@@ -578,6 +597,16 @@ def _check_release_manifest(
             passed=flashinfer_components_present,
             message="release manifest includes all required GB10 FlashInfer wheels",
             details=flashinfer if isinstance(flashinfer, dict) else {},
+        ),
+        _check(
+            name="release_manifest_durable_inputs",
+            passed=not manifest_validation_errors,
+            message=(
+                "release manifest records durable GB10 inputs: GitHub Release "
+                "FlashInfer wheels, full-SHA source refs, no local dependency "
+                "checkouts, and pushed images for tagged full releases"
+            ),
+            details={"errors": manifest_validation_errors},
         ),
         _check(
             name="release_manifest_source_refs_pinned",

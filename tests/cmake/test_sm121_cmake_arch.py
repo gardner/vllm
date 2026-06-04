@@ -1762,6 +1762,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"openai_deterministic_generation"' in script
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"release_manifest_flashinfer_components"' in script
+    assert '"release_manifest_durable_inputs"' in script
     assert '"release_manifest_source_refs_pinned"' in script
     assert '"release_manifest_no_local_deps"' in script
     assert '"release_manifest_image_pushed_for_tagged_release"' in script
@@ -1837,6 +1838,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     }
     release_manifest = {
         "schema_version": 1,
+        "git": {"commit": "abcdef1234567890abcdef1234567890abcdef12"},
         "release": {"tag": "gb10-vllm-test", "preflight_only": False},
         "image": {
             "name": "ghcr.io/gardner/vllm-gb10",
@@ -1847,6 +1849,24 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             "flashinfer": {
                 "all_required_components_present": True,
                 "missing_components": [],
+                "wheels": [
+                    {
+                        "component": component,
+                        "release_tag": FLASHINFER_RELEASE_TAG,
+                        "url": (
+                            "https://github.com/gardner/flashinfer/releases/"
+                            f"download/{FLASHINFER_RELEASE_TAG}/{wheel}"
+                        ),
+                    }
+                    for component, wheel in zip(
+                        (
+                            "flashinfer_python",
+                            "flashinfer_cubin",
+                            "flashinfer_jit_cache",
+                        ),
+                        FLASHINFER_RELEASE_WHEELS,
+                    )
+                ],
             },
             "vllm_flash_attn": {
                 "repository": "https://github.com/gardner/vllm-flash-attention.git",
@@ -1895,6 +1915,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["nvfp4_fallback_free"] == "passed"
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
+    assert check_statuses["release_manifest_durable_inputs"] == "passed"
     assert check_statuses["release_manifest_source_refs_pinned"] == "passed"
     assert check_statuses["release_manifest_no_local_deps"] == "passed"
     assert (
@@ -1965,6 +1986,33 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "all_required_components_present"
     ] = True
     release_manifest["dependencies"]["flashinfer"]["missing_components"] = []
+    release_manifest["dependencies"]["flashinfer"]["wheels"][0][
+        "release_tag"
+    ] = None
+    durable_manifest_failed_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert durable_manifest_failed_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "release_manifest_durable_inputs"
+        for failure in durable_manifest_failed_summary["failures"]
+    )
+
+    release_manifest["dependencies"]["flashinfer"]["wheels"][0][
+        "release_tag"
+    ] = FLASHINFER_RELEASE_TAG
     image_mismatch_summary = verifier._build_summary(
         nvfp4_report={**nvfp4_report, "fallback_events": []},
         nvfp4_error=None,
