@@ -786,6 +786,51 @@ def test_gb10_release_manifest_rejects_duplicate_or_extra_flashinfer_wheels(
     )
 
 
+def test_gb10_release_manifest_rejects_non_gb10_flashinfer_wheels(tmp_path):
+    manifest = _load_gb10_release_manifest_module()
+    env = {
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_IMAGE_TAG": "gb10-abcdef123456",
+        "GB10_PREBUILT_WHEEL_URLS": " ".join(
+            [
+                (
+                    "https://github.com/gardner/flashinfer/releases/download/"
+                    f"{FLASHINFER_RELEASE_TAG}/"
+                    "flashinfer_python-0.6.12+cu130-py3-none-any.whl"
+                ),
+                (
+                    "https://github.com/gardner/flashinfer/releases/download/"
+                    f"{FLASHINFER_RELEASE_TAG}/"
+                    "flashinfer_cubin-0.6.12+cu130-py3-none-any.whl"
+                ),
+                (
+                    "https://github.com/gardner/flashinfer/releases/download/"
+                    f"{FLASHINFER_RELEASE_TAG}/"
+                    "flashinfer_jit_cache-0.6.12+cu130-cp39-abi3-"
+                    "manylinux_2_28_aarch64.whl"
+                ),
+            ]
+        ),
+        "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
+        "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_PREFLIGHT_ONLY": "true",
+        "VLLM_USE_LOCAL_GB10_DEPS": "0",
+    }
+
+    non_gb10_manifest = manifest.write_manifest(
+        tmp_path / "gb10-release-manifest.json",
+        env=env,
+    )
+
+    errors = manifest.validate_manifest(non_gb10_manifest)
+
+    assert any(
+        "FlashInfer wheel filename must include a GB10 CUDA local version" in err
+        for err in errors
+    )
+
+
 def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     smoke_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"

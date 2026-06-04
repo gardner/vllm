@@ -72,12 +72,24 @@ def _github_release_identity(url: str) -> tuple[str, str] | None:
     return repository, tag
 
 
+def _url_filename(url: str) -> str:
+    return Path(unquote(urlparse(url).path)).name
+
+
 def _wheel_component(url: str) -> str:
-    filename = Path(unquote(urlparse(url).path)).name
+    filename = _url_filename(url)
     for component in REQUIRED_FLASHINFER_COMPONENTS:
         if filename.startswith(f"{component}-"):
             return component
     return filename.split("-", 1)[0]
+
+
+def _gb10_cuda_wheel_filename(filename: str) -> bool:
+    parts = filename.split("-", 2)
+    if len(parts) < 2:
+        return False
+    version = parts[1]
+    return re.search(r"\+cu[0-9]+gb10", version) is not None
 
 
 def _flashinfer_wheels(env: Mapping[str, str]) -> list[dict[str, str | None]]:
@@ -286,6 +298,7 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
         for wheel in wheels:
             component = _mapping_value(wheel, "component")
             url = _mapping_value(wheel, "url")
+            url_filename = _url_filename(url) if isinstance(url, str) else None
             url_component = _wheel_component(url) if isinstance(url, str) else None
             release_identity = (
                 _github_release_identity(url) if isinstance(url, str) else None
@@ -311,6 +324,14 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
                 component_counts[str(url_component)] += 1
                 if release_identity is not None:
                     release_identities.add(release_identity)
+                if url_filename is None or not _gb10_cuda_wheel_filename(
+                    url_filename
+                ):
+                    errors.append(
+                        "FlashInfer wheel filename must include a GB10 CUDA "
+                        "local version: "
+                        f"component={url_component!r}, filename={url_filename!r}."
+                    )
             else:
                 unexpected_components.append(str(url_component or component or url))
 
