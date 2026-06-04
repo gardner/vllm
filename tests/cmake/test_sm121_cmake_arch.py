@@ -670,14 +670,22 @@ def test_gb10_release_workflows_cancel_superseded_runs():
     assert "cancel-in-progress: true" in smoke_workflow
 
 
-def test_gb10_release_workflow_uses_modest_remote_parallelism():
+def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
 
-    assert 'GB10_MAX_JOBS: "24"' in gb10_workflow
-    assert 'GB10_NVCC_THREADS: "8"' in gb10_workflow
-    assert "24 / 8 = 3 jobs" in gb10_workflow
+    assert "max-jobs:" in gb10_workflow
+    assert "nvcc-threads:" in gb10_workflow
+    assert 'GB10_MAX_JOBS: "1"' in gb10_workflow
+    assert 'GB10_NVCC_THREADS: "1"' in gb10_workflow
+    assert "1 / 1 = 1 job" in gb10_workflow
+    assert 'max_jobs="${{ inputs[\'max-jobs\'] }}"' in gb10_workflow
+    assert 'nvcc_threads="${{ inputs[\'nvcc-threads\'] }}"' in gb10_workflow
+    assert 'echo "GB10_MAX_JOBS=${max_jobs}"' in gb10_workflow
+    assert 'echo "GB10_NVCC_THREADS=${nvcc_threads}"' in gb10_workflow
+    assert "GB10 max-jobs must be a positive integer" in gb10_workflow
+    assert "GB10 nvcc-threads must be a positive integer" in gb10_workflow
     assert gb10_workflow.count('--build-arg max_jobs="$GB10_MAX_JOBS"') == 2
     assert gb10_workflow.count('--build-arg nvcc_threads="$GB10_NVCC_THREADS"') == 2
 
@@ -1557,8 +1565,8 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PUSH_IMAGE": "true",
         "GB10_PREFLIGHT_ONLY": "true",
-        "GB10_MAX_JOBS": "24",
-        "GB10_NVCC_THREADS": "8",
+        "GB10_MAX_JOBS": "1",
+        "GB10_NVCC_THREADS": "1",
         "GB10_RUNNER_LABELS": json.dumps(
             ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
         ),
@@ -1588,7 +1596,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "ref": VLLM_FLASH_ATTN_GIT_TAG,
         "ref_is_full_git_sha": True,
     }
-    assert data["build"]["parallelism"] == {"max_jobs": "24", "nvcc_threads": "8"}
+    assert data["build"]["parallelism"] == {"max_jobs": "1", "nvcc_threads": "1"}
     assert data["build"]["runner_labels"] == [
         "self-hosted",
         "linux",

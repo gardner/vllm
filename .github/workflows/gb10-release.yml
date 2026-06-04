@@ -46,6 +46,16 @@ on:
         required: true
         default: '["ubuntu-22.04-arm"]'
         type: string
+      max-jobs:
+        description: "CUDA build MAX_JOBS. Self-hosted GB10 defaults to one job to avoid host memory pressure."
+        required: true
+        default: "1"
+        type: string
+      nvcc-threads:
+        description: "CUDA build NVCC_THREADS. Self-hosted GB10 defaults to one thread to avoid host memory pressure."
+        required: true
+        default: "1"
+        type: string
 
 permissions:
   contents: write
@@ -63,9 +73,9 @@ env:
   GB10_PREFLIGHT_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:preflight
   GB10_WHEEL_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:wheel
   GB10_RUNTIME_CACHE_REF: ghcr.io/gardner/vllm-gb10-buildcache:runtime
-  # vLLM divides MAX_JOBS by NVCC_THREADS for CUDA builds; 24 / 8 = 3 jobs.
-  GB10_MAX_JOBS: "24"
-  GB10_NVCC_THREADS: "8"
+  # vLLM divides MAX_JOBS by NVCC_THREADS for CUDA builds; 1 / 1 = 1 job.
+  GB10_MAX_JOBS: "1"
+  GB10_NVCC_THREADS: "1"
   GB10_BUILD_HEARTBEAT_SECONDS: "300"
   GB10_BUILD_HEARTBEAT_DOCKER_DF: "1"
   GB10_SELF_HOSTED_RUNNER_LABELS: '["self-hosted","linux","aarch64","cuda13","dgx-spark","sm121"]'
@@ -102,6 +112,8 @@ jobs:
             push_image="true"
             preflight_only="false"
             release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"
+            max_jobs="$GB10_MAX_JOBS"
+            nvcc_threads="$GB10_NVCC_THREADS"
           else
             release_tag="${{ inputs.release-tag }}"
             image_name="${{ inputs.image-name }}"
@@ -112,6 +124,8 @@ jobs:
             preflight_only="${{ inputs['preflight-only'] }}"
             runner_labels='${{ inputs['runner-labels'] }}'
             release_runner_labels="$runner_labels"
+            max_jobs="${{ inputs['max-jobs'] }}"
+            nvcc_threads="${{ inputs['nvcc-threads'] }}"
           fi
           if [ -z "${prebuilt_wheel_urls}" ]; then
             prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
@@ -129,6 +143,15 @@ jobs:
           if [ "$preflight_only" != "true" ] && [[ "$release_runner_labels" != *"\"self-hosted\""* ]]; then
             echo "GB10 full release builds require self-hosted runner labels; GitHub-hosted ARM runners repeatedly terminate the multi-hour wheel build without logs." >&2
             echo "Use runner-labels=$GB10_SELF_HOSTED_RUNNER_LABELS for full release builds." >&2
+            exit 1
+          fi
+
+          if [[ ! "$max_jobs" =~ ^[1-9][0-9]*$ ]]; then
+            echo "GB10 max-jobs must be a positive integer, got ${max_jobs}." >&2
+            exit 1
+          fi
+          if [[ ! "$nvcc_threads" =~ ^[1-9][0-9]*$ ]]; then
+            echo "GB10 nvcc-threads must be a positive integer, got ${nvcc_threads}." >&2
             exit 1
           fi
 
@@ -197,6 +220,8 @@ jobs:
           reject_multiline_env_value "push_image" "$push_image"
           reject_multiline_env_value "preflight_only" "$preflight_only"
           reject_multiline_env_value "release_runner_labels" "$release_runner_labels"
+          reject_multiline_env_value "max_jobs" "$max_jobs"
+          reject_multiline_env_value "nvcc_threads" "$nvcc_threads"
           {
             echo "GB10_RELEASE_TAG=${release_tag}"
             echo "GB10_IMAGE_NAME=${image_name}"
@@ -207,6 +232,8 @@ jobs:
             echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
             echo "GB10_PUSH_IMAGE=${push_image}"
             echo "GB10_PREFLIGHT_ONLY=${preflight_only}"
+            echo "GB10_MAX_JOBS=${max_jobs}"
+            echo "GB10_NVCC_THREADS=${nvcc_threads}"
             echo "GB10_RUNNER_LABELS<<GB10_RUNNER_LABELS_EOF"
             echo "$release_runner_labels"
             echo "GB10_RUNNER_LABELS_EOF"
