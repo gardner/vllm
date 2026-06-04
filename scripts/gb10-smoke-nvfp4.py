@@ -23,6 +23,7 @@ from typing import Any
 
 from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
+    GB10_DEFERRED_PATH_REASONS,
     GB10_NOT_SUPPORTED_PATH_REASONS,
 )
 
@@ -714,12 +715,21 @@ def _build_gb10_release_summary(
         }
         for name, reason in sorted(GB10_NOT_SUPPORTED_PATH_REASONS.items())
     }
+    deferred_paths = {
+        name: {
+            "status": "deferred",
+            "expected_handling": "block_until_hardware_validated",
+            "reason": reason,
+        }
+        for name, reason in sorted(GB10_DEFERRED_PATH_REASONS.items())
+    }
 
     return {
         "first_path_smoke_passed": not smoke_blockers,
         "smoke_blockers": smoke_blockers,
         "checks": smoke_checks,
         "unsupported_paths": unsupported_paths,
+        "deferred_paths": deferred_paths,
         "release_ready": False,
         "remaining_release_evidence": [
             "final runtime image smoke with the published GB10 dependency wheels",

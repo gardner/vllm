@@ -1769,11 +1769,18 @@ def test_gb10_required_support_matrix_contract_is_shared():
         for name, status in GB10_REQUIRED_SUPPORT_MATRIX.items()
         if status == "not_supported"
     }
+    required_deferred_entries = {
+        name
+        for name, status in GB10_REQUIRED_SUPPORT_MATRIX.items()
+        if status == "deferred"
+    }
     assert set(smoke.GB10_NOT_SUPPORTED_PATH_REASONS) == required_not_supported_entries
+    assert set(smoke.GB10_DEFERRED_PATH_REASONS) == required_deferred_entries
     assert (
         verifier.GB10_NOT_SUPPORTED_PATH_REASONS
         == smoke.GB10_NOT_SUPPORTED_PATH_REASONS
     )
+    assert verifier.GB10_DEFERRED_PATH_REASONS == smoke.GB10_DEFERRED_PATH_REASONS
 
 
 def test_gb10_release_provenance_contracts_are_shared():
@@ -2809,6 +2816,7 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert '"cuda_graph"' in script
     assert '"model_shape"' in script
     assert '"unsupported_paths"' in script
+    assert '"deferred_paths"' in script
     assert "attention_backend" in script
     assert "attention_backend_mismatch" in script
     assert "quantization_mode_mismatch" in script
@@ -3036,6 +3044,14 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
             "reason": reason,
         }
         for name, reason in smoke.GB10_NOT_SUPPORTED_PATH_REASONS.items()
+    }
+    assert release_summary["deferred_paths"] == {
+        name: {
+            "status": "deferred",
+            "expected_handling": "block_until_hardware_validated",
+            "reason": reason,
+        }
+        for name, reason in smoke.GB10_DEFERRED_PATH_REASONS.items()
     }
     assert "OpenAI-compatible server smoke" in release_summary[
         "remaining_release_evidence"
@@ -3967,6 +3983,18 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "reason": "Marlin is a fallback path",
                 },
             },
+            "deferred_paths": {
+                "flashinfer_b12x_ep_all2all_eplb": {
+                    "status": "deferred",
+                    "expected_handling": "block_until_hardware_validated",
+                    "reason": "multi-Spark EP/all-to-all/EPLB is not validated",
+                },
+                "multi_spark_ep_all2all_eplb": {
+                    "status": "deferred",
+                    "expected_handling": "block_until_hardware_validated",
+                    "reason": "multi-Spark communication hardware is not available",
+                },
+            },
             "checks": {
                 "kv_cache_dtype": {
                     "status": "passed",
@@ -4140,6 +4168,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["quantization_allowed_by_support_matrix"] == "passed"
     assert check_statuses["unsupported_paths_reported"] == "passed"
+    assert check_statuses["deferred_paths_reported"] == "passed"
     assert checks_by_name["quantization_allowed_by_support_matrix"]["details"][
         "support_matrix_entry"
     ] == "modelopt_fp4_quantization"
@@ -4150,6 +4179,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "public_flashattention_runtime",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
+    ]
+    assert checks_by_name["deferred_paths_reported"]["details"][
+        "reported_deferred_entries"
+    ] == [
+        "flashinfer_b12x_ep_all2all_eplb",
+        "multi_spark_ep_all2all_eplb",
     ]
     assert (
         check_statuses["nvfp4_backend_selections_allowed_by_support_matrix"]
@@ -4225,6 +4260,30 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "unsupported_paths_reported"
         for failure in missing_unsupported_paths_summary["failures"]
+    )
+
+    missing_deferred_paths_report = copy.deepcopy(nvfp4_report)
+    del missing_deferred_paths_report["gb10_release_summary"]["deferred_paths"][
+        "multi_spark_ep_all2all_eplb"
+    ]
+    missing_deferred_paths_summary = verifier._build_summary(
+        nvfp4_report=missing_deferred_paths_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+    assert missing_deferred_paths_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "deferred_paths_reported"
+        for failure in missing_deferred_paths_summary["failures"]
     )
 
     nvfp4_report["fallback_events"] = [

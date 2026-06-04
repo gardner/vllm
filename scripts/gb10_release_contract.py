@@ -58,6 +58,19 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     ),
 }
 
+GB10_DEFERRED_PATH_REASONS = {
+    "flashinfer_b12x_ep_all2all_eplb": (
+        "FlashInfer b12x expert-parallel all-to-all/EPLB NVFP4 MoE is "
+        "deferred until multi-Spark communication contracts are validated on "
+        "GB10 hardware."
+    ),
+    "multi_spark_ep_all2all_eplb": (
+        "Multi-Spark expert-parallel all-to-all/EPLB serving is deferred until "
+        "there is hardware to validate NCCL/Ray/vLLM communication and load "
+        "balancing behavior."
+    ),
+}
+
 GB10_SUPPORT_STATUSES = frozenset(
     {
         "supported_native",
