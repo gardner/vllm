@@ -38,6 +38,15 @@ GB10_FLASHINFER_RUNTIME_DISTRIBUTIONS = (
     "flashinfer-cubin",
     "flashinfer-jit-cache",
 )
+GB10_EXPECTED_RELEASE_REPORTS = (
+    "gb10-nvfp4-smoke.json",
+    "gb10-openai-server-smoke-image.json",
+    "gb10-release-evidence-image.json",
+)
+GB10_EXPECTED_RELEASE_EVIDENCE_FILES = (
+    *GB10_EXPECTED_RELEASE_REPORTS,
+    "gb10-smoked-image-digest.txt",
+)
 GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
@@ -1986,6 +1995,7 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
 
 def test_gb10_release_image_smoke_orchestrates_final_reports():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh").read_text()
+    bundler = _load_gb10_release_bundle_module()
 
     assert "scripts/gb10-smoke-image.sh" in script
     assert "scripts/gb10-smoke-openai-image.sh" in script
@@ -2041,6 +2051,35 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert 'bundle_args+=(--gb10-runtime-image-metadata-json' in script
     assert 'bundle_args+=(--gb10-allow-partial)' in script
     assert 'exit "$verify_status"' in script
+
+    report_assignments = {
+        variable: re.search(
+            rf'^{variable}="\$report_dir/(?P<filename>[^"]+)"',
+            script,
+            re.MULTILINE,
+        )
+        for variable in (
+            "nvfp4_report",
+            "openai_report",
+            "evidence_report",
+            "smoked_image_digest_report",
+        )
+    }
+    for match in report_assignments.values():
+        assert match is not None
+    orchestrator_evidence_files = tuple(
+        report_assignments[variable].group("filename")
+        for variable in (
+            "nvfp4_report",
+            "openai_report",
+            "evidence_report",
+            "smoked_image_digest_report",
+        )
+    )
+
+    assert bundler.EXPECTED_REPORTS == GB10_EXPECTED_RELEASE_REPORTS
+    assert bundler.EXPECTED_EVIDENCE_FILES == GB10_EXPECTED_RELEASE_EVIDENCE_FILES
+    assert orchestrator_evidence_files == bundler.EXPECTED_EVIDENCE_FILES
 
 
 def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
