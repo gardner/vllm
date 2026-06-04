@@ -3470,7 +3470,6 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
     script = REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh"
     bundle_name = "guard-evidence"
     image_ref = "ghcr.io/gardner/vllm-gb10:gb10-test"
-    release_tag = "gb10-test-release"
     fake_bin = tmp_path / "bin"
     report_dir = tmp_path / "reports"
     output_dir = tmp_path / "evidence"
@@ -3495,7 +3494,6 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
             "GB10_RELEASE_SMOKE_REPORT_DIR": str(report_dir),
             "GB10_RELEASE_EVIDENCE_OUTPUT_DIR": str(output_dir),
             "GB10_RELEASE_EVIDENCE_BUNDLE_NAME": bundle_name,
-            "GB10_RELEASE_TAG": release_tag,
             "GB10_NVFP4_MODEL": "nvidia/Qwen3.6-35B-A3B-NVFP4",
         }
     )
@@ -3536,7 +3534,7 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
     assert evidence["status"] == "failed"
     assert evidence["phase"] == "pre_smoke_resource_guard"
     assert evidence["image_ref"] == image_ref
-    assert evidence["release_tag"] == release_tag
+    assert evidence["release_tag"] is None
     assert evidence["allow_override_env"] == (
         "GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS=1"
     )
@@ -3544,7 +3542,7 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
     metadata = json.loads(metadata_path.read_text())
     assert metadata["status"] == "partial"
     assert metadata["source"]["image_ref"] == image_ref
-    assert metadata["source"]["release_tag"] == release_tag
+    assert metadata["source"]["release_tag"] is None
     assert metadata["release_gate_summary"] == {
         "present": True,
         "status": "failed",
@@ -3560,6 +3558,76 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
         "gb10-openai-server-smoke-image.json",
         "gb10-smoked-image-digest.txt",
     ]
+
+
+def test_gb10_release_image_smoke_rejects_release_tag_without_local_provenance(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh"
+    bundle_name = "tag-provenance-guard-evidence"
+    image_ref = "ghcr.io/gardner/vllm-gb10:gb10-test"
+    release_tag = "gb10-test-release"
+    fake_bin = tmp_path / "bin"
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "evidence"
+    fake_bin.mkdir()
+    fake_docker = fake_bin / "docker"
+    fake_docker.write_text(
+        "#!/usr/bin/env bash\n"
+        "echo \"unexpected docker invocation: $*\" >&2\n"
+        "exit 64\n",
+        encoding="utf-8",
+    )
+    fake_docker.chmod(0o755)
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "GB10_RELEASE_SMOKE_REPORT_DIR": str(report_dir),
+            "GB10_RELEASE_EVIDENCE_OUTPUT_DIR": str(output_dir),
+            "GB10_RELEASE_EVIDENCE_BUNDLE_NAME": bundle_name,
+            "GB10_RELEASE_TAG": release_tag,
+            "GB10_NVFP4_MODEL": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+        }
+    )
+
+    proc = subprocess.run(
+        [
+            str(script),
+            image_ref,
+            "--serve",
+            "nvidia/Qwen3.6-35B-A3B-NVFP4",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1
+    assert "GB10 release-tag smoke requires release provenance" in proc.stderr
+    assert "unexpected docker invocation" not in proc.stderr
+
+    evidence_report = report_dir / "gb10-release-evidence-image.json"
+    metadata_path = output_dir / "release-evidence-metadata.json"
+    archive_path = output_dir / f"{bundle_name}.tar.gz"
+    for path in (evidence_report, metadata_path, archive_path):
+        assert path.is_file(), path
+
+    evidence = json.loads(evidence_report.read_text())
+    assert evidence["status"] == "failed"
+    assert evidence["phase"] == "pre_smoke_provenance_guard"
+    assert evidence["image_ref"] == image_ref
+    assert evidence["release_tag"] == release_tag
+    assert evidence["release_manifest_json"] is None
+    assert evidence["runtime_image_metadata_json"] is None
+
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["status"] == "partial"
+    assert metadata["source"]["image_ref"] == image_ref
+    assert metadata["source"]["release_tag"] == release_tag
+    assert metadata["included_provenance"] == []
 
 
 def test_gb10_release_image_smoke_rejects_incomplete_local_provenance(tmp_path):
