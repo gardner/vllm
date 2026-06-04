@@ -2392,7 +2392,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert manifest_arg in smoke_workflow
     assert metadata_arg in smoke_workflow
     assert '"${bundle_args[@]}" || true' in smoke_workflow
-    assert "actions/upload-artifact@v5" in smoke_workflow
+    assert "actions/upload-artifact@v7" in smoke_workflow
     assert "name: ${{ env.GB10_RELEASE_EVIDENCE_ARTIFACT_NAME }}" in smoke_workflow
     assert "${{ env.GB10_RELEASE_SMOKE_REPORT_DIR }}/**" in smoke_workflow
     assert "${{ env.GB10_RELEASE_PROVENANCE_DIR }}/**" in smoke_workflow
@@ -2508,9 +2508,10 @@ def test_gb10_workflows_use_node24_action_versions():
     )
     workflow_text = "\n".join(path.read_text() for path in workflow_paths)
 
-    assert "actions/upload-artifact@v5" in workflow_text
+    assert "actions/upload-artifact@v7" in workflow_text
     assert "docker/login-action@v4" in workflow_text
     assert "docker/setup-buildx-action@v4" in workflow_text
+    assert "actions/upload-artifact@v5" not in workflow_text
     assert "actions/upload-artifact@v4" not in workflow_text
     assert "docker/login-action@v3" not in workflow_text
     assert "docker/setup-buildx-action@v3" not in workflow_text

@@ -250,7 +250,7 @@ jobs:
           cat "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
 
       - name: Upload GB10 release inputs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.GB10_RELEASE_INPUTS_ARTIFACT_NAME }}
           path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/gb10-release-manifest.json
@@ -364,7 +364,7 @@ jobs:
 
       - name: Upload wheel artifact
         if: env.GB10_PREFLIGHT_ONLY != 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: gb10-vllm-wheel
           path: dist/*.whl
@@ -434,7 +434,7 @@ jobs:
 
       - name: Upload GB10 release manifest
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.GB10_RELEASE_MANIFEST_ARTIFACT_NAME }}
           path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/**
