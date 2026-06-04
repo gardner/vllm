@@ -675,6 +675,24 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     }
     assert {wheel["release_tag"] for wheel in wheels} == {FLASHINFER_RELEASE_TAG}
     assert data["dependencies"]["flashinfer"]["all_required_components_present"] is True
+    support_matrix = data["gb10_support_matrix"]
+    assert support_matrix["architecture"] == "sm_121a"
+    assert support_matrix["first_release_scope"] == "single_spark_first_path"
+    assert support_matrix["entries"]["flashinfer_nvfp4_dense"]["status"] == (
+        "supported_native"
+    )
+    assert support_matrix["entries"]["flashmla_attention"]["status"] == (
+        "supported_native"
+    )
+    assert support_matrix["entries"]["public_flashattention_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["trtllm_gen_attention"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["multi_spark_ep_all2all_eplb"]["status"] == (
+        "deferred"
+    )
 
     source_dependencies = data["dependencies"]["source_dependencies"]
     assert source_dependencies["deepgemm"] == {
@@ -790,6 +808,33 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     assert any(
         "GB10 release manifest source_dependencies must include" in err
         and "flashmla" in err
+        for err in errors
+    )
+
+    missing_support_entry_manifest = copy.deepcopy(good_manifest)
+    del missing_support_entry_manifest["gb10_support_matrix"]["entries"][
+        "public_flashattention_runtime"
+    ]
+
+    errors = manifest.validate_manifest(missing_support_entry_manifest)
+
+    assert any(
+        "GB10 release manifest support matrix must include" in err
+        and "public_flashattention_runtime" in err
+        for err in errors
+    )
+
+    wrong_support_status_manifest = copy.deepcopy(good_manifest)
+    wrong_support_status_manifest["gb10_support_matrix"]["entries"][
+        "trtllm_gen_attention"
+    ]["status"] = "supported_native"
+
+    errors = manifest.validate_manifest(wrong_support_status_manifest)
+
+    assert any(
+        "GB10 release manifest support matrix status mismatch" in err
+        and "trtllm_gen_attention" in err
+        and "supported_native" in err
         for err in errors
     )
 
@@ -2374,6 +2419,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"release_manifest_flashinfer_components"' in script
     assert '"release_manifest_durable_inputs"' in script
     assert '"release_manifest_source_dependencies_present"' in script
+    assert '"release_manifest_gb10_support_matrix"' in script
     assert '"release_manifest_source_refs_pinned"' in script
     assert '"release_manifest_no_local_deps"' in script
     assert '"release_manifest_image_pushed_for_tagged_release"' in script
@@ -2532,6 +2578,23 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
             },
         },
+        "gb10_support_matrix": {
+            "architecture": "sm_121a",
+            "first_release_scope": "single_spark_first_path",
+            "entries": {
+                "flashinfer_nvfp4_dense": {"status": "supported_native"},
+                "flashinfer_nvfp4_quantization": {"status": "supported_native"},
+                "flashinfer_attention_fa2": {"status": "supported_native"},
+                "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
+                "flashmla_attention": {"status": "supported_native"},
+                "public_flashattention_runtime": {"status": "not_supported"},
+                "trtllm_gen_attention": {"status": "not_supported"},
+                "trtllm_gen_moe": {"status": "not_supported"},
+                "marlin_nvfp4_fallback": {"status": "not_supported"},
+                "flashinfer_b12x_ep_all2all_eplb": {"status": "deferred"},
+                "multi_spark_ep_all2all_eplb": {"status": "deferred"},
+            },
+        },
         "build": {
             "cache_refs": {
                 "preflight": GB10_RELEASE_CACHE_REF_ENV["GB10_PREFLIGHT_CACHE_REF"],
@@ -2581,6 +2644,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert (
         check_statuses["release_manifest_source_dependencies_present"] == "passed"
     )
+    assert check_statuses["release_manifest_gb10_support_matrix"] == "passed"
     assert check_statuses["release_manifest_source_refs_pinned"] == "passed"
     assert check_statuses["release_manifest_no_local_deps"] == "passed"
     assert (
@@ -2849,6 +2913,31 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "release_manifest_source_dependencies_present"
         for failure in missing_source_dependency_summary["failures"]
+    )
+
+    missing_support_matrix_manifest = copy.deepcopy(release_manifest)
+    del missing_support_matrix_manifest["gb10_support_matrix"]["entries"][
+        "public_flashattention_runtime"
+    ]
+    missing_support_matrix_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=missing_support_matrix_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert missing_support_matrix_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "release_manifest_gb10_support_matrix"
+        for failure in missing_support_matrix_summary["failures"]
     )
 
     image_mismatch_summary = verifier._build_summary(

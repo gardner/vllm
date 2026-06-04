@@ -30,6 +30,19 @@ REQUIRED_SOURCE_DEPENDENCIES = (
     "flashmla",
     "triton_kernels",
 )
+REQUIRED_GB10_SUPPORT_MATRIX = {
+    "flashinfer_nvfp4_dense": "supported_native",
+    "flashinfer_nvfp4_quantization": "supported_native",
+    "flashinfer_attention_fa2": "supported_native",
+    "flashinfer_b12x_non_ep_moe": "supported_native",
+    "flashmla_attention": "supported_native",
+    "public_flashattention_runtime": "not_supported",
+    "trtllm_gen_attention": "not_supported",
+    "trtllm_gen_moe": "not_supported",
+    "marlin_nvfp4_fallback": "not_supported",
+    "flashinfer_b12x_ep_all2all_eplb": "deferred",
+    "multi_spark_ep_all2all_eplb": "deferred",
+}
 
 
 def _is_gb10_cuda13_version(value: Any) -> bool:
@@ -543,6 +556,53 @@ def _source_dependencies_present(
     }
 
 
+def _gb10_support_matrix_present(
+    manifest: dict[str, Any],
+) -> tuple[bool, dict[str, Any]]:
+    support_matrix = manifest.get("gb10_support_matrix")
+    if not isinstance(support_matrix, dict):
+        return False, {
+            "required": REQUIRED_GB10_SUPPORT_MATRIX,
+            "present": {},
+            "missing": sorted(REQUIRED_GB10_SUPPORT_MATRIX),
+            "mismatched": {},
+            "reason": "gb10_support_matrix object missing",
+        }
+
+    entries = support_matrix.get("entries")
+    if not isinstance(entries, dict):
+        return False, {
+            "required": REQUIRED_GB10_SUPPORT_MATRIX,
+            "present": {},
+            "missing": sorted(REQUIRED_GB10_SUPPORT_MATRIX),
+            "mismatched": {},
+            "reason": "gb10_support_matrix.entries object missing",
+        }
+
+    present = {
+        name: entry.get("status") if isinstance(entry, dict) else None
+        for name, entry in entries.items()
+        if name in REQUIRED_GB10_SUPPORT_MATRIX
+    }
+    missing = sorted(set(REQUIRED_GB10_SUPPORT_MATRIX) - set(present))
+    mismatched = {
+        name: {
+            "expected": expected_status,
+            "actual": present.get(name),
+        }
+        for name, expected_status in REQUIRED_GB10_SUPPORT_MATRIX.items()
+        if name in present and present.get(name) != expected_status
+    }
+    return not missing and not mismatched, {
+        "architecture": support_matrix.get("architecture"),
+        "first_release_scope": support_matrix.get("first_release_scope"),
+        "required": REQUIRED_GB10_SUPPORT_MATRIX,
+        "present": present,
+        "missing": missing,
+        "mismatched": mismatched,
+    }
+
+
 def _release_manifest_validation_errors(manifest: dict[str, Any]) -> list[str]:
     manifest_writer_path = Path(__file__).with_name("gb10-write-release-manifest.py")
     spec = importlib.util.spec_from_file_location(
@@ -709,6 +769,9 @@ def _check_release_manifest(
     source_dependencies_present, source_dependencies_details = (
         _source_dependencies_present(manifest)
     )
+    support_matrix_present, support_matrix_details = _gb10_support_matrix_present(
+        manifest
+    )
     source_refs_pinned, source_refs_details = _source_refs_pinned(manifest)
     manifest_validation_errors = _release_manifest_validation_errors(manifest)
     release_tag = _nested_get(manifest, "release", "tag")
@@ -754,6 +817,15 @@ def _check_release_manifest(
                 "dependencies"
             ),
             details=source_dependencies_details,
+        ),
+        _check(
+            name="release_manifest_gb10_support_matrix",
+            passed=support_matrix_present,
+            message=(
+                "release manifest records the GB10 backend support matrix for "
+                "native, routed, unsupported, and deferred paths"
+            ),
+            details=support_matrix_details,
         ),
         _check(
             name="release_manifest_source_refs_pinned",

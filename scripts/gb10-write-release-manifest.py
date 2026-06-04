@@ -23,6 +23,27 @@ REQUIRED_SOURCE_DEPENDENCIES = (
     "flashmla",
     "triton_kernels",
 )
+REQUIRED_GB10_SUPPORT_MATRIX = {
+    "flashinfer_nvfp4_dense": "supported_native",
+    "flashinfer_nvfp4_quantization": "supported_native",
+    "flashinfer_attention_fa2": "supported_native",
+    "flashinfer_b12x_non_ep_moe": "supported_native",
+    "flashmla_attention": "supported_native",
+    "public_flashattention_runtime": "not_supported",
+    "trtllm_gen_attention": "not_supported",
+    "trtllm_gen_moe": "not_supported",
+    "marlin_nvfp4_fallback": "not_supported",
+    "flashinfer_b12x_ep_all2all_eplb": "deferred",
+    "multi_spark_ep_all2all_eplb": "deferred",
+}
+GB10_SUPPORT_STATUSES = frozenset(
+    {
+        "supported_native",
+        "supported_routed",
+        "not_supported",
+        "deferred",
+    }
+)
 DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
 DOCKER_TAG_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
 
@@ -200,6 +221,112 @@ def _source_dependencies(env: Mapping[str, str]) -> dict[str, object]:
     }
 
 
+def _gb10_support_matrix() -> dict[str, object]:
+    return {
+        "architecture": "sm_121a",
+        "hardware": "NVIDIA DGX Spark GB10",
+        "first_release_scope": "single_spark_first_path",
+        "status_definitions": {
+            "supported_native": (
+                "Runs native SM121A code and must have package/runtime "
+                "evidence before satisfying release gates."
+            ),
+            "supported_routed": (
+                "vLLM intentionally routes to another validated GB10-safe "
+                "backend and reports that route."
+            ),
+            "not_supported": (
+                "Must be rejected or reported as non-native before it can "
+                "masquerade as GB10 support."
+            ),
+            "deferred": (
+                "Not required for the first release and must not be selected "
+                "accidentally."
+            ),
+        },
+        "entries": {
+            "flashinfer_nvfp4_dense": {
+                "status": "supported_native",
+                "release_contract": (
+                    "First-path smoke must observe native FlashInfer dense "
+                    "NVFP4 backend selection."
+                ),
+            },
+            "flashinfer_nvfp4_quantization": {
+                "status": "supported_native",
+                "release_contract": (
+                    "First-path smoke must observe ModelOpt FP4 quantization "
+                    "and GB10 FlashInfer runtime packages."
+                ),
+            },
+            "flashinfer_attention_fa2": {
+                "status": "supported_native",
+                "release_contract": (
+                    "First-path smoke must observe the requested FlashInfer "
+                    "attention backend with FP8 KV cache."
+                ),
+            },
+            "flashinfer_b12x_non_ep_moe": {
+                "status": "supported_native",
+                "release_contract": (
+                    "Required when MoE release evidence is requested; EP and "
+                    "all-to-all variants remain separate entries."
+                ),
+            },
+            "flashmla_attention": {
+                "status": "supported_native",
+                "release_contract": (
+                    "FlashMLA source provenance is required and vLLM may route "
+                    "to native SM121A FlashMLA kernels where selected."
+                ),
+            },
+            "public_flashattention_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "GB10 vLLM runtime selection must not use public "
+                    "FlashAttention on SM12x unless a future validated entry "
+                    "changes this status."
+                ),
+            },
+            "trtllm_gen_attention": {
+                "status": "not_supported",
+                "release_contract": (
+                    "TRTLLM Gen attention rejects SM121 today; vLLM should "
+                    "route GB10 attention through FlashInfer or FlashMLA."
+                ),
+            },
+            "trtllm_gen_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "TRTLLM Gen MoE rejects SM121 today and must not satisfy "
+                    "native NVFP4 MoE release evidence."
+                ),
+            },
+            "marlin_nvfp4_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Marlin-backed API smoke can prove serving reachability, "
+                    "but it cannot satisfy native NVFP4 release evidence."
+                ),
+            },
+            "flashinfer_b12x_ep_all2all_eplb": {
+                "status": "deferred",
+                "release_contract": (
+                    "Blocked until multi-Spark EP/all-to-all/EPLB contracts "
+                    "are validated on hardware."
+                ),
+            },
+            "multi_spark_ep_all2all_eplb": {
+                "status": "deferred",
+                "release_contract": (
+                    "Deferred until there is hardware to test multi-Spark "
+                    "communication and load-balancing behavior."
+                ),
+            },
+        },
+    }
+
+
 def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
     """Build the manifest payload from environment variables."""
 
@@ -253,6 +380,7 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
             "source_dependencies": _source_dependencies(env),
             "required_source_dependencies": list(REQUIRED_SOURCE_DEPENDENCIES),
         },
+        "gb10_support_matrix": _gb10_support_matrix(),
         "build": {
             "dockerfile": "docker/Dockerfile",
             "preflight_target": "gb10-flashinfer-preflight",
@@ -470,6 +598,44 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
                 errors.append(f"{name} ref must be a full Git SHA.")
     else:
         errors.append("GB10 release manifest must list pinned source dependencies.")
+
+    support_matrix = _mapping_value(manifest, "gb10_support_matrix")
+    if isinstance(support_matrix, Mapping):
+        architecture = _mapping_value(support_matrix, "architecture")
+        if architecture != "sm_121a":
+            errors.append(
+                "GB10 release manifest support matrix architecture must be "
+                f"'sm_121a', got {architecture!r}."
+            )
+        entries = _mapping_value(support_matrix, "entries")
+        if isinstance(entries, Mapping):
+            missing_entries = sorted(
+                set(REQUIRED_GB10_SUPPORT_MATRIX) - set(entries)
+            )
+            if missing_entries:
+                errors.append(
+                    "GB10 release manifest support matrix must include all "
+                    f"required entries; missing={missing_entries!r}."
+                )
+
+            for entry_name, expected_status in REQUIRED_GB10_SUPPORT_MATRIX.items():
+                entry = _mapping_value(entries, entry_name)
+                status = _mapping_value(entry, "status")
+                if status is not None and status not in GB10_SUPPORT_STATUSES:
+                    errors.append(
+                        "GB10 release manifest support matrix status is not "
+                        f"recognized: entry={entry_name!r}, status={status!r}."
+                    )
+                if status != expected_status:
+                    errors.append(
+                        "GB10 release manifest support matrix status mismatch: "
+                        f"entry={entry_name!r}, expected={expected_status!r}, "
+                        f"got {status!r}."
+                    )
+        else:
+            errors.append("GB10 release manifest support matrix must list entries.")
+    else:
+        errors.append("GB10 release manifest must include a support matrix.")
 
     build = _mapping_value(manifest, "build")
     if _mapping_value(build, "local_gb10_dependency_checkouts") is True:
