@@ -1,4 +1,3 @@
-import ast
 import copy
 import importlib.util
 import json
@@ -6,7 +5,6 @@ import re
 import subprocess
 import sys
 import tarfile
-import textwrap
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -788,21 +786,15 @@ def test_gb10_evidence_upload_support_matrix_contract_is_shared():
     assert validation_block_match is not None
     validation_block = validation_block_match.group("block")
 
-    support_matrix_assignment = re.search(
-        r"required_support_matrix = (?P<matrix>\{.*?\n          \})",
-        validation_block,
-        re.DOTALL,
+    assert "from pathlib import Path" in validation_block
+    assert 'sys.path.insert(0, str(Path.cwd() / "scripts"))' in validation_block
+    assert "from gb10_release_contract import" in validation_block
+    assert "REQUIRED_GB10_SUPPORT_MATRIX" in validation_block
+    assert "SHA256_DIGEST_RE" in validation_block
+    assert "required_support_matrix = REQUIRED_GB10_SUPPORT_MATRIX" in (
+        validation_block
     )
-    assert support_matrix_assignment is not None
-    assignment = textwrap.dedent(
-        f"required_support_matrix = {support_matrix_assignment.group('matrix')}"
-    )
-    parsed_assignment = ast.parse(assignment).body[0]
-    assert isinstance(parsed_assignment, ast.Assign)
-
-    workflow_support_matrix = ast.literal_eval(parsed_assignment.value)
-
-    assert workflow_support_matrix == GB10_REQUIRED_SUPPORT_MATRIX
+    assert '"flashinfer_nvfp4_dense": "supported_native"' not in validation_block
 
 
 def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
@@ -1324,18 +1316,12 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 evidence release metadata support matrix does not match" in (
         smoke_workflow
     )
-    assert "required_support_matrix = {" in validation_block
-    assert '"flashinfer_nvfp4_dense": "supported_native"' in validation_block
-    assert '"flashinfer_nvfp4_quantization": "supported_native"' in validation_block
-    assert '"flashinfer_attention_fa2": "supported_native"' in validation_block
-    assert '"flashinfer_b12x_non_ep_moe": "supported_native"' in validation_block
-    assert '"flashmla_attention": "supported_native"' in validation_block
-    assert '"public_flashattention_runtime": "not_supported"' in validation_block
-    assert '"trtllm_gen_attention": "not_supported"' in validation_block
-    assert '"trtllm_gen_moe": "not_supported"' in validation_block
-    assert '"marlin_nvfp4_fallback": "not_supported"' in validation_block
-    assert '"flashinfer_b12x_ep_all2all_eplb": "deferred"' in validation_block
-    assert '"multi_spark_ep_all2all_eplb": "deferred"' in validation_block
+    assert "from gb10_release_contract import" in validation_block
+    assert "REQUIRED_GB10_SUPPORT_MATRIX" in validation_block
+    assert "required_support_matrix = REQUIRED_GB10_SUPPORT_MATRIX" in (
+        validation_block
+    )
+    assert '"flashinfer_nvfp4_dense": "supported_native"' not in validation_block
     assert 'entries = support_matrix.get("entries")' in validation_block
     assert "mismatched_support = {" in validation_block
     assert validation_block.index(
@@ -1356,8 +1342,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         'normalize_image_digest(os.environ.get("GB10_IMAGE_DIGEST"))'
         in validation_block
     )
-    assert "          import re" in validation_block
-    assert "re.fullmatch" in validation_block
+    assert "SHA256_DIGEST_RE.fullmatch" in validation_block
     assert (
         'source.get("release_tag") != os.environ["GB10_RELEASE_TAG"]'
         in smoke_workflow

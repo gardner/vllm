@@ -551,8 +551,14 @@ jobs:
           python3 - "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/release-evidence-metadata.json" <<'PY'
           import json
           import os
-          import re
           import sys
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path.cwd() / "scripts"))
+          from gb10_release_contract import (  # noqa: E402
+              REQUIRED_GB10_SUPPORT_MATRIX,
+              SHA256_DIGEST_RE,
+          )
 
           metadata_path = sys.argv[1]
           with open(metadata_path, encoding="utf-8") as metadata_file:
@@ -578,7 +584,7 @@ jobs:
               if marker_index >= 0:
                   value = value[marker_index:]
               value = value.split()[0].strip().strip('",')
-              if not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+              if not SHA256_DIGEST_RE.fullmatch(value):
                   return None
               return value
 
@@ -611,19 +617,7 @@ jobs:
               print(f"  support_matrix_summary: {support_matrix}", file=sys.stderr)
               sys.exit(1)
 
-          required_support_matrix = {
-              "flashinfer_nvfp4_dense": "supported_native",
-              "flashinfer_nvfp4_quantization": "supported_native",
-              "flashinfer_attention_fa2": "supported_native",
-              "flashinfer_b12x_non_ep_moe": "supported_native",
-              "flashmla_attention": "supported_native",
-              "public_flashattention_runtime": "not_supported",
-              "trtllm_gen_attention": "not_supported",
-              "trtllm_gen_moe": "not_supported",
-              "marlin_nvfp4_fallback": "not_supported",
-              "flashinfer_b12x_ep_all2all_eplb": "deferred",
-              "multi_spark_ep_all2all_eplb": "deferred",
-          }
+          required_support_matrix = REQUIRED_GB10_SUPPORT_MATRIX
           entries = support_matrix.get("entries")
           mismatched_support = {
               name: {
