@@ -308,6 +308,10 @@ jobs:
               --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
               --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
               --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+              --build-arg VLLM_BUILD_COMMIT="$GITHUB_SHA" \
+              --build-arg VLLM_BUILD_PIPELINE="$GITHUB_WORKFLOW" \
+              --build-arg VLLM_BUILD_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              --build-arg VLLM_IMAGE_TAG="$GB10_IMAGE_TAG" \
               .
 
       - name: Extract vLLM wheel
@@ -400,6 +404,10 @@ jobs:
               --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
               --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
               --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+              --build-arg VLLM_BUILD_COMMIT="$GITHUB_SHA" \
+              --build-arg VLLM_BUILD_PIPELINE="$GITHUB_WORKFLOW" \
+              --build-arg VLLM_BUILD_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              --build-arg VLLM_IMAGE_TAG="$GB10_IMAGE_TAG" \
               --metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
               "$output_arg" \
               .

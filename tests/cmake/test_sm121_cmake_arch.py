@@ -794,6 +794,26 @@ def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
     ) == 2
 
 
+def test_gb10_release_workflow_sets_runtime_image_build_metadata():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    for step_name in ("Build wheel stage", "Build runtime image"):
+        step_block = gb10_workflow.split(f"- name: {step_name}", 1)[1].split(
+            "\n      - name:",
+            1,
+        )[0]
+        assert '--build-arg VLLM_BUILD_COMMIT="$GITHUB_SHA"' in step_block
+        assert '--build-arg VLLM_BUILD_PIPELINE="$GITHUB_WORKFLOW"' in step_block
+        assert (
+            "--build-arg "
+            'VLLM_BUILD_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/'
+            'actions/runs/${GITHUB_RUN_ID}"'
+        ) in step_block
+        assert '--build-arg VLLM_IMAGE_TAG="$GB10_IMAGE_TAG"' in step_block
+
+
 def test_gb10_release_workflow_publishes_release_manifest():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
