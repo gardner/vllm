@@ -1216,9 +1216,34 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         validation_block
     )
     assert 'support_matrix.get("present") is not True' in validation_block
+    assert (
+        'support_matrix.get("release_manifest_present") is not True'
+        in validation_block
+    )
     assert 'support_matrix.get("architecture") != "sm_121a"' in validation_block
+    assert (
+        'support_matrix.get("first_release_scope") != "single_spark_first_path"'
+        in validation_block
+    )
     assert 'support_matrix.get("entry_count", 0) <= 0' in validation_block
     assert 'support_matrix.get("invalid_entries")' in validation_block
+    assert "GB10 evidence release metadata support matrix does not match" in (
+        smoke_workflow
+    )
+    assert "required_support_matrix = {" in validation_block
+    assert '"flashinfer_nvfp4_dense": "supported_native"' in validation_block
+    assert '"flashinfer_nvfp4_quantization": "supported_native"' in validation_block
+    assert '"flashinfer_attention_fa2": "supported_native"' in validation_block
+    assert '"flashinfer_b12x_non_ep_moe": "supported_native"' in validation_block
+    assert '"flashmla_attention": "supported_native"' in validation_block
+    assert '"public_flashattention_runtime": "not_supported"' in validation_block
+    assert '"trtllm_gen_attention": "not_supported"' in validation_block
+    assert '"trtllm_gen_moe": "not_supported"' in validation_block
+    assert '"marlin_nvfp4_fallback": "not_supported"' in validation_block
+    assert '"flashinfer_b12x_ep_all2all_eplb": "deferred"' in validation_block
+    assert '"multi_spark_ep_all2all_eplb": "deferred"' in validation_block
+    assert 'entries = support_matrix.get("entries")' in validation_block
+    assert "mismatched_support = {" in validation_block
     assert "GB10 evidence release metadata is missing release provenance" in (
         smoke_workflow
     )

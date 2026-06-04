@@ -602,7 +602,9 @@ jobs:
           if (
               not isinstance(support_matrix, dict)
               or support_matrix.get("present") is not True
+              or support_matrix.get("release_manifest_present") is not True
               or support_matrix.get("architecture") != "sm_121a"
+              or support_matrix.get("first_release_scope") != "single_spark_first_path"
               or support_matrix.get("entry_count", 0) <= 0
               or support_matrix.get("invalid_entries")
           ):
@@ -611,6 +613,38 @@ jobs:
                   file=sys.stderr,
               )
               print(f"  support_matrix_summary: {support_matrix}", file=sys.stderr)
+              sys.exit(1)
+
+          required_support_matrix = {
+              "flashinfer_nvfp4_dense": "supported_native",
+              "flashinfer_nvfp4_quantization": "supported_native",
+              "flashinfer_attention_fa2": "supported_native",
+              "flashinfer_b12x_non_ep_moe": "supported_native",
+              "flashmla_attention": "supported_native",
+              "public_flashattention_runtime": "not_supported",
+              "trtllm_gen_attention": "not_supported",
+              "trtllm_gen_moe": "not_supported",
+              "marlin_nvfp4_fallback": "not_supported",
+              "flashinfer_b12x_ep_all2all_eplb": "deferred",
+              "multi_spark_ep_all2all_eplb": "deferred",
+          }
+          entries = support_matrix.get("entries")
+          mismatched_support = {
+              name: {
+                  "expected": expected_status,
+                  "actual": entries.get(name) if isinstance(entries, dict) else None,
+              }
+              for name, expected_status in required_support_matrix.items()
+              if not isinstance(entries, dict)
+              or entries.get(name) != expected_status
+          }
+          if mismatched_support:
+              print(
+                  "GB10 evidence release metadata support matrix does not match "
+                  "the required GB10 release contract.",
+                  file=sys.stderr,
+              )
+              print(f"  mismatched: {mismatched_support}", file=sys.stderr)
               sys.exit(1)
 
           if source.get("image_ref") != os.environ["GB10_IMAGE_REF"]:
