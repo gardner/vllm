@@ -2502,19 +2502,25 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
 
 
 def test_gb10_workflows_use_node24_action_versions():
-    workflow_paths = (
-        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml",
-        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml",
-    )
-    workflow_text = "\n".join(path.read_text() for path in workflow_paths)
+    release_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    smoke_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
+    ).read_text()
 
-    assert "actions/upload-artifact@v7" in workflow_text
-    assert "docker/login-action@v4" in workflow_text
-    assert "docker/setup-buildx-action@v4" in workflow_text
-    assert "actions/upload-artifact@v5" not in workflow_text
-    assert "actions/upload-artifact@v4" not in workflow_text
-    assert "docker/login-action@v3" not in workflow_text
-    assert "docker/setup-buildx-action@v3" not in workflow_text
+    assert "actions/upload-artifact@v7" in release_workflow
+    assert "docker/login-action@v4" in release_workflow
+    assert "docker/setup-buildx-action@v4" in release_workflow
+
+    assert "actions/upload-artifact@v7" in smoke_workflow
+    assert "docker/login-action@v4" in smoke_workflow
+
+    for workflow_text in (release_workflow, smoke_workflow):
+        assert "actions/upload-artifact@v5" not in workflow_text
+        assert "actions/upload-artifact@v4" not in workflow_text
+        assert "docker/login-action@v3" not in workflow_text
+        assert "docker/setup-buildx-action@v3" not in workflow_text
 
 
 def test_gb10_evidence_release_asset_validator_accepts_complete_metadata():
