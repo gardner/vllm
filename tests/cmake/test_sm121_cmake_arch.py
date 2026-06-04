@@ -563,6 +563,10 @@ def test_gb10_release_workflow_publishes_release_manifest():
     )[1].split("- name: Write GB10 release checksums", 1)[0]
     assert "containerimage.digest" in refs_step
     assert "GB10 pushed runtime image metadata did not include a digest" in refs_step
+    assert '[[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]' in refs_step
+    assert "GB10 runtime image metadata digest is not a valid sha256 digest" in (
+        refs_step
+    )
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in refs_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in refs_step
 

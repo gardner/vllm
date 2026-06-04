@@ -371,6 +371,10 @@ jobs:
             exit 1
           fi
           if [ -n "$image_digest" ]; then
+            if [[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "GB10 runtime image metadata digest is not a valid sha256 digest: ${image_digest}" >&2
+              exit 1
+            fi
             printf '%s\n' "$image_digest" \
               > "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt"
           fi
