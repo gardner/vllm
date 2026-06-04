@@ -28,6 +28,16 @@ GB10_RELEASE_CACHE_REF_ENV = {
     "GB10_WHEEL_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:wheel",
     "GB10_RUNTIME_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:runtime",
 }
+GB10_REQUIRED_SOURCE_DEPENDENCIES = (
+    "deepgemm",
+    "flashmla",
+    "triton_kernels",
+)
+GB10_FLASHINFER_RUNTIME_DISTRIBUTIONS = (
+    "flashinfer-python",
+    "flashinfer-cubin",
+    "flashinfer-jit-cache",
+)
 GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
@@ -743,6 +753,25 @@ def test_gb10_required_support_matrix_contract_is_shared():
     assert manifest.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
     assert verifier.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
     assert bundler.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
+
+
+def test_gb10_release_provenance_contracts_are_shared():
+    smoke = _load_gb10_smoke_module()
+    manifest = _load_gb10_release_manifest_module()
+    verifier = _load_gb10_release_evidence_module()
+
+    assert manifest.REQUIRED_SOURCE_DEPENDENCIES == (
+        GB10_REQUIRED_SOURCE_DEPENDENCIES
+    )
+    assert verifier.REQUIRED_SOURCE_DEPENDENCIES == (
+        GB10_REQUIRED_SOURCE_DEPENDENCIES
+    )
+    assert smoke.FLASHINFER_RUNTIME_DISTRIBUTIONS == (
+        GB10_FLASHINFER_RUNTIME_DISTRIBUTIONS
+    )
+    assert verifier.FLASHINFER_RUNTIME_DISTRIBUTIONS == (
+        GB10_FLASHINFER_RUNTIME_DISTRIBUTIONS
+    )
 
 
 def test_gb10_evidence_upload_support_matrix_contract_is_shared():
