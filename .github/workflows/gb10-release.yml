@@ -453,7 +453,23 @@ jobs:
             > "$release_assets_file"
           mapfile -t release_assets < "$release_assets_file"
 
+          release_ref_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GB10_RELEASE_TAG}" 2>/dev/null || true
+          )"
+          if [ -n "$release_ref_json" ]; then
+            tag_sha="$(jq -r '.object.sha // ""' <<< "$release_ref_json")"
+            tag_type="$(jq -r '.object.type // ""' <<< "$release_ref_json")"
+            if [ "$tag_type" != "commit" ] || [ "$tag_sha" != "$GITHUB_SHA" ]; then
+              echo "GB10 release tag must point at the workflow commit before assets are uploaded." >&2
+              echo "  release-tag: ${GB10_RELEASE_TAG}" >&2
+              echo "  tag-type:    ${tag_type}" >&2
+              echo "  tag-sha:     ${tag_sha}" >&2
+              echo "  workflow-sha:${GITHUB_SHA}" >&2
+              exit 1
+            fi
+          fi
+
           if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$GB10_RELEASE_TAG" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
+            gh release create "$GB10_RELEASE_TAG" --target "$GITHUB_SHA" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
           fi
           gh release upload "$GB10_RELEASE_TAG" "${release_assets[@]}" --clobber

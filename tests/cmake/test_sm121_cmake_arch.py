@@ -964,6 +964,25 @@ def test_gb10_release_workflow_publishes_release_manifest():
         'if [ -f "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" ]'
         not in release_step
     )
+    assert 'repos/${GITHUB_REPOSITORY}/git/ref/tags/${GB10_RELEASE_TAG}' in (
+        release_step
+    )
+    assert 'tag_sha="$(jq -r \'.object.sha // ""\' <<< "$release_ref_json")"' in (
+        release_step
+    )
+    assert (
+        'tag_type="$(jq -r \'.object.type // ""\' <<< "$release_ref_json")"'
+        in release_step
+    )
+    tag_guard = (
+        'if [ "$tag_type" != "commit" ] || '
+        '[ "$tag_sha" != "$GITHUB_SHA" ]; then'
+    )
+    assert tag_guard in release_step
+    assert "GB10 release tag must point at the workflow commit" in release_step
+    assert 'gh release create "$GB10_RELEASE_TAG" --target "$GITHUB_SHA"' in (
+        release_step
+    )
 
     asset_lister = (
         REPO_ROOT / "scripts" / "gb10-list-vllm-release-assets.py"
