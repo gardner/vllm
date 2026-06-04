@@ -87,6 +87,53 @@ logger = init_logger(__name__)
 trtllm_gen_workspace_buffer = None
 
 
+def _is_sm12x_device() -> bool:
+    capability = current_platform.get_device_capability()
+    return capability is not None and capability.major == 12
+
+
+def _can_use_flashinfer_trtllm_attention(
+    num_qo_heads: int,
+    num_kv_heads: int,
+) -> bool:
+    # GB10 / SM12x does not have validated FlashInfer TRTLLM Gen attention
+    # artifacts. Keep this backend boundary aligned with the GB10 support
+    # matrix even if a lower-level helper or package starts reporting support.
+    if _is_sm12x_device():
+        return False
+    return can_use_trtllm_attention(num_qo_heads, num_kv_heads)
+
+
+def _use_flashinfer_trtllm_attention(
+    num_qo_heads: int,
+    num_kv_heads: int,
+    num_tokens: int,
+    max_seq_len: int,
+    dcp_world_size: int,
+    kv_cache_dtype: str,
+    q_dtype: torch.dtype,
+    is_prefill: bool,
+    force_use_trtllm: bool | None,
+    has_sinks: bool,
+    has_spec: bool,
+) -> bool:
+    if _is_sm12x_device():
+        return False
+    return use_trtllm_attention(
+        num_qo_heads,
+        num_kv_heads,
+        num_tokens,
+        max_seq_len,
+        dcp_world_size,
+        kv_cache_dtype,
+        q_dtype,
+        is_prefill=is_prefill,
+        force_use_trtllm=force_use_trtllm,
+        has_sinks=has_sinks,
+        has_spec=has_spec,
+    )
+
+
 def _get_trtllm_gen_workspace_buffer():
     global trtllm_gen_workspace_buffer
     if trtllm_gen_workspace_buffer is None:
@@ -418,6 +465,9 @@ class FlashInferBackend(AttentionBackend):
             supports_trtllm_attention,
         )
 
+        if _is_sm12x_device():
+            return False
+
         # Respect explicit disable flag (e.g.,
         # --attention-config.use_trtllm_attention=0)
         if force_use_trtllm_attention() is False:
@@ -640,7 +690,9 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
         # --attention-config.disable_flashinfer_q_quantization is set to 1. Otherwise,
         # try to use fp8 q if kv cache is fp8, and will fall back to model dtype
         # if TRTLLM attention kernel is not used when building attn metadata
-        can_use_trtllm = can_use_trtllm_attention(self.num_qo_heads, self.num_kv_heads)
+        can_use_trtllm = _can_use_flashinfer_trtllm_attention(
+            self.num_qo_heads, self.num_kv_heads
+        )
 
         if (
             can_use_trtllm
@@ -714,9 +766,10 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
 
         This depends on whether we can use TRTLLM attention for decodes, since we can
         only do UNIFORM_SINGLE_TOKEN_DECODE if it is unavailable.
-        To check this, we must call can_use_trtllm_attention with the number of KV
-        heads from the kv_cache_spec. We check all available KV cache specs and
-        only return UNIFORM_BATCH if all of them support TRTLLM attention.
+        To check this, we must call the FlashInfer backend's TRTLLM attention
+        guard with the number of KV heads from the kv_cache_spec. We check all
+        available KV cache specs and only return UNIFORM_BATCH if all of them
+        support TRTLLM attention.
         """
         # For UniformTypeKVCacheSpecs, check all contained specs
         kv_specs = (
@@ -733,7 +786,7 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
                 # FlashInfer only applies to attention, so we don't consider other types
                 # of KV spec (e.g. Mamba) here. This is mostly for type checking.
                 continue
-            if not can_use_trtllm_attention(
+            if not _can_use_flashinfer_trtllm_attention(
                 num_qo_heads=num_qo_heads,
                 num_kv_heads=spec.num_kv_heads,
             ):
@@ -761,13 +814,17 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
     def _get_flashinfer_wrapper_backend(self) -> str:
         if not self.is_kvcache_nvfp4:
             return "auto"
-        if can_use_trtllm_attention(self.num_qo_heads, self.num_kv_heads):
+        if _is_sm12x_device():
+            logger.info_once(
+                "Using FlashInfer FA2 attention backend for NVFP4 KV cache because "
+                "TRTLLM Gen attention is not supported on GB10/SM12x."
+            )
+            return "fa2"
+        if _can_use_flashinfer_trtllm_attention(self.num_qo_heads, self.num_kv_heads):
             logger.info_once(
                 "Using FlashInfer TRTLLM Gen attention backend for NVFP4 KV cache."
             )
             return "trtllm-gen"
-        # GB10 / SM12x does not have TRTLLM Gen FMHA artifacts. FlashInfer's
-        # native FA2 path covers NVFP4 KV cache there.
         logger.info_once(
             "Using FlashInfer FA2 attention backend for NVFP4 KV cache because "
             "TRTLLM Gen attention is unavailable for num_qo_heads=%s, "
@@ -927,7 +984,7 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
         # - Decode (FI native or TRTLLM)
         use_cascade = common_prefix_len > 0
         uses_spec_reorder = self.reorder_batch_threshold > 1
-        prefill_use_trtllm = use_trtllm_attention(
+        prefill_use_trtllm = _use_flashinfer_trtllm_attention(
             self.num_qo_heads,
             self.num_kv_heads,
             num_prefill_tokens,
@@ -1329,7 +1386,9 @@ class FlashInferImpl(AttentionImpl):
                 )
             self.sinks = sinks
 
-        self.support_trtllm_attn = can_use_trtllm_attention(num_heads, num_kv_heads)
+        self.support_trtllm_attn = _can_use_flashinfer_trtllm_attention(
+            num_heads, num_kv_heads
+        )
         vllm_config = get_current_vllm_config_or_none()
         self.supports_quant_query_input = (
             self.support_trtllm_attn

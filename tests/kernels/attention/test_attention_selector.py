@@ -17,7 +17,7 @@ from vllm.config import (
 from vllm.platforms import current_platform
 from vllm.platforms.cpu import CpuPlatform
 from vllm.platforms.interface import DeviceCapability
-from vllm.v1.attention.backend import AttentionType
+from vllm.v1.attention.backend import AttentionCGSupport, AttentionType
 
 # CudaPlatform and RocmPlatform import their respective compiled C extensions
 # at module level, raising ModuleNotFoundError on incompatible builds.
@@ -33,6 +33,7 @@ except (ImportError, ModuleNotFoundError):
 
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 from vllm.v1.attention.selector import _cached_get_attn_backend, get_attn_backend
+from vllm.v1.kv_cache_interface import FullAttentionSpec
 
 
 @pytest.fixture(autouse=True)
@@ -228,6 +229,8 @@ def test_backend_selection(
                     expected = "FLASHINFER"
                     assert backend.get_name() == expected
                 elif name == "FLASH_ATTN":
+                    if capability[0] == 12:
+                        pytest.skip("FlashAttention is not supported on GB10/SM12x")
                     backend = get_attn_backend(32, torch.float16, None, use_mla=use_mla)
                     expected = "FLASH_ATTN"
                     assert backend.get_name() == expected
@@ -345,6 +348,7 @@ def test_flash_attn_backend_rejects_gb10_sm12x():
 
 def test_flashinfer_nvfp4_wrapper_backend_uses_fa2_without_trtllm(monkeypatch):
     try:
+        import vllm.v1.attention.backends.flashinfer as flashinfer_backend
         from vllm.v1.attention.backends.flashinfer import FlashInferMetadataBuilder
     except ImportError:
         pytest.skip("FlashInfer backend not available")
@@ -356,12 +360,19 @@ def test_flashinfer_nvfp4_wrapper_backend_uses_fa2_without_trtllm(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "vllm.v1.attention.backends.flashinfer.can_use_trtllm_attention",
+        flashinfer_backend.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(10, 0),
+    )
+    monkeypatch.setattr(
+        flashinfer_backend,
+        "can_use_trtllm_attention",
         lambda *_args, **_kwargs: False,
     )
     info_messages = []
     monkeypatch.setattr(
-        "vllm.v1.attention.backends.flashinfer.logger.info_once",
+        flashinfer_backend.logger,
+        "info_once",
         lambda message, *args, **_kwargs: info_messages.append(message % args),
     )
 
@@ -370,6 +381,147 @@ def test_flashinfer_nvfp4_wrapper_backend_uses_fa2_without_trtllm(monkeypatch):
         "Using FlashInfer FA2 attention backend for NVFP4 KV cache because "
         "TRTLLM Gen attention is unavailable for num_qo_heads=8, num_kv_heads=1."
     ]
+
+
+def test_flashinfer_nvfp4_wrapper_backend_uses_fa2_on_gb10(monkeypatch):
+    try:
+        import vllm.v1.attention.backends.flashinfer as flashinfer_backend
+        from vllm.v1.attention.backends.flashinfer import FlashInferMetadataBuilder
+    except ImportError:
+        pytest.skip("FlashInfer backend not available")
+
+    builder = SimpleNamespace(
+        is_kvcache_nvfp4=True,
+        num_qo_heads=64,
+        num_kv_heads=8,
+    )
+
+    monkeypatch.setattr(
+        flashinfer_backend.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(12, 1),
+    )
+    monkeypatch.setattr(
+        flashinfer_backend,
+        "can_use_trtllm_attention",
+        lambda *_args, **_kwargs: True,
+    )
+    info_messages = []
+    monkeypatch.setattr(
+        flashinfer_backend.logger,
+        "info_once",
+        lambda message, *args, **_kwargs: info_messages.append(message % args),
+    )
+
+    assert FlashInferMetadataBuilder._get_flashinfer_wrapper_backend(builder) == "fa2"
+    assert info_messages == [
+        "Using FlashInfer FA2 attention backend for NVFP4 KV cache because "
+        "TRTLLM Gen attention is not supported on GB10/SM12x."
+    ]
+
+
+def test_flashinfer_cudagraph_support_disables_trtllm_on_gb10(monkeypatch):
+    try:
+        import vllm.v1.attention.backends.flashinfer as flashinfer_backend
+        from vllm.v1.attention.backends.flashinfer import FlashInferMetadataBuilder
+    except ImportError:
+        pytest.skip("FlashInfer backend not available")
+
+    vllm_config = SimpleNamespace(
+        model_config=SimpleNamespace(
+            get_num_attention_heads=lambda _parallel_config: 64,
+        ),
+        parallel_config=SimpleNamespace(),
+    )
+    kv_cache_spec = FullAttentionSpec(
+        block_size=16,
+        num_kv_heads=8,
+        head_size=128,
+        dtype=torch.float16,
+    )
+
+    monkeypatch.setattr(
+        flashinfer_backend.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(12, 1),
+    )
+    monkeypatch.setattr(
+        flashinfer_backend,
+        "can_use_trtllm_attention",
+        lambda *_args, **_kwargs: True,
+    )
+
+    assert (
+        FlashInferMetadataBuilder.get_cudagraph_support(vllm_config, kv_cache_spec)
+        == AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE
+    )
+
+
+def test_flashinfer_impl_disables_trtllm_attention_on_gb10(monkeypatch):
+    try:
+        import vllm.v1.attention.backends.flashinfer as flashinfer_backend
+        from vllm.v1.attention.backends.flashinfer import FlashInferImpl
+    except ImportError:
+        pytest.skip("FlashInfer backend not available")
+
+    monkeypatch.setattr(
+        flashinfer_backend.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(12, 1),
+    )
+    monkeypatch.setattr(
+        flashinfer_backend,
+        "can_use_trtllm_attention",
+        lambda *_args, **_kwargs: True,
+    )
+
+    impl = FlashInferImpl(
+        num_heads=64,
+        head_size=128,
+        scale=1.0,
+        num_kv_heads=8,
+        alibi_slopes=None,
+        sliding_window=None,
+        kv_cache_dtype="nvfp4",
+    )
+
+    assert impl.is_kvcache_nvfp4
+    assert impl.support_trtllm_attn is False
+
+
+def test_flashinfer_trtllm_prefill_planning_disabled_on_gb10(monkeypatch):
+    try:
+        import vllm.v1.attention.backends.flashinfer as flashinfer_backend
+    except ImportError:
+        pytest.skip("FlashInfer backend not available")
+
+    monkeypatch.setattr(
+        flashinfer_backend.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(12, 1),
+    )
+    monkeypatch.setattr(
+        flashinfer_backend,
+        "use_trtllm_attention",
+        lambda *_args, **_kwargs: True,
+    )
+
+    assert (
+        flashinfer_backend._use_flashinfer_trtllm_attention(
+            64,
+            8,
+            128,
+            4096,
+            1,
+            "nvfp4",
+            torch.float8_e4m3fn,
+            is_prefill=True,
+            force_use_trtllm=True,
+            has_sinks=False,
+            has_spec=False,
+        )
+        is False
+    )
 
 
 def test_attention_selector_logs_backend_and_kv_cache_dtype(monkeypatch):
@@ -572,6 +724,17 @@ def test_non_causal_backend_selection(
         set_current_vllm_config(vllm_config),
         patch("vllm.platforms.current_platform", CudaPlatform()),
     ):
+        capability = torch.cuda.get_device_capability()
+        if backend_name == "FLASH_ATTN" and capability[0] == 12:
+            with pytest.raises(ValueError) as exc_info:
+                get_attn_backend(
+                    head_size=128,
+                    dtype=torch.float16,
+                    kv_cache_dtype=None,
+                )
+            assert "compute capability not supported" in str(exc_info.value)
+            return
+
         if should_succeed:
             backend = get_attn_backend(
                 head_size=128,
