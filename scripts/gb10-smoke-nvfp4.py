@@ -17,11 +17,17 @@ import json
 import os
 import sys
 from collections.abc import Iterable, Sequence
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
 DEFAULT_PROMPT = "NVIDIA DGX Spark native NVFP4 support means"
 DEFAULT_REQUIRED_PATHS = ("linear",)
+FLASHINFER_RUNTIME_DISTRIBUTIONS = (
+    "flashinfer-python",
+    "flashinfer-cubin",
+    "flashinfer-jit-cache",
+)
 
 
 def _parse_backend_expectation(value: str) -> tuple[str, str]:
@@ -177,6 +183,20 @@ def _events_to_dicts(events: Sequence[Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _collect_distribution_versions(
+    distribution_names: Sequence[str],
+) -> dict[str, str | None]:
+    versions = {}
+    for distribution_name in distribution_names:
+        try:
+            versions[distribution_name] = importlib_metadata.version(
+                distribution_name
+            )
+        except importlib_metadata.PackageNotFoundError:
+            versions[distribution_name] = None
+    return versions
+
+
 def _collect_runtime_metadata() -> dict[str, Any]:
     import torch
 
@@ -187,6 +207,9 @@ def _collect_runtime_metadata() -> dict[str, Any]:
         "torch_version": torch.__version__,
         "torch_cuda_version": torch.version.cuda,
         "cuda_available": torch.cuda.is_available(),
+        "flashinfer_distributions": _collect_distribution_versions(
+            FLASHINFER_RUNTIME_DISTRIBUTIONS
+        ),
         "env": {
             "VLLM_FAIL_ON_NVFP4_FALLBACK": os.environ.get(
                 "VLLM_FAIL_ON_NVFP4_FALLBACK"

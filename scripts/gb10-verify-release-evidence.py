@@ -20,6 +20,15 @@ from pathlib import Path
 from typing import Any
 
 SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+FLASHINFER_RUNTIME_DISTRIBUTIONS = (
+    "flashinfer-python",
+    "flashinfer-cubin",
+    "flashinfer-jit-cache",
+)
+
+
+def _is_gb10_cuda13_version(value: Any) -> bool:
+    return isinstance(value, str) and "+cu13" in value and "gb10" in value
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -189,6 +198,15 @@ def _check_nvfp4_report(
     device_minor = _nested_get(report, "runtime", "device_capability", "minor")
     device_arch = _nested_get(report, "runtime", "device_capability", "arch")
     flashinfer_version = _nested_get(report, "runtime", "flashinfer_version")
+    flashinfer_distribution_versions = {
+        distribution: _nested_get(
+            report,
+            "runtime",
+            "flashinfer_distributions",
+            distribution,
+        )
+        for distribution in FLASHINFER_RUNTIME_DISTRIBUTIONS
+    }
     attention_backend_check = _nested_get(
         report,
         "gb10_release_summary",
@@ -261,14 +279,24 @@ def _check_nvfp4_report(
         ),
         _check(
             name="flashinfer_gb10_runtime_version",
-            passed=isinstance(flashinfer_version, str)
-            and "+cu13" in flashinfer_version
-            and "gb10" in flashinfer_version,
+            passed=_is_gb10_cuda13_version(flashinfer_version),
             message=(
                 "offline NVFP4 smoke imported the GB10 CUDA 13 FlashInfer "
                 "runtime package"
             ),
             details={"flashinfer_version": flashinfer_version},
+        ),
+        _check(
+            name="flashinfer_gb10_distribution_versions",
+            passed=all(
+                _is_gb10_cuda13_version(version)
+                for version in flashinfer_distribution_versions.values()
+            ),
+            message=(
+                "offline NVFP4 smoke installed the GB10 CUDA 13 FlashInfer "
+                "Python, cubin, and JIT-cache packages"
+            ),
+            details={"flashinfer_distributions": flashinfer_distribution_versions},
         ),
         _check(
             name="kv_cache_fp8_e4m3",

@@ -1467,12 +1467,43 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert '"fallback_events": _events_to_dicts(fallbacks)' in script
     assert '"device_capability"' in script
     assert '"flashinfer_version"' in script
+    assert '"flashinfer_distributions"' in script
+    assert "flashinfer-python" in script
+    assert "flashinfer-cubin" in script
+    assert "flashinfer-jit-cache" in script
     assert 'status="passed"' in script
     assert 'status="failed"' in script
     assert "except Exception as exc:" in script
     assert "linear=FlashInferB12x" in script
     assert "moe=FLASHINFER_B12X" in script
     assert 'choices=("linear", "linear_w4a16", "moe")' in script
+
+
+def test_gb10_nvfp4_model_smoke_collects_flashinfer_distribution_versions(
+    monkeypatch,
+):
+    smoke = _load_gb10_smoke_module()
+
+    versions = {
+        "flashinfer-python": "0.6.12+cu130gb10",
+        "flashinfer-cubin": "0.6.12+cu130gb10",
+        "flashinfer-jit-cache": "0.6.12+cu130gb10",
+    }
+
+    def fake_version(distribution_name):
+        if distribution_name not in versions:
+            raise smoke.importlib_metadata.PackageNotFoundError(distribution_name)
+        return versions[distribution_name]
+
+    monkeypatch.setattr(smoke.importlib_metadata, "version", fake_version)
+
+    assert smoke._collect_distribution_versions(
+        ("flashinfer-python", "flashinfer-cubin", "missing")
+    ) == {
+        "flashinfer-python": "0.6.12+cu130gb10",
+        "flashinfer-cubin": "0.6.12+cu130gb10",
+        "missing": None,
+    }
 
 
 def test_gb10_nvfp4_model_smoke_summarizes_vllm_config():
@@ -2193,6 +2224,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"openai_deterministic_generation"' in script
     assert '"gb10_device_sm121"' in script
     assert '"flashinfer_gb10_runtime_version"' in script
+    assert '"flashinfer_gb10_distribution_versions"' in script
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"quantization_modelopt_fp4"' in script
@@ -2234,6 +2266,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "arch": "sm_121",
             },
             "flashinfer_version": "0.6.12+cu130gb10",
+            "flashinfer_distributions": {
+                "flashinfer-python": "0.6.12+cu130gb10",
+                "flashinfer-cubin": "0.6.12+cu130gb10",
+                "flashinfer-jit-cache": "0.6.12+cu130gb10",
+            },
         },
         "backend_summary": {
             "capabilities": {
@@ -2391,6 +2428,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["nvfp4_fallback_free"] == "passed"
     assert check_statuses["gb10_device_sm121"] == "passed"
     assert check_statuses["flashinfer_gb10_runtime_version"] == "passed"
+    assert check_statuses["flashinfer_gb10_distribution_versions"] == "passed"
     assert check_statuses["attention_backend_flashinfer"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["openai_deterministic_generation"] == "passed"
@@ -2547,6 +2585,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "runtime": {
             **nvfp4_report["runtime"],
             "flashinfer_version": "0.6.12+cu130",
+            "flashinfer_distributions": {
+                "flashinfer-python": "0.6.12+cu130",
+                "flashinfer-cubin": "0.6.12+cu130gb10",
+                "flashinfer-jit-cache": "0.6.12+cu130gb10",
+            },
         },
     }
     generic_flashinfer_summary = verifier._build_summary(
@@ -2567,6 +2610,10 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert generic_flashinfer_summary["status"] == "failed"
     assert any(
         failure["name"] == "flashinfer_gb10_runtime_version"
+        for failure in generic_flashinfer_summary["failures"]
+    )
+    assert any(
+        failure["name"] == "flashinfer_gb10_distribution_versions"
         for failure in generic_flashinfer_summary["failures"]
     )
 
