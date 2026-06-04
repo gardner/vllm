@@ -34,6 +34,24 @@ def _is_gb10_cuda13_version(value: Any) -> bool:
     return isinstance(value, str) and "+cu13" in value and "gb10" in value
 
 
+def _is_positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_observed_model_shape(value: Any) -> bool:
+    if not isinstance(value, dict) or value.get("status") != "observed":
+        return False
+    return all(
+        _is_positive_int(value.get(field))
+        for field in (
+            "max_model_len",
+            "head_size",
+            "num_attention_heads",
+            "num_kv_heads",
+        )
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -219,6 +237,12 @@ def _check_nvfp4_report(
         "checks",
         "attention_backend",
     )
+    model_shape_check = _nested_get(
+        report,
+        "gb10_release_summary",
+        "checks",
+        "model_shape",
+    )
     quantization_check = _nested_get(
         report,
         "gb10_release_summary",
@@ -322,6 +346,12 @@ def _check_nvfp4_report(
                 "kv_cache_dtype",
             )
             or {},
+        ),
+        _check(
+            name="model_shape_reported",
+            passed=_is_observed_model_shape(model_shape_check),
+            message="offline smoke reported complete target model shape metadata",
+            details=model_shape_check if isinstance(model_shape_check, dict) else {},
         ),
         _check(
             name="attention_backend_flashinfer",

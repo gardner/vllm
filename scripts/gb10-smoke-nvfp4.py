@@ -493,6 +493,7 @@ def _build_backend_summary(
         }
 
     moe_missing_status = "not_observed" if "moe" in required_paths else "not_requested"
+    model_shape = _extract_model_shape(vllm_config_summary)
     return {
         "paths": path_summaries,
         "capabilities": {
@@ -541,8 +542,9 @@ def _build_backend_summary(
                 ),
             },
             "model_shape": {
-                "status": "smoke_passed" if status == "passed" else "smoke_failed",
+                "status": _model_shape_status(model_shape),
                 "required_paths": list(required_paths),
+                **model_shape,
             },
         },
     }
@@ -566,6 +568,45 @@ def _nested_get(mapping: dict[str, Any] | None, *keys: str) -> Any:
             return None
         value = value.get(key)
     return value
+
+
+def _is_positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _extract_model_shape(
+    vllm_config_summary: dict[str, Any] | None,
+) -> dict[str, Any]:
+    model_summary = _nested_get(vllm_config_summary, "model")
+    if not isinstance(model_summary, dict):
+        model_summary = {}
+    return {
+        "max_model_len": model_summary.get("max_model_len"),
+        "head_size": model_summary.get("head_size"),
+        "num_attention_heads": model_summary.get("num_attention_heads"),
+        "num_kv_heads": model_summary.get("num_kv_heads"),
+    }
+
+
+def _model_shape_status(shape: dict[str, Any]) -> str:
+    return (
+        "observed"
+        if all(_is_positive_int(value) for value in shape.values())
+        else "not_observed"
+    )
+
+
+def _build_model_shape_check(
+    *,
+    args: argparse.Namespace,
+    vllm_config_summary: dict[str, Any] | None,
+) -> dict[str, Any]:
+    shape = _extract_model_shape(vllm_config_summary)
+    return {
+        "status": _model_shape_status(shape),
+        "model": getattr(args, "model", None),
+        **shape,
+    }
 
 
 def _build_gb10_release_summary(
@@ -626,6 +667,10 @@ def _build_gb10_release_summary(
         "compilation",
         "cudagraph_enabled",
     )
+    model_shape_check = _build_model_shape_check(
+        args=args,
+        vllm_config_summary=vllm_config_summary,
+    )
 
     smoke_checks = {
         "model_smoke": {
@@ -653,6 +698,7 @@ def _build_gb10_release_summary(
             "expected": args.kv_cache_dtype,
             "configured": configured_cache_dtype,
         },
+        "model_shape": model_shape_check,
         "quantization": {
             "status": quantization_status,
             "expected": expected_quantization,
@@ -690,6 +736,8 @@ def _build_gb10_release_summary(
         smoke_blockers.append("NVFP4 fallback events or selections were observed")
     if smoke_checks["kv_cache_dtype"]["status"] != "passed":
         smoke_blockers.append("configured KV cache dtype did not match smoke request")
+    if smoke_checks["model_shape"]["status"] != "observed":
+        smoke_blockers.append("model shape metadata was not observed")
     if (
         expected_quantization is not None
         and smoke_checks["quantization"]["status"] != "passed"

@@ -2986,6 +2986,10 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
     )
     vllm_config_summary = {
         "model": {
+            "max_model_len": 4096,
+            "head_size": 128,
+            "num_attention_heads": 32,
+            "num_kv_heads": 8,
             "quantization": "modelopt_fp4",
         },
         "attention": {
@@ -3020,6 +3024,14 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
         "status": "passed",
         "expected": "fp8_e4m3",
         "configured": "fp8_e4m3",
+    }
+    assert release_summary["checks"]["model_shape"] == {
+        "status": "observed",
+        "model": "gb10-model",
+        "max_model_len": 4096,
+        "head_size": 128,
+        "num_attention_heads": 32,
+        "num_kv_heads": 8,
     }
     assert release_summary["checks"]["attention_backend"] == {
         "status": "passed",
@@ -3056,6 +3068,26 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
     assert "OpenAI-compatible server smoke" in release_summary[
         "remaining_release_evidence"
     ]
+
+    missing_shape_summary = copy.deepcopy(vllm_config_summary)
+    missing_shape_summary["model"].pop("head_size")
+    missing_shape_report = smoke._build_report(
+        args=args,
+        required_paths=("linear", "moe"),
+        selections=selections,
+        fallbacks=(),
+        outputs=(),
+        status="passed",
+        vllm_config_summary=missing_shape_summary,
+    )
+    assert (
+        missing_shape_report["gb10_release_summary"]["first_path_smoke_passed"]
+        is False
+    )
+    assert (
+        "model shape metadata was not observed"
+        in missing_shape_report["gb10_release_summary"]["smoke_blockers"]
+    )
 
 
 def test_gb10_image_smoke_wraps_nvfp4_model_harness():
@@ -3903,6 +3935,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"attention_backend_allowed_by_support_matrix"' in script
+    assert '"model_shape_reported"' in script
     assert '"quantization_modelopt_fp4"' in script
     assert '"quantization_allowed_by_support_matrix"' in script
     assert '"nvfp4_backend_selections_allowed_by_support_matrix"' in script
@@ -3996,6 +4029,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
             },
             "checks": {
+                "model_shape": {
+                    "status": "observed",
+                    "model": "gb10-model",
+                    "max_model_len": 4096,
+                    "head_size": 128,
+                    "num_attention_heads": 32,
+                    "num_kv_heads": 8,
+                },
                 "kv_cache_dtype": {
                     "status": "passed",
                     "expected": "fp8_e4m3",
@@ -4163,6 +4204,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["gb10_device_sm121"] == "passed"
     assert check_statuses["flashinfer_gb10_runtime_version"] == "passed"
     assert check_statuses["flashinfer_gb10_distribution_versions"] == "passed"
+    assert check_statuses["model_shape_reported"] == "passed"
+    assert checks_by_name["model_shape_reported"]["details"] == {
+        "status": "observed",
+        "model": "gb10-model",
+        "max_model_len": 4096,
+        "head_size": 128,
+        "num_attention_heads": 32,
+        "num_kv_heads": 8,
+    }
     assert check_statuses["attention_backend_flashinfer"] == "passed"
     assert check_statuses["attention_backend_allowed_by_support_matrix"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
@@ -4284,6 +4334,28 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "deferred_paths_reported"
         for failure in missing_deferred_paths_summary["failures"]
+    )
+
+    missing_model_shape_report = copy.deepcopy(nvfp4_report)
+    del missing_model_shape_report["gb10_release_summary"]["checks"]["model_shape"]
+    missing_model_shape_summary = verifier._build_summary(
+        nvfp4_report=missing_model_shape_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+    assert missing_model_shape_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "model_shape_reported"
+        for failure in missing_model_shape_summary["failures"]
     )
 
     nvfp4_report["fallback_events"] = [
