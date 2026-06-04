@@ -669,10 +669,7 @@ def test_gb10_release_workflows_cancel_superseded_runs():
     assert "cancel-in-progress: true" in release_workflow
 
     assert "concurrency:" in smoke_workflow
-    assert (
-        "group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs['image-ref'] }}"
-        in smoke_workflow
-    )
+    assert "group: ${{ github.workflow }}-${{ github.ref }}" in smoke_workflow
     assert "cancel-in-progress: true" in smoke_workflow
 
 
