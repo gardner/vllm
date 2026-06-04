@@ -654,6 +654,7 @@ def test_gb10_build_heartbeat_wrapper_logs_and_preserves_exit_status():
     assert proc.returncode == 7
     assert "GB10 test build starting" in proc.stdout
     assert "GB10 test build still running" in proc.stdout
+    assert proc.stdout.count("GB10 test build resource snapshot") >= 2
     assert "GB10 test build failed with exit code 7" in proc.stdout
 
 

@@ -55,6 +55,7 @@ child_pid="$!"
     sleep "$heartbeat_seconds"
     if kill -0 "$child_pid" 2>/dev/null; then
       echo "GB10 ${label} still running at $(timestamp)"
+      print_resource_snapshot
     else
       exit 0
     fi
