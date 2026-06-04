@@ -3397,6 +3397,102 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert orchestrator_evidence_files == bundler.EXPECTED_EVIDENCE_FILES
 
 
+def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
+    script = REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh"
+    bundle_name = "guard-evidence"
+    image_ref = "ghcr.io/gardner/vllm-gb10:gb10-test"
+    release_tag = "gb10-test-release"
+    fake_bin = tmp_path / "bin"
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "evidence"
+    fake_bin.mkdir()
+    fake_docker = fake_bin / "docker"
+    fake_docker.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "if [ \"${1:-}\" = ps ]; then\n"
+        "  printf '%s\\n' "
+        "'abc123 running-vllm vllm/vllm-openai:nightly \"vllm serve\"'\n"
+        "  exit 0\n"
+        "fi\n"
+        "echo \"unexpected docker invocation: $*\" >&2\n"
+        "exit 64\n"
+    )
+    fake_docker.chmod(0o755)
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "GB10_RELEASE_SMOKE_REPORT_DIR": str(report_dir),
+            "GB10_RELEASE_EVIDENCE_OUTPUT_DIR": str(output_dir),
+            "GB10_RELEASE_EVIDENCE_BUNDLE_NAME": bundle_name,
+            "GB10_RELEASE_TAG": release_tag,
+            "GB10_NVFP4_MODEL": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+        }
+    )
+
+    proc = subprocess.run(
+        [
+            str(script),
+            image_ref,
+            "--serve",
+            "nvidia/Qwen3.6-35B-A3B-NVFP4",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1
+    assert "GB10 final-image smoke refused to start" in proc.stderr
+    assert "unexpected docker invocation" not in proc.stderr
+
+    evidence_report = report_dir / "gb10-release-evidence-image.json"
+    metadata_path = output_dir / "release-evidence-metadata.json"
+    checksum_path = output_dir / "SHA256SUMS"
+    archive_path = output_dir / f"{bundle_name}.tar.gz"
+    archive_checksum_path = output_dir / f"{bundle_name}.tar.gz.sha256"
+    for path in (
+        evidence_report,
+        metadata_path,
+        checksum_path,
+        archive_path,
+        archive_checksum_path,
+    ):
+        assert path.is_file(), path
+
+    evidence = json.loads(evidence_report.read_text())
+    assert evidence["status"] == "failed"
+    assert evidence["phase"] == "pre_smoke_resource_guard"
+    assert evidence["image_ref"] == image_ref
+    assert evidence["release_tag"] == release_tag
+    assert evidence["allow_override_env"] == (
+        "GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS=1"
+    )
+
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["status"] == "partial"
+    assert metadata["source"]["image_ref"] == image_ref
+    assert metadata["source"]["release_tag"] == release_tag
+    assert metadata["release_gate_summary"] == {
+        "present": True,
+        "status": "failed",
+        "release_gate_passed": None,
+        "failure_count": None,
+    }
+    assert sorted(metadata["missing_reports"]) == [
+        "gb10-nvfp4-smoke.json",
+        "gb10-openai-server-smoke-image.json",
+    ]
+    assert sorted(metadata["missing_evidence_files"]) == [
+        "gb10-nvfp4-smoke.json",
+        "gb10-openai-server-smoke-image.json",
+        "gb10-smoked-image-digest.txt",
+    ]
+
+
 def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     script = (REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py").read_text()
     bundler = _load_gb10_release_bundle_module()

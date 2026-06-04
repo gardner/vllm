@@ -194,6 +194,33 @@ openai_report="${release_evidence_files[1]}"
 evidence_report="${release_evidence_files[2]}"
 smoked_image_digest_report="${release_evidence_files[3]}"
 
+bundle_available_release_evidence() {
+    local bundle_status=0
+    local -a partial_bundle_args=(
+        --gb10-report-dir "$report_dir"
+        --gb10-image-ref "$image"
+        --gb10-allow-partial
+    )
+    if [ -n "${GB10_RELEASE_TAG:-}" ]; then
+        partial_bundle_args+=(--gb10-release-tag "$GB10_RELEASE_TAG")
+    fi
+    if [ -n "${GB10_RELEASE_MANIFEST_JSON:-}" ]; then
+        partial_bundle_args+=(--gb10-release-manifest-json "$GB10_RELEASE_MANIFEST_JSON")
+    fi
+    if [ -n "${GB10_RUNTIME_IMAGE_METADATA_JSON:-}" ]; then
+        partial_bundle_args+=(--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON")
+    fi
+
+    echo "Bundling available GB10 release evidence reports..." >&2
+    "$bundler" "${partial_bundle_args[@]}" >&2 || bundle_status=$?
+    if [ "$bundle_status" -eq 0 ]; then
+        echo "GB10 release evidence assets:" >&2
+        "$asset_lister" >&2 || true
+    else
+        echo "GB10 release evidence bundling failed with status $bundle_status." >&2
+    fi
+}
+
 if [ "${GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS:-0}" != "1" ] \
     && command -v docker >/dev/null 2>&1; then
     existing_vllm_containers="$(
@@ -229,6 +256,7 @@ with open(path, "w", encoding="utf-8") as stream:
     json.dump(report, stream, indent=2, sort_keys=True)
     stream.write("\n")
 PY
+        bundle_available_release_evidence
         echo "GB10 final-image smoke refused to start while an existing vLLM Docker container is running:" >&2
         printf '%s\n' "$existing_vllm_containers" >&2
         echo "Stop the existing service first, or set GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS=1 for an intentionally isolated runner." >&2
