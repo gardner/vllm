@@ -183,6 +183,11 @@ def _check_nvfp4_report(
         "status",
     )
     release_summary = report.get("gb10_release_summary")
+    runtime = report.get("runtime")
+    device_capability = _nested_get(report, "runtime", "device_capability")
+    device_major = _nested_get(report, "runtime", "device_capability", "major")
+    device_minor = _nested_get(report, "runtime", "device_capability", "minor")
+    device_arch = _nested_get(report, "runtime", "device_capability", "arch")
     attention_backend_check = _nested_get(
         report,
         "gb10_release_summary",
@@ -237,6 +242,20 @@ def _check_nvfp4_report(
                 )
                 if isinstance(backend_selections, list)
                 else None,
+            },
+        ),
+        _check(
+            name="gb10_device_sm121",
+            passed=_nested_get(report, "runtime", "cuda_available") is True
+            and device_major == 12
+            and device_minor == 1
+            and device_arch == "sm_121",
+            message="offline NVFP4 smoke ran on GB10 / SM121",
+            details={
+                "runtime": runtime if isinstance(runtime, dict) else {},
+                "device_capability": device_capability
+                if isinstance(device_capability, dict)
+                else {},
             },
         ),
         _check(

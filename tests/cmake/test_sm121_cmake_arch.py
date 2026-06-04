@@ -2191,6 +2191,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"native_nvfp4_gemm_observed"' in script
     assert '"native_nvfp4_moe_non_ep_observed"' in script
     assert '"openai_deterministic_generation"' in script
+    assert '"gb10_device_sm121"' in script
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"quantization_modelopt_fp4"' in script
@@ -2223,6 +2224,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             },
         ],
         "fallback_events": [],
+        "runtime": {
+            "cuda_available": True,
+            "device_name": "NVIDIA GB10",
+            "device_capability": {
+                "major": 12,
+                "minor": 1,
+                "arch": "sm_121",
+            },
+        },
         "backend_summary": {
             "capabilities": {
                 "native_nvfp4_gemm": {"status": "observed"},
@@ -2377,6 +2387,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["native_nvfp4_gemm_observed"] == "passed"
     assert check_statuses["native_nvfp4_moe_non_ep_observed"] == "passed"
     assert check_statuses["nvfp4_fallback_free"] == "passed"
+    assert check_statuses["gb10_device_sm121"] == "passed"
     assert check_statuses["attention_backend_flashinfer"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["openai_deterministic_generation"] == "passed"
@@ -2491,6 +2502,40 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "quantization_modelopt_fp4"
         for failure in quantization_failed_summary["failures"]
+    )
+
+    wrong_device_report = {
+        **nvfp4_report,
+        "fallback_events": [],
+        "runtime": {
+            "cuda_available": True,
+            "device_name": "NVIDIA H100",
+            "device_capability": {
+                "major": 9,
+                "minor": 0,
+                "arch": "sm_90",
+            },
+        },
+    }
+    wrong_device_summary = verifier._build_summary(
+        nvfp4_report=wrong_device_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert wrong_device_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "gb10_device_sm121"
+        for failure in wrong_device_summary["failures"]
     )
 
     release_manifest["dependencies"]["flashinfer"][
