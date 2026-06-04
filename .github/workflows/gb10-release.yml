@@ -143,6 +143,7 @@ jobs:
         run: |
           mkdir -p "$GB10_RELEASE_MANIFEST_DIR"
           scripts/gb10-write-release-manifest.py \
+            --gb10-validate-release-inputs \
             --gb10-output-json "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
           cat "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
 

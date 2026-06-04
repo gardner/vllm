@@ -217,6 +217,84 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
     }
 
 
+def _mapping_value(value: object, key: str) -> object:
+    if not isinstance(value, Mapping):
+        return None
+    return value.get(key)
+
+
+def _github_release_url(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == "github.com"
+        and _github_release_tag(value) is not None
+    )
+
+
+def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
+    """Return release-input validation errors for a GB10 manifest."""
+
+    errors: list[str] = []
+    git_commit = _mapping_value(_mapping_value(manifest, "git"), "commit")
+    if not isinstance(git_commit, str) or not _is_full_git_sha(git_commit):
+        errors.append("vLLM release manifest git.commit must be a full Git SHA.")
+
+    dependencies = _mapping_value(manifest, "dependencies")
+    flashinfer = _mapping_value(dependencies, "flashinfer")
+    if _mapping_value(flashinfer, "all_required_components_present") is not True:
+        errors.append(
+            "FlashInfer release manifest must include all required GB10 wheels."
+        )
+
+    wheels = _mapping_value(flashinfer, "wheels")
+    if isinstance(wheels, list):
+        for wheel in wheels:
+            component = _mapping_value(wheel, "component")
+            url = _mapping_value(wheel, "url")
+            if _mapping_value(wheel, "release_tag") is None or not _github_release_url(
+                url
+            ):
+                errors.append(
+                    f"FlashInfer wheel must come from a GitHub Release: "
+                    f"{component or url}."
+                )
+    else:
+        errors.append("FlashInfer release manifest must list GB10 wheel URLs.")
+
+    flash_attn = _mapping_value(dependencies, "vllm_flash_attn")
+    if _mapping_value(flash_attn, "ref_is_full_git_sha") is not True:
+        errors.append("vLLM flash-attn ref must be a full Git SHA.")
+
+    source_dependencies = _mapping_value(dependencies, "source_dependencies")
+    if isinstance(source_dependencies, Mapping):
+        for dependency in source_dependencies.values():
+            name = _mapping_value(dependency, "name") or "source dependency"
+            if _mapping_value(dependency, "ref_is_full_git_sha") is not True:
+                errors.append(f"{name} ref must be a full Git SHA.")
+    else:
+        errors.append("GB10 release manifest must list pinned source dependencies.")
+
+    build = _mapping_value(manifest, "build")
+    if _mapping_value(build, "local_gb10_dependency_checkouts") is True:
+        errors.append(
+            "GB10 local dependency checkouts are not allowed for release builds."
+        )
+
+    release = _mapping_value(manifest, "release")
+    image = _mapping_value(manifest, "image")
+    if (
+        _mapping_value(release, "tag")
+        and _mapping_value(release, "preflight_only") is not True
+        and _mapping_value(image, "push") is not True
+    ):
+        errors.append("GB10 tagged full release requires image.push=true.")
+
+    return errors
+
+
 def write_manifest(
     output_path: str | Path,
     env: Mapping[str, str] | None = None,
@@ -240,13 +318,31 @@ def parse_args() -> argparse.Namespace:
         ),
         help="Output path for the GB10 release manifest JSON.",
     )
+    parser.add_argument(
+        "--gb10-validate-release-inputs",
+        action="store_true",
+        help=(
+            "Validate durable GB10 release inputs after writing the manifest. "
+            "Fails on local dependency checkouts, non-SHA refs, missing "
+            "FlashInfer release wheels, or tagged full releases without an "
+            "image push."
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    write_manifest(args.gb10_output_json)
+    manifest = write_manifest(args.gb10_output_json)
     print(f"GB10 release manifest written to {args.gb10_output_json}")
+    if args.gb10_validate_release_inputs:
+        errors = validate_manifest(manifest)
+        if errors:
+            print("GB10 release manifest validation failed:")
+            for error in errors:
+                print(f"- {error}")
+            raise SystemExit(1)
+        print("GB10 release manifest validation passed.")
 
 
 if __name__ == "__main__":

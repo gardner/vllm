@@ -1,3 +1,4 @@
+import copy
 import importlib.util
 import json
 import re
@@ -449,6 +450,7 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "${{ github.workspace }}/gb10-release-manifest" not in gb10_workflow
     assert "Write GB10 release manifest" in gb10_workflow
     assert "scripts/gb10-write-release-manifest.py" in gb10_workflow
+    assert "--gb10-validate-release-inputs" in gb10_workflow
     assert "gb10-release-manifest.json" in gb10_workflow
     assert "buildx-runtime-image-metadata.json" in gb10_workflow
     assert "gb10-runtime-image-ref.txt" in gb10_workflow
@@ -597,6 +599,55 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "ref": TRITON_KERNELS_GIT_TAG,
         "ref_is_full_git_sha": True,
     }
+
+
+def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
+    manifest = _load_gb10_release_manifest_module()
+    env = {
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GB10_RELEASE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_IMAGE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
+        "GB10_PREBUILT_WHEEL_URLS": " ".join(
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+            for wheel in FLASHINFER_RELEASE_WHEELS
+        ),
+        "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
+        "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_PUSH_IMAGE": "true",
+        "GB10_PREFLIGHT_ONLY": "false",
+        "VLLM_USE_LOCAL_GB10_DEPS": "0",
+    }
+
+    good_manifest = manifest.write_manifest(
+        tmp_path / "gb10-release-manifest.json",
+        env=env,
+    )
+    assert manifest.validate_manifest(good_manifest) == []
+
+    bad_manifest = copy.deepcopy(good_manifest)
+    bad_manifest["dependencies"]["vllm_flash_attn"]["ref"] = "main"
+    bad_manifest["dependencies"]["vllm_flash_attn"]["ref_is_full_git_sha"] = False
+    bad_manifest["dependencies"]["source_dependencies"]["flashmla"][
+        "ref_is_full_git_sha"
+    ] = False
+    bad_manifest["build"]["local_gb10_dependency_checkouts"] = True
+    bad_manifest["dependencies"]["flashinfer"]["wheels"][0]["release_tag"] = None
+    bad_manifest["image"]["push"] = False
+
+    errors = manifest.validate_manifest(bad_manifest)
+
+    assert any("vLLM flash-attn ref must be a full Git SHA" in err for err in errors)
+    assert any("FlashMLA ref must be a full Git SHA" in err for err in errors)
+    assert any(
+        "GB10 local dependency checkouts are not allowed" in err for err in errors
+    )
+    assert any(
+        "FlashInfer wheel must come from a GitHub Release" in err for err in errors
+    )
+    assert any("tagged full release requires image.push=true" in err for err in errors)
 
 
 def test_gb10_image_smoke_workflow_publishes_durable_evidence():
