@@ -110,6 +110,35 @@ def test_sm12x_forced_unvalidated_flashinfer_nvfp4_dense_backends_fail_fast(
         linear_kernels.init_nvfp4_linear_kernel()
 
 
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "flashinfer_trtllm",
+        "flashinfer_cudnn",
+    ],
+)
+def test_sm12x_linear_backend_unvalidated_flashinfer_nvfp4_dense_fails_fast(
+    monkeypatch,
+    backend: str,
+) -> None:
+    monkeypatch.setattr(
+        flashinfer_nvfp4,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(linear_kernels, "_get_linear_backend", lambda: backend)
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.delenv("VLLM_NVFP4_GEMM_BACKEND", raising=False)
+
+    with pytest.raises(ValueError, match="GB10/SM12x"):
+        linear_kernels.init_nvfp4_linear_kernel()
+
+
 def test_scaled_fp4_quant_b12x_uses_flashinfer_128x4_quantizer(
     monkeypatch,
 ) -> None:
