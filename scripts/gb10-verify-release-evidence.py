@@ -664,7 +664,11 @@ def _support_matrix_entry_for_selection(selection: Any) -> str | None:
     path = selection.get("path")
     backend = selection.get("backend")
     path_name = str(path).lower() if path is not None else ""
-    backend_name = str(backend).replace("-", "_").upper() if backend is not None else ""
+    backend_name = (
+        str(backend).replace("-", "_").replace(" ", "_").upper()
+        if backend is not None
+        else ""
+    )
 
     if "MARLIN" in backend_name or "EMULATION" in backend_name:
         return "marlin_nvfp4_fallback"
@@ -680,6 +684,9 @@ def _support_matrix_entry_for_selection(selection: Any) -> str | None:
 
     if path_name == "moe" and "FLASHINFER_B12X" in backend_name:
         return "flashinfer_b12x_non_ep_moe"
+
+    if path_name == "moe" and "FLASHINFER_CUTLASS" in backend_name:
+        return "flashinfer_cutlass_non_ep_moe"
 
     return None
 

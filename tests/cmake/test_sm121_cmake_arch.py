@@ -56,6 +56,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "modelopt_fp4_quantization": "supported_native",
     "flashinfer_attention_fa2": "supported_native",
     "flashinfer_b12x_non_ep_moe": "supported_native",
+    "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
     "public_flashattention_runtime": "not_supported",
     "trtllm_gen_attention": "not_supported",
@@ -1824,6 +1825,18 @@ def test_gb10_required_support_matrix_contract_is_shared():
         == smoke.GB10_NOT_SUPPORTED_PATH_REASONS
     )
     assert verifier.GB10_DEFERRED_PATH_REASONS == smoke.GB10_DEFERRED_PATH_REASONS
+
+
+def test_gb10_release_evidence_classifies_flashinfer_cutlass_moe_selection():
+    verifier = _load_gb10_release_evidence_module()
+
+    assert verifier._support_matrix_entry_for_selection(
+        {
+            "path": "moe",
+            "backend": "FLASHINFER_CUTLASS",
+            "is_fallback": False,
+        }
+    ) == "flashinfer_cutlass_non_ep_moe"
 
 
 def test_gb10_release_provenance_contracts_are_shared():
@@ -4280,6 +4293,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "modelopt_fp4_quantization": {"status": "supported_native"},
                 "flashinfer_attention_fa2": {"status": "supported_native"},
                 "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
+                "flashinfer_cutlass_non_ep_moe": {"status": "supported_native"},
                 "flashmla_attention": {"status": "supported_native"},
                 "public_flashattention_runtime": {"status": "not_supported"},
                 "trtllm_gen_attention": {"status": "not_supported"},

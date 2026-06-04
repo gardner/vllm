@@ -267,6 +267,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "all-to-all variants remain separate entries."
                 ),
             },
+            "flashinfer_cutlass_non_ep_moe": {
+                "status": "supported_native",
+                "release_contract": (
+                    "Allowed native non-EP NVFP4 MoE path for GB10, including "
+                    "SwiGLU-clamp models where b12x is not applicable."
+                ),
+            },
             "flashmla_attention": {
                 "status": "supported_native",
                 "release_contract": (
