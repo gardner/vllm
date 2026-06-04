@@ -453,6 +453,15 @@ def test_gb10_flashinfer_jit_cache_validator_requires_gb10_cuda13_distributions(
     assert any("flashinfer-jit-cache" in error and "gb10" in error for error in errors)
 
 
+def test_gb10_flashinfer_jit_cache_validator_distribution_contract_is_shared():
+    contract = _load_gb10_release_contract_module()
+    validator = _load_gb10_flashinfer_jit_cache_validator_module()
+
+    assert validator.REQUIRED_FLASHINFER_DISTRIBUTIONS == (
+        contract.FLASHINFER_RUNTIME_DISTRIBUTIONS
+    )
+
+
 def test_gb10_release_workflow_preflights_before_expensive_build():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"

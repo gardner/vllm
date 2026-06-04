@@ -17,15 +17,27 @@ def _is_gb10_cuda13_version(version: object) -> bool:
     return isinstance(version, str) and "+cu13" in version and "gb10" in version
 
 
-def validate_distribution_versions(
+def collect_distribution_versions(
     distribution_names: tuple[str, ...] = REQUIRED_FLASHINFER_DISTRIBUTIONS,
-) -> list[str]:
-    errors = []
+) -> dict[str, str | None]:
+    versions = {}
     for distribution_name in distribution_names:
         try:
-            version = importlib_metadata.version(distribution_name)
+            versions[distribution_name] = importlib_metadata.version(distribution_name)
         except importlib_metadata.PackageNotFoundError:
-            version = None
+            versions[distribution_name] = None
+    return versions
+
+
+def validate_distribution_versions(
+    distribution_versions: dict[str, str | None] | None = None,
+) -> list[str]:
+    if distribution_versions is None:
+        distribution_versions = collect_distribution_versions()
+
+    errors = []
+    for distribution_name in REQUIRED_FLASHINFER_DISTRIBUTIONS:
+        version = distribution_versions.get(distribution_name)
         if not _is_gb10_cuda13_version(version):
             errors.append(
                 f"{distribution_name} must be a GB10 CUDA 13 build "
@@ -35,12 +47,14 @@ def validate_distribution_versions(
 
 
 def main() -> int:
-    distribution_errors = validate_distribution_versions()
+    distribution_versions = collect_distribution_versions()
+    distribution_errors = validate_distribution_versions(distribution_versions)
     if distribution_errors:
         print("GB10 FlashInfer runtime package version check failed:")
         for error in distribution_errors:
             print(error)
         return 1
+    print(f"GB10 FlashInfer runtime package versions: {distribution_versions}")
 
     flashinfer_jit_cache = importlib.import_module("flashinfer_jit_cache")
     jit_cache_dir = Path(flashinfer_jit_cache.__file__).parent / "jit_cache"
