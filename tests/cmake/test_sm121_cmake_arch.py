@@ -362,7 +362,9 @@ def test_gb10_release_workflow_supports_manual_preflight_only():
         "Verify wheel contains only SM121A CUDA images",
         "Upload wheel artifact",
         "Build runtime image",
+        "Write GB10 runtime image refs",
         "Write GB10 release checksums",
+        "Validate GB10 release assets",
         "Publish GB10 release assets",
     ):
         step_block = gb10_workflow.split(f"- name: {step_name}", 1)[1].split(
