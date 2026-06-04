@@ -27,6 +27,7 @@ REQUIRED_SOURCE_DEPENDENCIES = (
 REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
+    "modelopt_fp4_quantization": "supported_native",
     "flashinfer_attention_fa2": "supported_native",
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",

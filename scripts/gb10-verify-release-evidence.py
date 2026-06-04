@@ -802,7 +802,7 @@ def _check_quantization_against_support_matrix(
     configured_name = str(configured).lower() if configured is not None else ""
     expected_name = str(expected).lower() if expected is not None else ""
     entry_name = (
-        "flashinfer_nvfp4_quantization"
+        "modelopt_fp4_quantization"
         if configured_name == "modelopt_fp4" and expected_name == "modelopt_fp4"
         else None
     )

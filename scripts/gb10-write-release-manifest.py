@@ -242,8 +242,15 @@ def _gb10_support_matrix() -> dict[str, object]:
             "flashinfer_nvfp4_quantization": {
                 "status": "supported_native",
                 "release_contract": (
-                    "First-path smoke must observe ModelOpt FP4 quantization "
-                    "and GB10 FlashInfer runtime packages."
+                    "First-path smoke must observe GB10 FlashInfer runtime "
+                    "packages used by native NVFP4 quantization paths."
+                ),
+            },
+            "modelopt_fp4_quantization": {
+                "status": "supported_native",
+                "release_contract": (
+                    "First-path smoke must observe ModelOpt FP4 model-load "
+                    "quantization for NVFP4 checkpoints."
                 ),
             },
             "flashinfer_attention_fa2": {

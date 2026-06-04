@@ -53,6 +53,7 @@ GB10_RELEASE_SMOKED_IMAGE_DIGEST_FILE = "gb10-smoked-image-digest.txt"
 GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
+    "modelopt_fp4_quantization": "supported_native",
     "flashinfer_attention_fa2": "supported_native",
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
@@ -1707,6 +1708,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["architecture"] == "sm_121a"
     assert support_matrix["first_release_scope"] == "single_spark_first_path"
     assert support_matrix["entries"]["flashinfer_nvfp4_dense"]["status"] == (
+        "supported_native"
+    )
+    assert support_matrix["entries"]["modelopt_fp4_quantization"]["status"] == (
         "supported_native"
     )
     assert support_matrix["entries"]["flashmla_attention"]["status"] == (
@@ -3397,6 +3401,10 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "raw": "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
         "digest": "sha256:" + "a" * 64,
     }
+    expected_status_counts = {
+        status: list(GB10_REQUIRED_SUPPORT_MATRIX.values()).count(status)
+        for status in sorted(set(GB10_REQUIRED_SUPPORT_MATRIX.values()))
+    }
     assert metadata["support_matrix_summary"] == {
         "present": True,
         "release_manifest_present": True,
@@ -3408,11 +3416,7 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
             "deferred": "Not required for the first release.",
         },
         "entry_count": len(GB10_REQUIRED_SUPPORT_MATRIX),
-        "status_counts": {
-            "deferred": 2,
-            "not_supported": 4,
-            "supported_native": 5,
-        },
+        "status_counts": expected_status_counts,
         "required_entries": GB10_REQUIRED_SUPPORT_MATRIX,
         "missing_required_entries": [],
         "mismatched_required_entries": {},
@@ -4034,6 +4038,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             "entries": {
                 "flashinfer_nvfp4_dense": {"status": "supported_native"},
                 "flashinfer_nvfp4_quantization": {"status": "supported_native"},
+                "modelopt_fp4_quantization": {"status": "supported_native"},
                 "flashinfer_attention_fa2": {"status": "supported_native"},
                 "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
                 "flashmla_attention": {"status": "supported_native"},
@@ -4080,7 +4085,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert summary["status"] == "passed"
     assert summary["release_gate_passed"] is True
     assert summary["failure_count"] == 0
-    check_statuses = {check["name"]: check["status"] for check in summary["checks"]}
+    checks_by_name = {check["name"]: check for check in summary["checks"]}
+    check_statuses = {name: check["status"] for name, check in checks_by_name.items()}
     assert check_statuses["native_nvfp4_gemm_observed"] == "passed"
     assert check_statuses["native_nvfp4_moe_non_ep_observed"] == "passed"
     assert check_statuses["nvfp4_fallback_free"] == "passed"
@@ -4091,6 +4097,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["attention_backend_allowed_by_support_matrix"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["quantization_allowed_by_support_matrix"] == "passed"
+    assert checks_by_name["quantization_allowed_by_support_matrix"]["details"][
+        "support_matrix_entry"
+    ] == "modelopt_fp4_quantization"
     assert (
         check_statuses["nvfp4_backend_selections_allowed_by_support_matrix"]
         == "passed"
