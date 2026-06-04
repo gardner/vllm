@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -671,6 +672,16 @@ def test_gb10_release_workflows_cancel_superseded_runs():
     assert "concurrency:" in smoke_workflow
     assert "group: ${{ github.workflow }}-${{ github.ref }}" in smoke_workflow
     assert "cancel-in-progress: true" in smoke_workflow
+
+
+def test_gb10_actionlint_config_allows_self_hosted_labels():
+    config_path = REPO_ROOT / ".github" / "actionlint.yaml"
+    config = yaml.safe_load(config_path.read_text())
+    labels = set(config["self-hosted-runner"]["labels"])
+
+    assert {"aarch64", "cuda13", "dgx-spark", "sm121"} <= labels
+    assert "self-hosted" not in labels
+    assert "linux" not in labels
 
 
 def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
