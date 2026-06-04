@@ -71,6 +71,8 @@ VLLM_RELEASE_ASSET_FILES = {
 
 DEFAULT_RELEASE_MANIFEST_DIR = Path("gb10-release-manifest")
 DEFAULT_VLLM_RELEASE_DIST_DIR = Path("dist")
+DEFAULT_RELEASE_EVIDENCE_REPORT_DIR = Path("gb10-smoke-reports")
+DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR = Path("dist/gb10-release-evidence")
 VLLM_RELEASE_WHEEL_GLOB = "vllm-*.whl"
 
 PROVENANCE_RELATIVE_PATHS = {
@@ -125,6 +127,24 @@ def default_release_evidence_runtime_image_metadata_json() -> Path | None:
     if explicit:
         return Path(explicit)
     return None
+
+
+def default_release_evidence_report_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "GB10_RELEASE_EVIDENCE_REPORT_DIR",
+            DEFAULT_RELEASE_EVIDENCE_REPORT_DIR,
+        )
+    )
+
+
+def default_release_evidence_output_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "GB10_RELEASE_EVIDENCE_OUTPUT_DIR",
+            DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR,
+        )
+    )
 
 
 def find_vllm_wheel_assets(dist_dir: Path) -> list[Path]:

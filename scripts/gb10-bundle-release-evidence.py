@@ -31,26 +31,13 @@ from gb10_release_contract import (
     REQUIRED_GB10_SUPPORT_MATRIX,
     SHA256_DIGEST_RE,
     default_release_evidence_manifest_json,
+    default_release_evidence_output_dir,
+    default_release_evidence_report_dir,
     default_release_evidence_runtime_image_metadata_json,
 )
 
 EXPECTED_REPORTS = EXPECTED_RELEASE_REPORTS
 EXPECTED_EVIDENCE_FILES = EXPECTED_RELEASE_EVIDENCE_FILES
-
-
-def _default_report_dir() -> Path:
-    return Path(
-        os.environ.get("GB10_RELEASE_EVIDENCE_REPORT_DIR", "gb10-smoke-reports")
-    )
-
-
-def _default_output_dir() -> Path:
-    return Path(
-        os.environ.get(
-            "GB10_RELEASE_EVIDENCE_OUTPUT_DIR",
-            "dist/gb10-release-evidence",
-        )
-    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -63,7 +50,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gb10-report-dir",
         type=Path,
-        default=_default_report_dir(),
+        default=default_release_evidence_report_dir(),
         help=(
             "Directory containing GB10 smoke reports "
             "(default: GB10_RELEASE_EVIDENCE_REPORT_DIR or ./gb10-smoke-reports)."
@@ -72,7 +59,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gb10-output-dir",
         type=Path,
-        default=_default_output_dir(),
+        default=default_release_evidence_output_dir(),
         help=(
             "Directory where the bundle, metadata, and checksums are written "
             "(default: GB10_RELEASE_EVIDENCE_OUTPUT_DIR or "

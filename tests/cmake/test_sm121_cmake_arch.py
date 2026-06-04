@@ -987,6 +987,51 @@ def test_gb10_release_evidence_default_provenance_paths_share_contract(
     assert "def _default_runtime_image_metadata_json" not in bundler_script
 
 
+def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
+    contract = _load_gb10_release_contract_module()
+    monkeypatch.delenv("GB10_RELEASE_EVIDENCE_REPORT_DIR", raising=False)
+    monkeypatch.delenv("GB10_RELEASE_EVIDENCE_OUTPUT_DIR", raising=False)
+
+    assert contract.default_release_evidence_report_dir() == Path(
+        "gb10-smoke-reports"
+    )
+    assert contract.default_release_evidence_output_dir() == Path(
+        "dist/gb10-release-evidence"
+    )
+
+    monkeypatch.setenv("GB10_RELEASE_EVIDENCE_REPORT_DIR", "custom-reports")
+    monkeypatch.setenv("GB10_RELEASE_EVIDENCE_OUTPUT_DIR", "custom-evidence")
+    assert contract.default_release_evidence_report_dir() == Path("custom-reports")
+    assert contract.default_release_evidence_output_dir() == Path("custom-evidence")
+
+    bundler_script = (
+        REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py"
+    ).read_text()
+    assert "default_release_evidence_report_dir" in bundler_script
+    assert "default_release_evidence_output_dir" in bundler_script
+    assert "def _default_report_dir" not in bundler_script
+    assert "def _default_output_dir" not in bundler_script
+
+    orchestrator_script = (
+        REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh"
+    ).read_text()
+    assert (
+        f'GB10_RELEASE_SMOKE_REPORT_DIR:-$PWD/'
+        f'{contract.DEFAULT_RELEASE_EVIDENCE_REPORT_DIR.as_posix()}'
+        in orchestrator_script
+    )
+    assert (
+        "${GB10_RELEASE_SMOKE_REPORT_DIR:-./"
+        f"{contract.DEFAULT_RELEASE_EVIDENCE_REPORT_DIR.as_posix()}"
+        in orchestrator_script
+    )
+    assert (
+        "${GB10_RELEASE_EVIDENCE_OUTPUT_DIR:-./"
+        f"{contract.DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR.as_posix()}"
+        in orchestrator_script
+    )
+
+
 def test_gb10_vllm_release_checksum_writer_writes_release_assets(tmp_path):
     checksum_writer = _load_gb10_vllm_release_checksum_writer_module()
     validator = _load_gb10_vllm_release_asset_validator_module()
