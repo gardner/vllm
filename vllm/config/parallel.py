@@ -30,6 +30,17 @@ else:
 
 logger = init_logger(__name__)
 _NUMACTL_CPUSET_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
+_GB10_DEFERRED_EP_MESSAGE = (
+    "GB10/SM121 expert-parallel/all2all/EPLB paths are Deferred in this fork: "
+    "multi-Spark EP/all-to-all/EPLB has not been validated locally. Disable "
+    "--enable-expert-parallel and --enable-eplb for the GB10 first-path NVFP4 "
+    "serving lane."
+)
+
+
+def _is_sm12x_platform() -> bool:
+    device_capability = current_platform.get_device_capability()
+    return device_capability is not None and device_capability.major == 12
 
 ExpertPlacementStrategy = Literal["linear", "round_robin"]
 DistributedExecutorBackend = Literal["ray", "mp", "uni", "external_launcher"]
@@ -446,6 +457,11 @@ class ParallelConfig:
             raise ValueError(
                 "data_parallel_external_lb can only be set when data_parallel_size > 1"
             )
+
+        if _is_sm12x_platform() and (
+            self.enable_expert_parallel or self.enable_eplb
+        ):
+            raise ValueError(_GB10_DEFERRED_EP_MESSAGE)
 
         if not self.numa_bind and (
             self.numa_bind_nodes is not None or self.numa_bind_cpus is not None

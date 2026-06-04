@@ -11,6 +11,7 @@ import pydantic
 import pytest
 from pydantic import ValidationError
 
+import vllm.config.parallel as parallel_config_module
 import vllm.config.vllm as vllm_config_module
 import vllm.envs as envs
 from vllm.compilation.backends import VllmBackend
@@ -34,8 +35,43 @@ from vllm.config.vllm import (
     OptimizationLevel,
 )
 from vllm.platforms import current_platform
+from vllm.platforms.interface import DeviceCapability
 
 DEVICE_TYPE = current_platform.device_type
+
+
+def test_gb10_parallel_config_rejects_deferred_ep_all2all_eplb(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        parallel_config_module.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(12, 1),
+    )
+
+    error = "GB10/SM121 expert-parallel/all2all/EPLB"
+
+    with pytest.raises(ValueError, match=error):
+        ParallelConfig(enable_expert_parallel=True)
+
+    with pytest.raises(ValueError, match=error):
+        ParallelConfig(enable_eplb=True)
+
+    first_path_config = ParallelConfig()
+    assert not first_path_config.enable_expert_parallel
+    assert not first_path_config.enable_eplb
+
+
+def test_parallel_config_allows_expert_parallel_off_gb10(monkeypatch):
+    monkeypatch.setattr(
+        parallel_config_module.current_platform,
+        "get_device_capability",
+        lambda device_id=0: DeviceCapability(10, 0),
+    )
+
+    config = ParallelConfig(enable_expert_parallel=True)
+
+    assert config.enable_expert_parallel
 
 
 def test_compile_config_repr_succeeds():
