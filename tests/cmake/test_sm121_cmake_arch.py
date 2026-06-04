@@ -2364,6 +2364,10 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 provenance-only evidence cannot be published as release evidence" in (
         smoke_workflow
     )
+    assert "Require provenance-only release workflow run" in smoke_workflow
+    assert "GB10 provenance-only smoke requires release-workflow-run-id" in (
+        smoke_workflow
+    )
     assert smoke_workflow.index("Reject provenance-only release publication") < (
         smoke_workflow.index("Refuse concurrent vLLM service")
     )
@@ -2376,12 +2380,24 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert smoke_workflow.index("Require release publication tag") < (
         smoke_workflow.index("Log in to GHCR")
     )
+    assert smoke_workflow.index("Require provenance-only release workflow run") < (
+        smoke_workflow.index("Refuse concurrent vLLM service")
+    )
+    assert smoke_workflow.index("Require provenance-only release workflow run") < (
+        smoke_workflow.index("Log in to GHCR")
+    )
+    assert smoke_workflow.index("Require provenance-only release workflow run") < (
+        smoke_workflow.index("Download release provenance artifact")
+    )
     missing_run_id_guard = (
         "inputs['publish-to-release'] && "
         "inputs['release-workflow-run-id'] == ''"
     )
     assert missing_run_id_guard in smoke_workflow
     assert "inputs['publish-to-release'] && inputs['release-tag'] == ''" in (
+        smoke_workflow
+    )
+    assert "inputs['provenance-only'] && inputs['release-workflow-run-id'] == ''" in (
         smoke_workflow
     )
     assert "inputs['release-workflow-run-id'] != ''" in smoke_workflow

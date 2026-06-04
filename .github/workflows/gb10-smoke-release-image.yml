@@ -244,6 +244,38 @@ jobs:
           echo "GB10 release evidence publication requires release-tag." >&2
           exit 1
 
+      - name: Require provenance-only release workflow run
+        if: inputs['provenance-only'] && inputs['release-workflow-run-id'] == ''
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          provenance_check_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-provenance-check.json"
+          python3 - "$provenance_check_report" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = sys.argv[1]
+          report = {
+              "schema_version": 1,
+              "status": "failed",
+              "phase": "provenance",
+              "message": (
+                  "GB10 provenance-only smoke requires release-workflow-run-id "
+                  "so release manifest and runtime image digest provenance can "
+                  "be validated before skipping model smoke."
+              ),
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "provenance_dir": os.environ.get("GB10_RELEASE_PROVENANCE_DIR"),
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+          echo "GB10 provenance-only smoke requires release-workflow-run-id." >&2
+          exit 1
+
       - name: Refuse concurrent vLLM service
         if: inputs['allow-existing-vllm-containers'] != true && inputs['provenance-only'] != true
         run: |
