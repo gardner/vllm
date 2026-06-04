@@ -2364,6 +2364,18 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 provenance-only evidence cannot be published as release evidence" in (
         smoke_workflow
     )
+    assert smoke_workflow.index("Reject provenance-only release publication") < (
+        smoke_workflow.index("Refuse concurrent vLLM service")
+    )
+    assert smoke_workflow.index("Require release publication provenance") < (
+        smoke_workflow.index("Refuse concurrent vLLM service")
+    )
+    assert smoke_workflow.index("Require release publication tag") < (
+        smoke_workflow.index("Refuse concurrent vLLM service")
+    )
+    assert smoke_workflow.index("Require release publication tag") < (
+        smoke_workflow.index("Log in to GHCR")
+    )
     missing_run_id_guard = (
         "inputs['publish-to-release'] && "
         "inputs['release-workflow-run-id'] == ''"
