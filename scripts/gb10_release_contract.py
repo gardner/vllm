@@ -80,6 +80,7 @@ DEFAULT_RELEASE_EVIDENCE_REPORT_DIR = Path("gb10-smoke-reports")
 DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR = Path("dist/gb10-release-evidence")
 DEFAULT_RELEASE_PROVENANCE_DIR = Path("gb10-release-provenance")
 GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME = "gb10-release-manifest"
+GITHUB_RELEASE_INPUTS_ARTIFACT_NAME = "gb10-release-inputs"
 GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME = "gb10-release-evidence"
 RELEASE_EVIDENCE_BUNDLE_NAME = "gb10-release-evidence"
 RELEASE_EVIDENCE_METADATA_FILE = "release-evidence-metadata.json"

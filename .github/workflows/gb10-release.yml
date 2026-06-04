@@ -96,6 +96,7 @@ jobs:
       GB10_RELEASE_MANIFEST_DIR: gb10-release-manifest
       GB10_RUNTIME_IMAGE_METADATA_JSON: gb10-release-manifest/buildx-runtime-image-metadata.json
       GB10_RELEASE_MANIFEST_ARTIFACT_NAME: gb10-release-manifest
+      GB10_RELEASE_INPUTS_ARTIFACT_NAME: gb10-release-inputs
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -247,6 +248,12 @@ jobs:
             --gb10-validate-release-inputs \
             --gb10-output-json "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
           cat "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+
+      - name: Upload GB10 release inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.GB10_RELEASE_INPUTS_ARTIFACT_NAME }}
+          path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/gb10-release-manifest.json
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

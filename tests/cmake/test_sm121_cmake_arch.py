@@ -723,6 +723,17 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "scripts/gb10-write-release-manifest.py" in gb10_workflow
     assert "--gb10-validate-release-inputs" in gb10_workflow
     assert "gb10-release-manifest.json" in gb10_workflow
+    assert "Upload GB10 release inputs" in gb10_workflow
+    assert (
+        "GB10_RELEASE_INPUTS_ARTIFACT_NAME: "
+        f"{contract.GITHUB_RELEASE_INPUTS_ARTIFACT_NAME}"
+        in gb10_workflow
+    )
+    assert "name: ${{ env.GB10_RELEASE_INPUTS_ARTIFACT_NAME }}" in gb10_workflow
+    assert (
+        "path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/gb10-release-manifest.json"
+        in gb10_workflow
+    )
     assert "buildx-runtime-image-metadata.json" in gb10_workflow
     assert "gb10-vllm-release-SHA256SUMS" in gb10_workflow
     release_asset_contract = "\n".join(
@@ -760,6 +771,9 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert '--metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in gb10_workflow
 
     assert gb10_workflow.index("Write GB10 release manifest") < (
+        gb10_workflow.index("Upload GB10 release inputs")
+    )
+    assert gb10_workflow.index("Upload GB10 release inputs") < (
         gb10_workflow.index("Preflight GB10 FlashInfer wheels")
     )
     assert gb10_workflow.index("Build runtime image") < (
@@ -1219,6 +1233,7 @@ def test_gb10_github_artifact_names_share_contract():
     ).read_text()
 
     assert contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME == "gb10-release-manifest"
+    assert contract.GITHUB_RELEASE_INPUTS_ARTIFACT_NAME == "gb10-release-inputs"
     assert contract.GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME == "gb10-release-evidence"
     assert (
         contract.DEFAULT_RELEASE_PROVENANCE_DIR.as_posix()
@@ -1230,6 +1245,12 @@ def test_gb10_github_artifact_names_share_contract():
         in gb10_workflow
     )
     assert "name: ${{ env.GB10_RELEASE_MANIFEST_ARTIFACT_NAME }}" in gb10_workflow
+    assert (
+        "GB10_RELEASE_INPUTS_ARTIFACT_NAME: "
+        f"{contract.GITHUB_RELEASE_INPUTS_ARTIFACT_NAME}"
+        in gb10_workflow
+    )
+    assert "name: ${{ env.GB10_RELEASE_INPUTS_ARTIFACT_NAME }}" in gb10_workflow
     assert (
         "GB10_RELEASE_MANIFEST_ARTIFACT_NAME: "
         f"{contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
