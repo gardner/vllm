@@ -1,9 +1,11 @@
+import ast
 import copy
 import importlib.util
 import json
 import re
 import subprocess
 import tarfile
+import textwrap
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -741,6 +743,37 @@ def test_gb10_required_support_matrix_contract_is_shared():
     assert manifest.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
     assert verifier.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
     assert bundler.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
+
+
+def test_gb10_evidence_upload_support_matrix_contract_is_shared():
+    smoke_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
+    ).read_text()
+    validation_block_match = re.search(
+        r'python3 - "\$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/'
+        r"release-evidence-metadata\.json\" <<'PY'\n"
+        r"(?P<block>.*?)\n          PY",
+        smoke_workflow,
+        re.DOTALL,
+    )
+    assert validation_block_match is not None
+    validation_block = validation_block_match.group("block")
+
+    support_matrix_assignment = re.search(
+        r"required_support_matrix = (?P<matrix>\{.*?\n          \})",
+        validation_block,
+        re.DOTALL,
+    )
+    assert support_matrix_assignment is not None
+    assignment = textwrap.dedent(
+        f"required_support_matrix = {support_matrix_assignment.group('matrix')}"
+    )
+    parsed_assignment = ast.parse(assignment).body[0]
+    assert isinstance(parsed_assignment, ast.Assign)
+
+    workflow_support_matrix = ast.literal_eval(parsed_assignment.value)
+
+    assert workflow_support_matrix == GB10_REQUIRED_SUPPORT_MATRIX
 
 
 def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
