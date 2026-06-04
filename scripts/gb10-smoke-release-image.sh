@@ -221,6 +221,41 @@ bundle_available_release_evidence() {
     fi
 }
 
+if { [ -n "${GB10_RELEASE_MANIFEST_JSON:-}" ] \
+        && [ -z "${GB10_RUNTIME_IMAGE_METADATA_JSON:-}" ]; } \
+    || { [ -z "${GB10_RELEASE_MANIFEST_JSON:-}" ] \
+        && [ -n "${GB10_RUNTIME_IMAGE_METADATA_JSON:-}" ]; }; then
+    python3 - "$evidence_report" "$image" <<'PY'
+import json
+import os
+import sys
+
+path, image_ref = sys.argv[1:3]
+report = {
+    "schema_version": 1,
+    "status": "failed",
+    "phase": "pre_smoke_provenance_guard",
+    "message": (
+        "GB10 release provenance requires both GB10_RELEASE_MANIFEST_JSON "
+        "and GB10_RUNTIME_IMAGE_METADATA_JSON, or neither, before final-image "
+        "smoke."
+    ),
+    "image_ref": image_ref,
+    "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+    "release_manifest_json": os.environ.get("GB10_RELEASE_MANIFEST_JSON"),
+    "runtime_image_metadata_json": os.environ.get(
+        "GB10_RUNTIME_IMAGE_METADATA_JSON"
+    ),
+}
+with open(path, "w", encoding="utf-8") as stream:
+    json.dump(report, stream, indent=2, sort_keys=True)
+    stream.write("\n")
+PY
+    bundle_available_release_evidence
+    echo "GB10 release provenance requires both GB10_RELEASE_MANIFEST_JSON and GB10_RUNTIME_IMAGE_METADATA_JSON." >&2
+    exit 1
+fi
+
 if [ "${GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS:-0}" != "1" ] \
     && command -v docker >/dev/null 2>&1; then
     existing_vllm_containers="$(
