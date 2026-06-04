@@ -122,6 +122,19 @@ jobs:
           done
 
           image_tag="${release_tag:-gb10-${GITHUB_SHA::12}}"
+          if [ "$preflight_only" != "true" ] && [ -n "$release_tag" ]; then
+            if [[ "$image_name" != ghcr.io/* ]]; then
+              echo "GB10 full release publication requires a GHCR image-name, got ${image_name}." >&2
+              exit 1
+            fi
+            if [ "$image_tag" != "$release_tag" ]; then
+              echo "GB10 full release runtime image tag must match the release tag." >&2
+              echo "  image-tag:   ${image_tag}" >&2
+              echo "  release-tag: ${release_tag}" >&2
+              exit 1
+            fi
+          fi
+
           vllm_version_base="0.22.1rc0"
           if [[ "${release_tag}" =~ ^gb10-vllm-v([^-]+)-[0-9a-f]{7,40}$ ]]; then
             vllm_version_base="${BASH_REMATCH[1]}"

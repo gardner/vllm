@@ -370,6 +370,22 @@ def test_gb10_release_workflow_requires_pushed_image_for_tagged_release():
     assert "GB10 full release publication requires push-image=true" in resolve_step
 
 
+def test_gb10_release_workflow_requires_durable_image_ref_for_tagged_release():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    resolve_step = gb10_workflow.split(
+        "- name: Resolve release settings",
+        1,
+    )[1].split("- name: Write GB10 release manifest", 1)[0]
+
+    assert '[[ "$image_name" != ghcr.io/* ]]' in resolve_step
+    assert "requires a GHCR image-name" in resolve_step
+    assert '[ "$image_tag" != "$release_tag" ]' in resolve_step
+    assert "runtime image tag must match the release tag" in resolve_step
+
+
 def test_gb10_release_workflow_uses_durable_split_build_caches():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
