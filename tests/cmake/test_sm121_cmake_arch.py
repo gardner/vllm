@@ -26,6 +26,19 @@ GB10_RELEASE_CACHE_REF_ENV = {
     "GB10_WHEEL_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:wheel",
     "GB10_RUNTIME_CACHE_REF": "ghcr.io/gardner/vllm-gb10-buildcache:runtime",
 }
+GB10_REQUIRED_SUPPORT_MATRIX = {
+    "flashinfer_nvfp4_dense": "supported_native",
+    "flashinfer_nvfp4_quantization": "supported_native",
+    "flashinfer_attention_fa2": "supported_native",
+    "flashinfer_b12x_non_ep_moe": "supported_native",
+    "flashmla_attention": "supported_native",
+    "public_flashattention_runtime": "not_supported",
+    "trtllm_gen_attention": "not_supported",
+    "trtllm_gen_moe": "not_supported",
+    "marlin_nvfp4_fallback": "not_supported",
+    "flashinfer_b12x_ep_all2all_eplb": "deferred",
+    "multi_spark_ep_all2all_eplb": "deferred",
+}
 
 
 def _load_gb10_smoke_module():
@@ -1976,6 +1989,8 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert '"release_gate_passed"' in script
     assert '"smoked_image_digest"' in script
     assert '"support_matrix_summary"' in script
+    assert '"support_matrix_complete"' in script
+    assert "REQUIRED_GB10_SUPPORT_MATRIX" in script
     assert "status_counts" in script
     assert '"failure_count"' in script
     assert "sha256:[0-9a-f]{64}" in script
@@ -2028,18 +2043,8 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
                         "deferred": "Not required for the first release.",
                     },
                     "entries": {
-                        "flashinfer_nvfp4_dense": {
-                            "status": "supported_native",
-                        },
-                        "flashmla_attention": {
-                            "status": "supported_native",
-                        },
-                        "public_flashattention_runtime": {
-                            "status": "not_supported",
-                        },
-                        "multi_spark_ep_all2all_eplb": {
-                            "status": "deferred",
-                        },
+                        name: {"status": status}
+                        for name, status in GB10_REQUIRED_SUPPORT_MATRIX.items()
                     },
                 },
             }
@@ -2104,20 +2109,16 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
             "not_supported": "Rejected for GB10 release evidence.",
             "deferred": "Not required for the first release.",
         },
-        "entry_count": 4,
+        "entry_count": len(GB10_REQUIRED_SUPPORT_MATRIX),
         "status_counts": {
-            "deferred": 1,
-            "not_supported": 1,
-            "supported_native": 2,
+            "deferred": 2,
+            "not_supported": 4,
+            "supported_native": 5,
         },
-        "entries": {
-            "flashinfer_nvfp4_dense": "supported_native",
-            "flashmla_attention": "supported_native",
-            "multi_spark_ep_all2all_eplb": "deferred",
-            "public_flashattention_runtime": "not_supported",
-        },
+        "entries": GB10_REQUIRED_SUPPORT_MATRIX,
         "invalid_entries": [],
     }
+    assert metadata["support_matrix_complete"] is True
     assert metadata["missing_reports"] == []
     assert metadata["missing_evidence_files"] == []
     assert metadata["report_summaries"] == {
@@ -2242,6 +2243,59 @@ def test_gb10_release_evidence_bundle_marks_failed_gate(tmp_path):
     }
     assert metadata["missing_reports"] == []
     assert metadata["missing_evidence_files"] == []
+
+
+def test_gb10_release_evidence_bundle_marks_missing_support_matrix_partial(
+    tmp_path,
+):
+    bundler = _load_gb10_release_bundle_module()
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "bundle"
+    report_dir.mkdir()
+
+    report_payloads = {
+        "gb10-nvfp4-smoke.json": {"status": "passed"},
+        "gb10-openai-server-smoke-image.json": {"status": "passed"},
+        "gb10-release-evidence-image.json": {
+            "status": "passed",
+            "release_gate_passed": True,
+            "failure_count": 0,
+        },
+    }
+    for name, payload in report_payloads.items():
+        (report_dir / name).write_text(json.dumps(payload) + "\n")
+    (report_dir / "gb10-smoked-image-digest.txt").write_text(
+        "ghcr.io/gardner/vllm-gb10@sha256:" + "c" * 64 + "\n"
+    )
+
+    exit_code = bundler.main(
+        [
+            "--gb10-report-dir",
+            str(report_dir),
+            "--gb10-output-dir",
+            str(output_dir),
+            "--gb10-bundle-name",
+            "evidence",
+        ]
+    )
+
+    assert exit_code == 0
+    metadata = json.loads((output_dir / "release-evidence-metadata.json").read_text())
+    assert metadata["status"] == "partial"
+    assert metadata["release_gate_passed"] is True
+    assert metadata["support_matrix_complete"] is False
+    assert metadata["support_matrix_summary"] == {
+        "present": False,
+        "release_manifest_present": False,
+        "architecture": None,
+        "first_release_scope": None,
+        "status_definitions": {},
+        "entry_count": 0,
+        "status_counts": {},
+        "entries": {},
+        "invalid_entries": [],
+        "reason": "release manifest was not included",
+    }
 
 
 def test_gb10_openai_server_smoke_reports_api_evidence():

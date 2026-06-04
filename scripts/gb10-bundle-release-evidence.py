@@ -45,6 +45,19 @@ PROVENANCE_RELATIVE_PATHS = {
     "release_manifest": "provenance/gb10-release-manifest.json",
     "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",
 }
+REQUIRED_GB10_SUPPORT_MATRIX = {
+    "flashinfer_nvfp4_dense": "supported_native",
+    "flashinfer_nvfp4_quantization": "supported_native",
+    "flashinfer_attention_fa2": "supported_native",
+    "flashinfer_b12x_non_ep_moe": "supported_native",
+    "flashmla_attention": "supported_native",
+    "public_flashattention_runtime": "not_supported",
+    "trtllm_gen_attention": "not_supported",
+    "trtllm_gen_moe": "not_supported",
+    "marlin_nvfp4_fallback": "not_supported",
+    "flashinfer_b12x_ep_all2all_eplb": "deferred",
+    "multi_spark_ep_all2all_eplb": "deferred",
+}
 SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
@@ -328,9 +341,13 @@ def _write_metadata(
         output_dir=output_dir,
         included_provenance=included_provenance,
     )
+    support_matrix_complete = _support_matrix_metadata_complete(
+        support_matrix_summary
+    )
     metadata_status = _metadata_status(
         missing_evidence_files=missing_evidence_files,
         release_gate_summary=release_gate_summary,
+        support_matrix_complete=support_matrix_complete,
     )
 
     metadata = {
@@ -351,6 +368,7 @@ def _write_metadata(
         "release_gate_passed": release_gate_summary.get("release_gate_passed"),
         "smoked_image_digest": smoked_image_digest,
         "support_matrix_summary": support_matrix_summary,
+        "support_matrix_complete": support_matrix_complete,
         "missing_reports": missing_reports,
         "missing_evidence_files": missing_evidence_files,
         "included_files": included_files,
@@ -515,6 +533,24 @@ def _summarize_support_matrix(
     }
 
 
+def _support_matrix_metadata_complete(summary: dict[str, Any]) -> bool:
+    entries = summary.get("entries")
+    if (
+        summary.get("present") is not True
+        or summary.get("release_manifest_present") is not True
+        or summary.get("architecture") != "sm_121a"
+        or summary.get("first_release_scope") != "single_spark_first_path"
+        or summary.get("invalid_entries")
+        or not isinstance(entries, dict)
+    ):
+        return False
+
+    return all(
+        entries.get(name) == expected_status
+        for name, expected_status in REQUIRED_GB10_SUPPORT_MATRIX.items()
+    )
+
+
 def _normalize_image_digest(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -559,12 +595,15 @@ def _metadata_status(
     *,
     missing_evidence_files: list[str],
     release_gate_summary: dict[str, Any],
+    support_matrix_complete: bool,
 ) -> str:
     if missing_evidence_files:
         return "partial"
-    if release_gate_summary.get("release_gate_passed") is True:
-        return "complete"
-    return "failed"
+    if release_gate_summary.get("release_gate_passed") is not True:
+        return "failed"
+    if not support_matrix_complete:
+        return "partial"
+    return "complete"
 
 
 def _missing_evidence(
