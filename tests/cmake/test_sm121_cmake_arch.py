@@ -150,6 +150,13 @@ def _load_gb10_evidence_release_asset_lister_module():
     )
 
 
+def _load_gb10_release_provenance_artifact_file_lister_module():
+    return _load_script_module(
+        "gb10_list_release_provenance_artifact_files",
+        REPO_ROOT / "scripts" / "gb10-list-release-provenance-artifact-files.py",
+    )
+
+
 def _load_gb10_release_contract_module():
     return _load_script_module(
         "gb10_release_contract_for_tests",
@@ -574,13 +581,19 @@ def test_gb10_release_workflow_publishes_release_manifest():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
+    contract = _load_gb10_release_contract_module()
 
     assert "GB10_RELEASE_MANIFEST_DIR" in gb10_workflow
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in gb10_workflow
-    assert "GB10_RELEASE_MANIFEST_DIR: gb10-release-manifest" in gb10_workflow
+    assert (
+        f"GB10_RELEASE_MANIFEST_DIR: "
+        f"{contract.DEFAULT_RELEASE_MANIFEST_DIR.as_posix()}"
+        in gb10_workflow
+    )
     assert (
         "GB10_RUNTIME_IMAGE_METADATA_JSON: "
-        "gb10-release-manifest/buildx-runtime-image-metadata.json"
+        f"{contract.DEFAULT_RELEASE_MANIFEST_DIR.as_posix()}/"
+        f"{contract.PROVENANCE_FILES['runtime_image_metadata']}"
     ) in gb10_workflow
     assert "${{ github.workspace }}/gb10-release-manifest" not in gb10_workflow
     assert "Write GB10 release manifest" in gb10_workflow
@@ -607,7 +620,7 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "Write GB10 release checksums" in gb10_workflow
     assert "Validate GB10 release assets" in gb10_workflow
     assert "Upload GB10 release manifest" in gb10_workflow
-    assert "name: gb10-release-manifest" in gb10_workflow
+    assert f"name: {contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}" in gb10_workflow
     assert "if: always()" in gb10_workflow
     assert "Publish GB10 release assets" in gb10_workflow
     assert "Publish wheel to GitHub Release" not in gb10_workflow
@@ -999,6 +1012,7 @@ def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
     contract = _load_gb10_release_contract_module()
     monkeypatch.delenv("GB10_RELEASE_EVIDENCE_REPORT_DIR", raising=False)
     monkeypatch.delenv("GB10_RELEASE_EVIDENCE_OUTPUT_DIR", raising=False)
+    monkeypatch.delenv("GB10_RELEASE_PROVENANCE_DIR", raising=False)
 
     assert contract.default_release_evidence_report_dir() == Path(
         "gb10-smoke-reports"
@@ -1006,11 +1020,16 @@ def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
     assert contract.default_release_evidence_output_dir() == Path(
         "dist/gb10-release-evidence"
     )
+    assert contract.default_release_provenance_dir() == Path(
+        "gb10-release-provenance"
+    )
 
     monkeypatch.setenv("GB10_RELEASE_EVIDENCE_REPORT_DIR", "custom-reports")
     monkeypatch.setenv("GB10_RELEASE_EVIDENCE_OUTPUT_DIR", "custom-evidence")
+    monkeypatch.setenv("GB10_RELEASE_PROVENANCE_DIR", "custom-provenance")
     assert contract.default_release_evidence_report_dir() == Path("custom-reports")
     assert contract.default_release_evidence_output_dir() == Path("custom-evidence")
+    assert contract.default_release_provenance_dir() == Path("custom-provenance")
 
     bundler_script = (
         REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py"
@@ -1046,6 +1065,81 @@ def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
         "${GB10_RELEASE_EVIDENCE_OUTPUT_DIR:-./"
         f"{contract.DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR.as_posix()}"
         not in orchestrator_script
+    )
+
+
+def test_gb10_github_artifact_names_share_contract():
+    contract = _load_gb10_release_contract_module()
+    provenance_lister = (
+        _load_gb10_release_provenance_artifact_file_lister_module()
+    )
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    smoke_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
+    ).read_text()
+
+    assert contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME == "gb10-release-manifest"
+    assert contract.GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME == "gb10-release-evidence"
+    assert (
+        contract.DEFAULT_RELEASE_PROVENANCE_DIR.as_posix()
+        == "gb10-release-provenance"
+    )
+    assert f"name: {contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}" in gb10_workflow
+    assert (
+        f"--name {contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
+        in smoke_workflow
+    )
+    assert f"name: {contract.GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME}" in (
+        smoke_workflow
+    )
+    assert (
+        "GB10_RELEASE_PROVENANCE_DIR: ${{ github.workspace }}/"
+        f"{contract.DEFAULT_RELEASE_PROVENANCE_DIR.as_posix()}"
+        in smoke_workflow
+    )
+
+    provenance_paths = contract.release_provenance_artifact_paths(
+        Path("$GB10_RELEASE_PROVENANCE_DIR")
+    )
+    assert provenance_lister.RELEASE_PROVENANCE_ARTIFACT_FILE_KINDS == (
+        contract.RELEASE_PROVENANCE_ARTIFACT_FILE_KINDS
+    )
+    assert provenance_lister.list_release_provenance_artifact_files(
+        Path("$GB10_RELEASE_PROVENANCE_DIR")
+    ) == [
+        provenance_paths[kind]
+        for kind in contract.RELEASE_PROVENANCE_ARTIFACT_FILE_KINDS
+    ]
+    assert "scripts/gb10-list-release-provenance-artifact-files.py" in (
+        smoke_workflow
+    )
+    assert 'provenance_files_file="$(mktemp)"' in smoke_workflow
+    assert "mapfile -t provenance_files" in smoke_workflow
+    assert '"${#provenance_files[@]}" -ne 4' in smoke_workflow
+    assert 'manifest="${provenance_files[0]}"' in smoke_workflow
+    assert 'runtime_metadata="${provenance_files[1]}"' in smoke_workflow
+    assert 'runtime_image_ref="${provenance_files[2]}"' in smoke_workflow
+    assert 'runtime_image_digest="${provenance_files[3]}"' in smoke_workflow
+    assert (
+        'manifest="$GB10_RELEASE_PROVENANCE_DIR/gb10-release-manifest.json"'
+        not in smoke_workflow
+    )
+    assert (
+        "runtime_metadata="
+        '"$GB10_RELEASE_PROVENANCE_DIR/buildx-runtime-image-metadata.json"'
+        not in smoke_workflow
+    )
+    assert (
+        "runtime_image_ref="
+        '"$GB10_RELEASE_PROVENANCE_DIR/gb10-runtime-image-ref.txt"'
+        not in smoke_workflow
+    )
+    assert (
+        "runtime_image_digest="
+        '"$GB10_RELEASE_PROVENANCE_DIR/gb10-runtime-image-digest.txt"'
+        not in smoke_workflow
     )
 
 
@@ -1881,10 +1975,19 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "gh run download \"$GB10_RELEASE_WORKFLOW_RUN_ID\"" in smoke_workflow
     assert "--name gb10-release-manifest" in smoke_workflow
     assert "--dir \"$GB10_RELEASE_PROVENANCE_DIR\"" in smoke_workflow
+    provenance_lister_script = (
+        REPO_ROOT / "scripts" / "gb10-list-release-provenance-artifact-files.py"
+    ).read_text()
+    assert "scripts/gb10-list-release-provenance-artifact-files.py" in (
+        smoke_workflow
+    )
+    assert "--gb10-provenance-dir \"$GB10_RELEASE_PROVENANCE_DIR\"" in (
+        smoke_workflow
+    )
+    assert "release_provenance_artifact_paths" in provenance_lister_script
+    assert "RELEASE_PROVENANCE_ARTIFACT_FILE_KINDS" in provenance_lister_script
     assert "GB10_RELEASE_MANIFEST_JSON=$manifest" in smoke_workflow
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" in smoke_workflow
-    assert "gb10-runtime-image-ref.txt" in smoke_workflow
-    assert "gb10-runtime-image-digest.txt" in smoke_workflow
     assert "GB10 release manifest artifact is missing" in smoke_workflow
     assert "GB10 runtime image metadata artifact is missing" in smoke_workflow
     assert "GB10 runtime image ref artifact is missing" in smoke_workflow

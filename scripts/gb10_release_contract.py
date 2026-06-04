@@ -78,6 +78,9 @@ DEFAULT_RELEASE_MANIFEST_DIR = Path("gb10-release-manifest")
 DEFAULT_VLLM_RELEASE_DIST_DIR = Path("dist")
 DEFAULT_RELEASE_EVIDENCE_REPORT_DIR = Path("gb10-smoke-reports")
 DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR = Path("dist/gb10-release-evidence")
+DEFAULT_RELEASE_PROVENANCE_DIR = Path("gb10-release-provenance")
+GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME = "gb10-release-manifest"
+GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME = "gb10-release-evidence"
 RELEASE_EVIDENCE_BUNDLE_NAME = "gb10-release-evidence"
 RELEASE_EVIDENCE_METADATA_FILE = "release-evidence-metadata.json"
 RELEASE_EVIDENCE_CHECKSUM_FILE = "SHA256SUMS"
@@ -91,6 +94,13 @@ PROVENANCE_RELATIVE_PATHS = {
 REQUIRED_RELEASE_EVIDENCE_PROVENANCE = (
     "release_manifest",
     "runtime_image_metadata",
+)
+
+RELEASE_PROVENANCE_ARTIFACT_FILE_KINDS = (
+    "release_manifest",
+    "runtime_image_metadata",
+    "runtime_image_ref",
+    "runtime_image_digest",
 )
 
 SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
@@ -155,6 +165,15 @@ def default_release_evidence_output_dir() -> Path:
     )
 
 
+def default_release_provenance_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "GB10_RELEASE_PROVENANCE_DIR",
+            DEFAULT_RELEASE_PROVENANCE_DIR,
+        )
+    )
+
+
 def default_release_evidence_bundle_name() -> str:
     return os.environ.get(
         "GB10_RELEASE_EVIDENCE_BUNDLE_NAME",
@@ -184,6 +203,22 @@ def release_evidence_asset_paths(
         output_dir / RELEASE_EVIDENCE_METADATA_FILE,
         output_dir / RELEASE_EVIDENCE_CHECKSUM_FILE,
     ]
+
+
+def release_provenance_artifact_paths(provenance_dir: Path) -> dict[str, Path]:
+    paths = {
+        "release_manifest": provenance_dir / PROVENANCE_FILES["release_manifest"],
+        "runtime_image_metadata": provenance_dir
+        / PROVENANCE_FILES["runtime_image_metadata"],
+        "runtime_image_ref": provenance_dir
+        / VLLM_RELEASE_ASSET_FILES["runtime_image_ref"],
+        "runtime_image_digest": provenance_dir
+        / VLLM_RELEASE_ASSET_FILES["runtime_image_digest"],
+    }
+    return {
+        kind: paths[kind]
+        for kind in RELEASE_PROVENANCE_ARTIFACT_FILE_KINDS
+    }
 
 
 def find_vllm_wheel_assets(dist_dir: Path) -> list[Path]:

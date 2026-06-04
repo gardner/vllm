@@ -251,10 +251,22 @@ jobs:
             exit 1
           fi
 
-          manifest="$GB10_RELEASE_PROVENANCE_DIR/gb10-release-manifest.json"
-          runtime_metadata="$GB10_RELEASE_PROVENANCE_DIR/buildx-runtime-image-metadata.json"
-          runtime_image_ref="$GB10_RELEASE_PROVENANCE_DIR/gb10-runtime-image-ref.txt"
-          runtime_image_digest="$GB10_RELEASE_PROVENANCE_DIR/gb10-runtime-image-digest.txt"
+          provenance_files_file="$(mktemp)"
+          trap 'rm -f "$provenance_files_file"' EXIT
+          scripts/gb10-list-release-provenance-artifact-files.py \
+            --gb10-provenance-dir "$GB10_RELEASE_PROVENANCE_DIR" \
+            > "$provenance_files_file"
+          mapfile -t provenance_files < "$provenance_files_file"
+          if [ "${#provenance_files[@]}" -ne 4 ]; then
+            echo "GB10 release provenance file lister returned ${#provenance_files[@]} files; expected 4." >&2
+            write_provenance_check_report failed download "GB10 release provenance file lister returned an unexpected file count"
+            exit 1
+          fi
+
+          manifest="${provenance_files[0]}"
+          runtime_metadata="${provenance_files[1]}"
+          runtime_image_ref="${provenance_files[2]}"
+          runtime_image_digest="${provenance_files[3]}"
           if [ ! -f "$manifest" ]; then
             echo "GB10 release manifest artifact is missing $manifest" >&2
             find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
