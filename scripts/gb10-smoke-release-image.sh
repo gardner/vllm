@@ -36,6 +36,8 @@ Useful environment:
   GB10_RELEASE_EVIDENCE_OUTPUT_DIR    Directory for the checksummed evidence
                                       bundle (default:
                                       ./dist/gb10-release-evidence)
+  GB10_RELEASE_EVIDENCE_BUNDLE_NAME   Base name for the generated evidence
+                                      tarball and tarball checksum.
   GB10_RELEASE_BUNDLE_ALLOW_PARTIAL   Set to 0 to make bundling require all
                                       final-image reports even after verifier
                                       failure (default: 1)
@@ -62,7 +64,7 @@ Default reports:
   ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-nvfp4-smoke.json
   ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-openai-server-smoke-image.json
   ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-release-evidence-image.json
-  ${GB10_RELEASE_EVIDENCE_OUTPUT_DIR:-./dist/gb10-release-evidence}/gb10-release-evidence.tar.gz
+  Evidence bundle assets listed by scripts/gb10-list-evidence-release-assets.py.
 
 Example:
   GB10_NVFP4_MODEL=nvidia/Qwen3.6-35B-A3B-NVFP4 \
@@ -84,6 +86,7 @@ offline_wrapper="$repo_root/scripts/gb10-smoke-image.sh"
 openai_wrapper="$repo_root/scripts/gb10-smoke-openai-image.sh"
 verifier="$repo_root/scripts/gb10-verify-release-evidence.py"
 bundler="$repo_root/scripts/gb10-bundle-release-evidence.py"
+asset_lister="$repo_root/scripts/gb10-list-evidence-release-assets.py"
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
     usage
@@ -143,7 +146,13 @@ if [ "${#serve_args[@]}" -eq 0 ]; then
     exit 2
 fi
 
-for script in "$offline_wrapper" "$openai_wrapper" "$verifier" "$bundler"; do
+for script in \
+    "$offline_wrapper" \
+    "$openai_wrapper" \
+    "$verifier" \
+    "$bundler" \
+    "$asset_lister"
+do
     if [ ! -f "$script" ]; then
         echo "Missing required GB10 smoke helper: $script" >&2
         exit 1
@@ -259,5 +268,8 @@ if [ "${GB10_RELEASE_BUNDLE_ALLOW_PARTIAL:-1}" = "1" ]; then
     bundle_args+=(--gb10-allow-partial)
 fi
 "$bundler" "${bundle_args[@]}"
+
+echo "GB10 release evidence assets:" >&2
+"$asset_lister" >&2
 
 exit "$verify_status"

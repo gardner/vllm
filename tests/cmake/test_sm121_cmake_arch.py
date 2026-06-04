@@ -1033,9 +1033,18 @@ def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
         in orchestrator_script
     )
     assert (
+        f"./{contract.DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR.as_posix()}"
+        in orchestrator_script
+    )
+    assert (
+        "Evidence bundle assets listed by "
+        "scripts/gb10-list-evidence-release-assets.py."
+        in orchestrator_script
+    )
+    assert (
         "${GB10_RELEASE_EVIDENCE_OUTPUT_DIR:-./"
         f"{contract.DEFAULT_RELEASE_EVIDENCE_OUTPUT_DIR.as_posix()}"
-        in orchestrator_script
+        not in orchestrator_script
     )
 
 
@@ -1052,6 +1061,9 @@ def test_gb10_release_evidence_asset_names_share_contract(monkeypatch):
     ).read_text()
     validator_script = (
         REPO_ROOT / "scripts" / "gb10-validate-evidence-release-assets.py"
+    ).read_text()
+    orchestrator_script = (
+        REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh"
     ).read_text()
 
     monkeypatch.delenv("GB10_RELEASE_EVIDENCE_BUNDLE_NAME", raising=False)
@@ -1101,6 +1113,10 @@ def test_gb10_release_evidence_asset_names_share_contract(monkeypatch):
     assert "default_release_evidence_bundle_name" in validator_script
     assert "release_evidence_asset_paths" in validator_script
     assert "release_evidence_bundle_archive_checksum_name" in validator_script
+    assert "scripts/gb10-list-evidence-release-assets.py" in orchestrator_script
+    assert "GB10_RELEASE_EVIDENCE_BUNDLE_NAME" in orchestrator_script
+    assert "GB10 release evidence assets:" in orchestrator_script
+    assert "gb10-release-evidence.tar.gz" not in orchestrator_script
     assert "scripts/gb10-list-evidence-release-assets.py" in smoke_workflow
     assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" not in (
         smoke_workflow
@@ -2705,11 +2721,13 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in script
     assert "GB10_IMAGE_DIGEST" in script
     assert "GB10_RELEASE_TAG" in script
+    assert "GB10_RELEASE_EVIDENCE_BUNDLE_NAME" in script
     assert "gb10-nvfp4-smoke.json" in script
     assert "gb10-openai-server-smoke-image.json" in script
     assert "gb10-release-evidence-image.json" in script
     assert "gb10-smoked-image-digest.txt" in script
-    assert "gb10-release-evidence.tar.gz" in script
+    assert "scripts/gb10-list-evidence-release-assets.py" in script
+    assert "GB10 release evidence assets:" in script
     assert "--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
@@ -2737,6 +2755,7 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert '"$openai_wrapper" "$image" --serve "${serve_args[@]}" --smoke' in script
     assert '"$verifier" "${verify_args[@]}" || verify_status=$?' in script
     assert '"$bundler" "${bundle_args[@]}"' in script
+    assert '"$asset_lister" >&2' in script
     assert 'bundle_args+=(--gb10-release-tag "$GB10_RELEASE_TAG")' in script
     assert 'bundle_args+=(--gb10-release-manifest-json' in script
     assert 'bundle_args+=(--gb10-runtime-image-metadata-json' in script
