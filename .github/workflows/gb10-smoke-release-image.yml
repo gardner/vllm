@@ -431,8 +431,19 @@ jobs:
           fi
           write_provenance_check_report passed pull "candidate image pull and provenance digest checks passed" "$image_digest"
           echo "GB10_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
-          printf '%s\n' "$image_digest" \
-            > "$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-smoked-image-digest.txt"
+          release_evidence_files_file="$(mktemp)"
+          trap 'rm -f "$release_evidence_files_file"' EXIT
+          scripts/gb10-list-release-evidence-report-files.py \
+            --gb10-report-dir "$GB10_RELEASE_SMOKE_REPORT_DIR" \
+            > "$release_evidence_files_file"
+          mapfile -t release_evidence_files < "$release_evidence_files_file"
+          if [ "${#release_evidence_files[@]}" -ne 4 ]; then
+            echo "GB10 release evidence report lister returned ${#release_evidence_files[@]} files; expected 4." >&2
+            write_provenance_check_report failed pull "GB10 release evidence report lister returned an unexpected file count" "$image_digest"
+            exit 1
+          fi
+          smoked_image_digest_report="${release_evidence_files[3]}"
+          printf '%s\n' "$image_digest" > "$smoked_image_digest_report"
 
       - name: Run final-image smoke and evidence verifier
         run: |

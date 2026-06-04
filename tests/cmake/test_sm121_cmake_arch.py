@@ -1993,7 +1993,21 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         smoke_workflow
     )
     assert "GB10 candidate image pull failed" in smoke_workflow
-    assert "gb10-smoked-image-digest.txt" in smoke_workflow
+    report_lister_script = (
+        REPO_ROOT / "scripts" / "gb10-list-release-evidence-report-files.py"
+    ).read_text()
+    assert "scripts/gb10-list-release-evidence-report-files.py" in smoke_workflow
+    assert "--gb10-report-dir \"$GB10_RELEASE_SMOKE_REPORT_DIR\"" in smoke_workflow
+    assert "mapfile -t release_evidence_files" in smoke_workflow
+    assert '"${#release_evidence_files[@]}" -ne 4' in smoke_workflow
+    assert 'smoked_image_digest_report="${release_evidence_files[3]}"' in (
+        smoke_workflow
+    )
+    assert (
+        '> "$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-smoked-image-digest.txt"'
+        not in smoke_workflow
+    )
+    assert "release_evidence_file_paths" in report_lister_script
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
         smoke_workflow
     )
