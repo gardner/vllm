@@ -769,6 +769,23 @@ def test_gb10_local_cached_build_script_defaults_to_serial_builds():
     assert "--target \"$docker_target\"" in script
 
 
+def test_gb10_local_cached_build_script_validates_manifest_before_buildx():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert 'GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"' in script
+    assert "GB10_LOCAL_RELEASE_MANIFEST_DIR" in script
+    assert "scripts/gb10-write-release-manifest.py" in script
+    assert "--gb10-validate-release-inputs" in script
+    assert "--gb10-output-json" in script
+    assert "GB10_PREFLIGHT_ONLY" in script
+    assert "GB10_PREFLIGHT_CACHE_REF" in script
+    assert "GB10_WHEEL_CACHE_REF" in script
+    assert "GB10_RUNTIME_CACHE_REF" in script
+    assert script.index("--gb10-validate-release-inputs") < script.index(
+        "docker buildx inspect \"$GB10_BUILDX_BUILDER\" --bootstrap"
+    )
+
+
 def test_gb10_local_cached_build_script_preserves_failed_cache_exports():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 

@@ -14,12 +14,17 @@ Defaults are intentionally conservative for local work:
 
 Set GB10_USE_REGISTRY_CACHE=1 to also import/export GHCR build cache.
 Set GB10_BUILDX_BUILDER to override the local buildx builder name.
+Set GB10_LOCAL_RELEASE_MANIFEST_DIR to override the local manifest output dir.
 Failed builds preserve any exported cache for the next retry.
 EOF
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+
+GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
+GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
+GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
 
 target_arg="${1:-preflight}"
 case "$target_arg" in
@@ -31,13 +36,13 @@ case "$target_arg" in
         docker_target="gb10-flashinfer-preflight"
         cache_key="preflight"
         image_tags=(--tag "vllm-gb10-flashinfer-preflight:local")
-        registry_cache_refs=("ghcr.io/gardner/vllm-gb10-buildcache:preflight")
+        registry_cache_refs=("$GB10_PREFLIGHT_CACHE_REF")
         ;;
     wheel|build)
         docker_target="build"
         cache_key="wheel"
         image_tags=(--tag "vllm-gb10-wheel:local")
-        registry_cache_refs=("ghcr.io/gardner/vllm-gb10-buildcache:wheel")
+        registry_cache_refs=("$GB10_WHEEL_CACHE_REF")
         ;;
     runtime|image|vllm-openai)
         docker_target="vllm-openai"
@@ -46,8 +51,8 @@ case "$target_arg" in
         image_tag="${GB10_IMAGE_TAG:-local}"
         image_tags=(--tag "${image_name}:${image_tag}")
         registry_cache_refs=(
-            "ghcr.io/gardner/vllm-gb10-buildcache:wheel"
-            "ghcr.io/gardner/vllm-gb10-buildcache:runtime"
+            "$GB10_WHEEL_CACHE_REF"
+            "$GB10_RUNTIME_CACHE_REF"
         )
         ;;
     *)
@@ -65,8 +70,15 @@ GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"
 GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
+GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
+GB10_IMAGE_NAME="${GB10_IMAGE_NAME:-vllm-gb10}"
+GB10_IMAGE_TAG="${GB10_IMAGE_TAG:-local}"
+GB10_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
+GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 
-case "${GB10_OUTPUT:-load}" in
+output_mode="${GB10_OUTPUT:-load}"
+
+case "$output_mode" in
     load)
         output_args=(--load)
         ;;
@@ -81,6 +93,30 @@ case "${GB10_OUTPUT:-load}" in
         exit 2
         ;;
 esac
+
+if [ "$docker_target" = "gb10-flashinfer-preflight" ]; then
+    GB10_PREFLIGHT_ONLY="${GB10_PREFLIGHT_ONLY:-true}"
+else
+    GB10_PREFLIGHT_ONLY="${GB10_PREFLIGHT_ONLY:-false}"
+fi
+if [ "$output_mode" = "push" ]; then
+    GB10_PUSH_IMAGE="${GB10_PUSH_IMAGE:-true}"
+else
+    GB10_PUSH_IMAGE="${GB10_PUSH_IMAGE:-false}"
+fi
+
+export GITHUB_SHA
+export GB10_FLASH_ATTN_REF GB10_FLASH_ATTN_REPO
+export GB10_IMAGE_NAME GB10_IMAGE_TAG GB10_PUSH_IMAGE
+export GB10_MAX_JOBS GB10_NVCC_THREADS
+export GB10_PREFLIGHT_CACHE_REF GB10_PREFLIGHT_ONLY
+export GB10_PREBUILT_WHEEL_URLS GB10_RELEASE_TAG GB10_VLLM_VERSION
+export GB10_RUNTIME_CACHE_REF GB10_WHEEL_CACHE_REF
+
+mkdir -p "$GB10_LOCAL_RELEASE_MANIFEST_DIR"
+scripts/gb10-write-release-manifest.py \
+    --gb10-validate-release-inputs \
+    --gb10-output-json "$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
 
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 cache_dir="$cache_root/$cache_key"
