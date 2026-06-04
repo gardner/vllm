@@ -1264,6 +1264,11 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert '"multi_spark_ep_all2all_eplb": "deferred"' in validation_block
     assert 'entries = support_matrix.get("entries")' in validation_block
     assert "mismatched_support = {" in validation_block
+    assert validation_block.index(
+        'support_matrix = metadata.get("support_matrix_summary")'
+    ) < validation_block.index(
+        'metadata.get("status") != "complete"'
+    )
     assert "GB10 evidence release metadata is missing release provenance" in (
         smoke_workflow
     )

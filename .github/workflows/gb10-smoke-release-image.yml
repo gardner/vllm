@@ -582,22 +582,6 @@ jobs:
                   return None
               return value
 
-          if (
-              metadata.get("status") != "complete"
-              or metadata.get("release_gate_passed") is not True
-          ):
-              print(
-                  "GB10 evidence release metadata does not prove a passed release gate.",
-                  file=sys.stderr,
-              )
-              print(f"  status: {metadata.get('status')}", file=sys.stderr)
-              print(
-                  "  release_gate_passed: "
-                  f"{metadata.get('release_gate_passed')}",
-                  file=sys.stderr,
-              )
-              sys.exit(1)
-
           support_matrix = metadata.get("support_matrix_summary")
           if metadata.get("support_matrix_complete") is not True:
               print(
@@ -657,6 +641,22 @@ jobs:
                   file=sys.stderr,
               )
               print(f"  mismatched: {mismatched_support}", file=sys.stderr)
+              sys.exit(1)
+
+          if (
+              metadata.get("status") != "complete"
+              or metadata.get("release_gate_passed") is not True
+          ):
+              print(
+                  "GB10 evidence release metadata does not prove a passed release gate.",
+                  file=sys.stderr,
+              )
+              print(f"  status: {metadata.get('status')}", file=sys.stderr)
+              print(
+                  "  release_gate_passed: "
+                  f"{metadata.get('release_gate_passed')}",
+                  file=sys.stderr,
+              )
               sys.exit(1)
 
           if source.get("image_ref") != os.environ["GB10_IMAGE_REF"]:
