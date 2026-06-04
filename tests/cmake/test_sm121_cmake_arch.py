@@ -948,7 +948,11 @@ def test_gb10_release_workflow_publishes_release_manifest():
         release_step
     )
     assert 'release_assets_file="$(mktemp)"' in release_step
-    assert 'trap \'rm -f "$release_assets_file"\' EXIT' in release_step
+    assert 'release_ref_file="$(mktemp)"' in release_step
+    assert (
+        'trap \'rm -f "$release_assets_file" "$release_ref_file"\' EXIT'
+        in release_step
+    )
     assert '> "$release_assets_file"' in release_step
     assert "mapfile -t release_assets" in release_step
     assert '< "$release_assets_file"' in release_step
@@ -967,11 +971,14 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert 'repos/${GITHUB_REPOSITORY}/git/ref/tags/${GB10_RELEASE_TAG}' in (
         release_step
     )
-    assert 'tag_sha="$(jq -r \'.object.sha // ""\' <<< "$release_ref_json")"' in (
+    assert "if gh api " in release_step
+    assert '> "$release_ref_file" 2>/dev/null; then' in release_step
+    assert "|| true" not in release_step
+    assert 'tag_sha="$(jq -r \'.object.sha // ""\' "$release_ref_file")"' in (
         release_step
     )
     assert (
-        'tag_type="$(jq -r \'.object.type // ""\' <<< "$release_ref_json")"'
+        'tag_type="$(jq -r \'.object.type // ""\' "$release_ref_file")"'
         in release_step
     )
     tag_guard = (

@@ -445,7 +445,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           release_assets_file="$(mktemp)"
-          trap 'rm -f "$release_assets_file"' EXIT
+          release_ref_file="$(mktemp)"
+          trap 'rm -f "$release_assets_file" "$release_ref_file"' EXIT
           scripts/gb10-list-vllm-release-assets.py \
             --gb10-dist-dir dist \
             --gb10-release-manifest-dir "$GB10_RELEASE_MANIFEST_DIR" \
@@ -453,12 +454,10 @@ jobs:
             > "$release_assets_file"
           mapfile -t release_assets < "$release_assets_file"
 
-          release_ref_json="$(
-            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GB10_RELEASE_TAG}" 2>/dev/null || true
-          )"
-          if [ -n "$release_ref_json" ]; then
-            tag_sha="$(jq -r '.object.sha // ""' <<< "$release_ref_json")"
-            tag_type="$(jq -r '.object.type // ""' <<< "$release_ref_json")"
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GB10_RELEASE_TAG}" \
+            > "$release_ref_file" 2>/dev/null; then
+            tag_sha="$(jq -r '.object.sha // ""' "$release_ref_file")"
+            tag_type="$(jq -r '.object.type // ""' "$release_ref_file")"
             if [ "$tag_type" != "commit" ] || [ "$tag_sha" != "$GITHUB_SHA" ]; then
               echo "GB10 release tag must point at the workflow commit before assets are uploaded." >&2
               echo "  release-tag: ${GB10_RELEASE_TAG}" >&2

@@ -107,6 +107,12 @@ def _is_gb10_unsupported_backend(backend: NvFp4MoeBackend) -> bool:
     return _gb10_unsupported_backend_reason(backend) is not None
 
 
+def _swiglu_clamp_backend_guidance() -> str:
+    if _is_sm12x_device():
+        return "Use 'flashinfer_cutlass' instead."
+    return "Use 'flashinfer_trtllm' or 'flashinfer_cutlass' instead."
+
+
 fi_2_vllm_backend_map: dict[FlashinferMoeBackend, NvFp4MoeBackend] = {
     FlashinferMoeBackend.CUTLASS: NvFp4MoeBackend.FLASHINFER_CUTLASS,
     FlashinferMoeBackend.TENSORRT_LLM: NvFp4MoeBackend.FLASHINFER_TRTLLM,
@@ -356,8 +362,8 @@ def select_nvfp4_moe_backend(
             raise ValueError(
                 f"Model sets swiglu_limit={config.swiglu_limit}, but the "
                 f"explicitly requested moe_backend={runner_backend!r} does "
-                f"not apply the SwiGLU clamp. Use 'flashinfer_trtllm' or "
-                f"'flashinfer_cutlass' instead."
+                f"not apply the SwiGLU clamp. "
+                f"{_swiglu_clamp_backend_guidance()}"
             )
         return _return_or_raise(
             requested_backend, config, weight_key, activation_key, activation_format
@@ -386,7 +392,8 @@ def select_nvfp4_moe_backend(
                 raise ValueError(
                     f"Model sets swiglu_limit={config.swiglu_limit}, but the "
                     f"FlashInfer backend selected via VLLM_FLASHINFER_MOE_BACKEND "
-                    f"({backend.value}) does not apply the SwiGLU clamp."
+                    f"({backend.value}) does not apply the SwiGLU clamp. "
+                    f"{_swiglu_clamp_backend_guidance()}"
                 )
             return _return_or_raise(
                 backend, config, weight_key, activation_key, activation_format

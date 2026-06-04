@@ -133,6 +133,31 @@ def test_gb10_swiglu_limit_nvfp4_moe_skips_trtllm_gen_for_cutlass(monkeypatch):
     assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_explicit_b12x_with_swiglu_limit_recommends_cutlass_only(
+    monkeypatch,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {NvFp4MoeBackend.FLASHINFER_B12X},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        select_nvfp4_moe_backend(
+            _make_nvfp4_moe_config(
+                moe_backend="flashinfer_b12x",
+                swiglu_limit=7.0,
+            ),
+            weight_key=kNvfp4Static,
+            activation_key=kNvfp4Dynamic,
+        )
+
+    message = str(exc_info.value)
+    assert "does not apply the SwiGLU clamp" in message
+    assert "flashinfer_cutlass" in message
+    assert "flashinfer_trtllm" not in message
+
+
 def test_gb10_explicit_trtllm_nvfp4_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_backend_support(
