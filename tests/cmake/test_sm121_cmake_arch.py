@@ -733,6 +733,16 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     }
 
 
+def test_gb10_required_support_matrix_contract_is_shared():
+    manifest = _load_gb10_release_manifest_module()
+    verifier = _load_gb10_release_evidence_module()
+    bundler = _load_gb10_release_bundle_module()
+
+    assert manifest.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
+    assert verifier.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
+    assert bundler.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
+
+
 def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     manifest = _load_gb10_release_manifest_module()
     env = {
