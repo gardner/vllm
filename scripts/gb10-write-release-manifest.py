@@ -33,6 +33,16 @@ def _env_bool(env: Mapping[str, str], name: str) -> bool:
     return _env(env, name).lower() in {"1", "true", "yes", "on"}
 
 
+def _env_json_string_list(env: Mapping[str, str], name: str) -> list[str]:
+    try:
+        value = json.loads(_env(env, name, "[]"))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
 def _is_full_git_sha(value: str) -> bool:
     return re.fullmatch(r"[0-9a-f]{40}", value) is not None
 
@@ -371,6 +381,7 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
                 "max_jobs": _env(env, "GB10_MAX_JOBS"),
                 "nvcc_threads": _env(env, "GB10_NVCC_THREADS"),
             },
+            "runner_labels": _env_json_string_list(env, "GB10_RUNNER_LABELS"),
             "cache_refs": {
                 "preflight": _env(env, "GB10_PREFLIGHT_CACHE_REF"),
                 "wheel": _env(env, "GB10_WHEEL_CACHE_REF"),

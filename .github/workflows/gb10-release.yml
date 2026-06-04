@@ -41,6 +41,11 @@ on:
         required: true
         default: false
         type: boolean
+      runner-labels:
+        description: "JSON runner labels. Hosted ARM is for preflight only; full releases require self-hosted GB10 labels."
+        required: true
+        default: '["ubuntu-22.04-arm"]'
+        type: string
 
 permissions:
   contents: write
@@ -63,6 +68,7 @@ env:
   GB10_NVCC_THREADS: "8"
   GB10_BUILD_HEARTBEAT_SECONDS: "300"
   GB10_BUILD_HEARTBEAT_DOCKER_DF: "1"
+  GB10_SELF_HOSTED_RUNNER_LABELS: '["self-hosted","linux","aarch64","cuda13","dgx-spark","sm121"]'
 
 defaults:
   run:
@@ -71,7 +77,7 @@ defaults:
 jobs:
   build:
     name: Build GB10 artifacts
-    runs-on: ubuntu-22.04-arm
+    runs-on: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs['runner-labels'] || '["self-hosted","linux","aarch64","cuda13","dgx-spark","sm121"]') }}
     timeout-minutes: 360
     env:
       DOCKER_BUILDKIT: "1"
@@ -95,6 +101,7 @@ jobs:
             flash_attn_ref="de3849e75d07edd1c00aec02c92ec852ba757adc"
             push_image="true"
             preflight_only="false"
+            release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"
           else
             release_tag="${{ inputs.release-tag }}"
             image_name="${{ inputs.image-name }}"
@@ -103,6 +110,8 @@ jobs:
             flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
             push_image="${{ inputs.push-image }}"
             preflight_only="${{ inputs['preflight-only'] }}"
+            runner_labels="${{ inputs['runner-labels'] }}"
+            release_runner_labels="$runner_labels"
           fi
           if [ -z "${prebuilt_wheel_urls}" ]; then
             prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
@@ -116,6 +125,12 @@ jobs:
               exit 1
             fi
           }
+
+          if [ "$preflight_only" != "true" ] && [[ "$release_runner_labels" != *"\"self-hosted\""* ]]; then
+            echo "GB10 full release builds require self-hosted runner labels; GitHub-hosted ARM runners repeatedly terminate the multi-hour wheel build without logs." >&2
+            echo "Use runner-labels=$GB10_SELF_HOSTED_RUNNER_LABELS for full release builds." >&2
+            exit 1
+          fi
 
           if [ "$preflight_only" != "true" ] && [ -n "$release_tag" ] && [ "$push_image" != "true" ]; then
             echo "GB10 full release publication requires push-image=true so the runtime image is durable in GHCR." >&2
@@ -181,6 +196,7 @@ jobs:
           reject_multiline_env_value "flash_attn_ref" "$flash_attn_ref"
           reject_multiline_env_value "push_image" "$push_image"
           reject_multiline_env_value "preflight_only" "$preflight_only"
+          reject_multiline_env_value "release_runner_labels" "$release_runner_labels"
           {
             echo "GB10_RELEASE_TAG=${release_tag}"
             echo "GB10_IMAGE_NAME=${image_name}"
@@ -191,6 +207,7 @@ jobs:
             echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
             echo "GB10_PUSH_IMAGE=${push_image}"
             echo "GB10_PREFLIGHT_ONLY=${preflight_only}"
+            echo "GB10_RUNNER_LABELS=${release_runner_labels}"
           } >> "$GITHUB_ENV"
 
       - name: Write GB10 release manifest

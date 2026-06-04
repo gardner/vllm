@@ -467,6 +467,36 @@ def test_gb10_release_workflow_supports_manual_preflight_only():
         assert "env.GB10_PREFLIGHT_ONLY != 'true'" in step_block
 
 
+def test_gb10_release_workflow_routes_full_builds_to_self_hosted_gb10():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert "runner-labels:" in gb10_workflow
+    assert 'default: \'["ubuntu-22.04-arm"]\'' in gb10_workflow
+    assert "GB10_SELF_HOSTED_RUNNER_LABELS" in gb10_workflow
+    assert "runs-on: ${{ fromJSON(" in gb10_workflow
+    assert "inputs['runner-labels']" in gb10_workflow
+
+    resolve_step = gb10_workflow.split(
+        "- name: Resolve release settings",
+        1,
+    )[1].split("- name: Write GB10 release manifest", 1)[0]
+    assert 'runner_labels="${{ inputs[\'runner-labels\'] }}"' in resolve_step
+    assert 'release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"' in (
+        resolve_step
+    )
+    assert 'GB10_RUNNER_LABELS=${release_runner_labels}' in resolve_step
+    assert "reject_multiline_env_value \"release_runner_labels\"" in resolve_step
+    assert '[ "$preflight_only" != "true" ]' in resolve_step
+    assert '[[ "$release_runner_labels" != *"\\"self-hosted\\""* ]]' in (
+        resolve_step
+    )
+    assert "GB10 full release builds require self-hosted runner labels" in (
+        resolve_step
+    )
+
+
 def test_gb10_release_workflow_requires_pushed_image_for_tagged_release():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
@@ -1528,6 +1558,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "GB10_PREFLIGHT_ONLY": "true",
         "GB10_MAX_JOBS": "24",
         "GB10_NVCC_THREADS": "8",
+        "GB10_RUNNER_LABELS": json.dumps(
+            ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
+        ),
         **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
@@ -1555,6 +1588,14 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "ref_is_full_git_sha": True,
     }
     assert data["build"]["parallelism"] == {"max_jobs": "24", "nvcc_threads": "8"}
+    assert data["build"]["runner_labels"] == [
+        "self-hosted",
+        "linux",
+        "aarch64",
+        "cuda13",
+        "dgx-spark",
+        "sm121",
+    ]
     assert data["build"]["local_gb10_dependency_checkouts"] is False
     assert data["build"]["cache_refs"]["runtime"] == (
         "ghcr.io/gardner/vllm-gb10-buildcache:runtime"
