@@ -678,7 +678,12 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert '--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in (
         release_step
     )
+    assert 'release_assets_file="$(mktemp)"' in release_step
+    assert 'trap \'rm -f "$release_assets_file"\' EXIT' in release_step
+    assert '> "$release_assets_file"' in release_step
     assert "mapfile -t release_assets" in release_step
+    assert '< "$release_assets_file"' in release_step
+    assert "< <(" not in release_step
     assert "dist/vllm-*.whl" not in release_step
     assert "GB10 release publication expects exactly one vLLM wheel" not in (
         release_step

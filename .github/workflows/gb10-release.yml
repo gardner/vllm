@@ -378,12 +378,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mapfile -t release_assets < <(
-            scripts/gb10-list-vllm-release-assets.py \
-              --gb10-dist-dir dist \
-              --gb10-release-manifest-dir "$GB10_RELEASE_MANIFEST_DIR" \
-              --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"
-          )
+          release_assets_file="$(mktemp)"
+          trap 'rm -f "$release_assets_file"' EXIT
+          scripts/gb10-list-vllm-release-assets.py \
+            --gb10-dist-dir dist \
+            --gb10-release-manifest-dir "$GB10_RELEASE_MANIFEST_DIR" \
+            --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
+            > "$release_assets_file"
+          mapfile -t release_assets < "$release_assets_file"
 
           if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$GB10_RELEASE_TAG" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
