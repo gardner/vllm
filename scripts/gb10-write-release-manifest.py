@@ -234,6 +234,17 @@ def _github_release_url(value: object) -> bool:
     )
 
 
+def _github_repository_url(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == "github.com"
+        and bool(parsed.path.strip("/"))
+    )
+
+
 def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
     """Return release-input validation errors for a GB10 manifest."""
 
@@ -265,6 +276,8 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
         errors.append("FlashInfer release manifest must list GB10 wheel URLs.")
 
     flash_attn = _mapping_value(dependencies, "vllm_flash_attn")
+    if not _github_repository_url(_mapping_value(flash_attn, "repository")):
+        errors.append("vLLM flash-attn repository must be a GitHub HTTPS URL.")
     if _mapping_value(flash_attn, "ref_is_full_git_sha") is not True:
         errors.append("vLLM flash-attn ref must be a full Git SHA.")
 
@@ -272,6 +285,8 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
     if isinstance(source_dependencies, Mapping):
         for dependency in source_dependencies.values():
             name = _mapping_value(dependency, "name") or "source dependency"
+            if not _github_repository_url(_mapping_value(dependency, "repository")):
+                errors.append(f"{name} repository must be a GitHub HTTPS URL.")
             if _mapping_value(dependency, "ref_is_full_git_sha") is not True:
                 errors.append(f"{name} ref must be a full Git SHA.")
     else:

@@ -630,9 +630,13 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     bad_manifest = copy.deepcopy(good_manifest)
     bad_manifest["dependencies"]["vllm_flash_attn"]["ref"] = "main"
     bad_manifest["dependencies"]["vllm_flash_attn"]["ref_is_full_git_sha"] = False
+    bad_manifest["dependencies"]["vllm_flash_attn"]["repository"] = "../flash-attn"
     bad_manifest["dependencies"]["source_dependencies"]["flashmla"][
         "ref_is_full_git_sha"
     ] = False
+    bad_manifest["dependencies"]["source_dependencies"]["deepgemm"][
+        "repository"
+    ] = "file:///mnt/dgx-ssd/src/GB10/DeepGEMM"
     bad_manifest["build"]["local_gb10_dependency_checkouts"] = True
     bad_manifest["dependencies"]["flashinfer"]["wheels"][0]["release_tag"] = None
     bad_manifest["image"]["push"] = False
@@ -640,7 +644,14 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     errors = manifest.validate_manifest(bad_manifest)
 
     assert any("vLLM flash-attn ref must be a full Git SHA" in err for err in errors)
+    assert any(
+        "vLLM flash-attn repository must be a GitHub HTTPS URL" in err
+        for err in errors
+    )
     assert any("FlashMLA ref must be a full Git SHA" in err for err in errors)
+    assert any(
+        "DeepGEMM repository must be a GitHub HTTPS URL" in err for err in errors
+    )
     assert any(
         "GB10 local dependency checkouts are not allowed" in err for err in errors
     )
@@ -1874,9 +1885,21 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "ref_is_full_git_sha": True,
             },
             "source_dependencies": {
-                "deepgemm": {"ref": DEEPGEMM_GIT_TAG, "ref_is_full_git_sha": True},
-                "flashmla": {"ref": FLASHMLA_GIT_TAG, "ref_is_full_git_sha": True},
+                "deepgemm": {
+                    "name": "DeepGEMM",
+                    "repository": "https://github.com/gardner/DeepGEMM.git",
+                    "ref": DEEPGEMM_GIT_TAG,
+                    "ref_is_full_git_sha": True,
+                },
+                "flashmla": {
+                    "name": "FlashMLA",
+                    "repository": "https://github.com/gardner/FlashMLA.git",
+                    "ref": FLASHMLA_GIT_TAG,
+                    "ref_is_full_git_sha": True,
+                },
                 "triton_kernels": {
+                    "name": "triton_kernels",
+                    "repository": "https://github.com/gardner/triton.git",
                     "ref": TRITON_KERNELS_GIT_TAG,
                     "ref_is_full_git_sha": True,
                 },
