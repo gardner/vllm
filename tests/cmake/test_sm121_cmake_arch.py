@@ -2416,6 +2416,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"quantization_modelopt_fp4"' in script
+    assert '"nvfp4_backend_selections_allowed_by_support_matrix"' in script
     assert '"release_manifest_flashinfer_components"' in script
     assert '"release_manifest_durable_inputs"' in script
     assert '"release_manifest_source_dependencies_present"' in script
@@ -2638,6 +2639,10 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["flashinfer_gb10_distribution_versions"] == "passed"
     assert check_statuses["attention_backend_flashinfer"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
+    assert (
+        check_statuses["nvfp4_backend_selections_allowed_by_support_matrix"]
+        == "passed"
+    )
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
     assert check_statuses["release_manifest_durable_inputs"] == "passed"
@@ -2654,6 +2659,37 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["release_manifest_tag_matches_expected"] == "passed"
     assert check_statuses["runtime_image_metadata_has_digest"] == "passed"
     assert check_statuses["runtime_image_digest_matches_smoke"] == "passed"
+
+    unsupported_selection_report = copy.deepcopy(nvfp4_report)
+    unsupported_selection_report["backend_selections"] = [
+        {
+            "path": "linear",
+            "backend": "MARLIN",
+            "is_fallback": False,
+        }
+    ]
+    unsupported_selection_summary = verifier._build_summary(
+        nvfp4_report=unsupported_selection_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert unsupported_selection_summary["status"] == "failed"
+    unsupported_selection_failures = {
+        failure["name"] for failure in unsupported_selection_summary["failures"]
+    }
+    assert "nvfp4_backend_selections_allowed_by_support_matrix" in (
+        unsupported_selection_failures
+    )
 
     nvfp4_report["fallback_events"] = [
         {

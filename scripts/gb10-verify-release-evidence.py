@@ -603,6 +603,138 @@ def _gb10_support_matrix_present(
     }
 
 
+def _support_matrix_entry_status(
+    manifest: dict[str, Any] | None,
+    entry_name: str,
+) -> str | None:
+    entries = _nested_get(manifest, "gb10_support_matrix", "entries")
+    if not isinstance(entries, dict):
+        return None
+    entry = entries.get(entry_name)
+    if not isinstance(entry, dict):
+        return None
+    status = entry.get("status")
+    return status if isinstance(status, str) else None
+
+
+def _support_matrix_entry_for_selection(selection: Any) -> str | None:
+    if not isinstance(selection, dict):
+        return None
+
+    path = selection.get("path")
+    backend = selection.get("backend")
+    path_name = str(path).lower() if path is not None else ""
+    backend_name = str(backend).replace("-", "_").upper() if backend is not None else ""
+
+    if "MARLIN" in backend_name or "EMULATION" in backend_name:
+        return "marlin_nvfp4_fallback"
+
+    trtllm_gen_markers = ("TRTLLM_GEN", "TRTLLMGEN", "TRT_LLM_GEN")
+    if any(marker in backend_name for marker in trtllm_gen_markers):
+        if path_name == "moe":
+            return "trtllm_gen_moe"
+        return "trtllm_gen_attention"
+
+    if path_name in {"linear", "linear_w4a16"} and "FLASHINFER" in backend_name:
+        return "flashinfer_nvfp4_dense"
+
+    if path_name == "moe" and "FLASHINFER_B12X" in backend_name:
+        return "flashinfer_b12x_non_ep_moe"
+
+    return None
+
+
+def _check_backend_selections_against_support_matrix(
+    report: dict[str, Any] | None,
+    manifest: dict[str, Any] | None,
+    *,
+    required: bool,
+) -> list[dict[str, Any]]:
+    if manifest is None:
+        return [
+            {
+                "name": "nvfp4_backend_selections_allowed_by_support_matrix",
+                "status": "not_required",
+                "required": False,
+                "message": (
+                    "release manifest support matrix was not provided for "
+                    "backend-selection classification"
+                ),
+                "details": {},
+            }
+        ]
+    if report is None:
+        return [
+            _missing_check(
+                "nvfp4_backend_selections_allowed_by_support_matrix",
+                "NVFP4 report missing, so backend selections cannot be checked "
+                "against the support matrix",
+                required=required,
+            )
+        ]
+
+    backend_selections = report.get("backend_selections")
+    if not isinstance(backend_selections, list):
+        return [
+            _check(
+                name="nvfp4_backend_selections_allowed_by_support_matrix",
+                passed=False,
+                message=(
+                    "NVFP4 report backend selections must be a list before "
+                    "they can be checked against the support matrix"
+                ),
+                details={"backend_selections": backend_selections},
+                required=required,
+            )
+        ]
+
+    classified: list[dict[str, Any]] = []
+    unclassified: list[dict[str, Any]] = []
+    disallowed: list[dict[str, Any]] = []
+    allowed_statuses = {"supported_native", "supported_routed"}
+    for selection in backend_selections:
+        entry_name = _support_matrix_entry_for_selection(selection)
+        if entry_name is None:
+            if isinstance(selection, dict):
+                unclassified.append(selection)
+            else:
+                unclassified.append({"selection": selection})
+            continue
+
+        status = _support_matrix_entry_status(manifest, entry_name)
+        selection_details = {
+            "path": selection.get("path") if isinstance(selection, dict) else None,
+            "backend": selection.get("backend")
+            if isinstance(selection, dict)
+            else None,
+            "is_fallback": selection.get("is_fallback")
+            if isinstance(selection, dict)
+            else None,
+            "support_matrix_entry": entry_name,
+            "support_matrix_status": status,
+        }
+        classified.append(selection_details)
+        if status not in allowed_statuses or selection_details["is_fallback"] is True:
+            disallowed.append(selection_details)
+
+    return [
+        _check(
+            name="nvfp4_backend_selections_allowed_by_support_matrix",
+            passed=not unclassified and not disallowed,
+            message=(
+                "NVFP4 backend selections are classified by the GB10 support "
+                "matrix and only use supported native or routed entries"
+            ),
+            details={
+                "classified": classified,
+                "unclassified": unclassified,
+                "disallowed": disallowed,
+            },
+            required=required,
+        )
+    ]
+
+
 def _release_manifest_validation_errors(manifest: dict[str, Any]) -> list[str]:
     manifest_writer_path = Path(__file__).with_name("gb10-write-release-manifest.py")
     spec = importlib.util.spec_from_file_location(
@@ -937,6 +1069,11 @@ def _build_summary(
             required=require_release_manifest,
             image_ref=image_ref,
             expected_release_tag=release_tag,
+        ),
+        *_check_backend_selections_against_support_matrix(
+            nvfp4_report,
+            release_manifest,
+            required=require_release_manifest,
         ),
         *_check_runtime_image_metadata(
             runtime_image_metadata,
