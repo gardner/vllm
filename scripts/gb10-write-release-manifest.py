@@ -232,11 +232,18 @@ def _gb10_support_matrix() -> dict[str, object]:
             ),
         },
         "entries": {
-            "flashinfer_nvfp4_dense": {
+            "flashinfer_b12x_nvfp4_dense": {
                 "status": "supported_native",
                 "release_contract": (
-                    "First-path smoke must observe native FlashInfer dense "
-                    "NVFP4 backend selection."
+                    "First-path smoke may observe native FlashInfer b12x "
+                    "dense NVFP4 backend selection on SM12x."
+                ),
+            },
+            "flashinfer_cutlass_nvfp4_dense": {
+                "status": "supported_native",
+                "release_contract": (
+                    "First-path smoke may observe native FlashInfer CUTLASS "
+                    "dense NVFP4 backend selection on SM12x."
                 ),
             },
             "flashinfer_nvfp4_quantization": {
@@ -313,6 +320,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "changes this status."
                 ),
             },
+            "flashinfer_trtllm_nvfp4_dense": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FlashInfer TRTLLM dense NVFP4 is not validated on "
+                    "GB10/SM12x and must not satisfy native dense release "
+                    "evidence."
+                ),
+            },
             "trtllm_gen_attention": {
                 "status": "not_supported",
                 "release_contract": (
@@ -339,6 +354,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                 "release_contract": (
                     "Blocked until multi-Spark EP/all-to-all/EPLB contracts "
                     "are validated on hardware."
+                ),
+            },
+            "flashinfer_cudnn_nvfp4_dense": {
+                "status": "deferred",
+                "release_contract": (
+                    "FlashInfer cuDNN dense NVFP4 is deferred on GB10/SM12x "
+                    "until correctness, artifact, and runtime evidence exist."
                 ),
             },
             "multi_spark_ep_all2all_eplb": {

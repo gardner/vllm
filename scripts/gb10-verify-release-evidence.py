@@ -681,7 +681,15 @@ def _support_matrix_entry_for_selection(selection: Any) -> str | None:
         return "trtllm_gen_attention"
 
     if path_name in {"linear", "linear_w4a16"} and "FLASHINFER" in backend_name:
-        return "flashinfer_nvfp4_dense"
+        if "B12X" in backend_name:
+            return "flashinfer_b12x_nvfp4_dense"
+        if "CUTLASS" in backend_name:
+            return "flashinfer_cutlass_nvfp4_dense"
+        if "TRTLLM" in backend_name or "TRT_LLM" in backend_name:
+            return "flashinfer_trtllm_nvfp4_dense"
+        if "CUDNN" in backend_name:
+            return "flashinfer_cudnn_nvfp4_dense"
+        return None
 
     if path_name == "moe" and "FLASHINFER_B12X" in backend_name:
         return "flashinfer_b12x_non_ep_moe"

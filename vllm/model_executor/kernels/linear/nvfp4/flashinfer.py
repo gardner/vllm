@@ -106,6 +106,13 @@ class FlashInferTrtllmNvFp4LinearKernel(NvFp4LinearKernel):
     def is_supported(
         cls, compute_capability: int | None = None
     ) -> tuple[bool, str | None]:
+        if _is_sm12x(compute_capability):
+            return (
+                False,
+                "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x; "
+                "use FlashInfer b12x or FlashInfer CUTLASS until SM12x TRTLLM "
+                "dense evidence exists.",
+            )
         if has_flashinfer():
             return True, None
         return False, "FlashInfer required"
@@ -173,6 +180,13 @@ class FlashInferCudnnNvFp4LinearKernel(NvFp4LinearKernel):
     def is_supported(
         cls, compute_capability: int | None = None
     ) -> tuple[bool, str | None]:
+        if _is_sm12x(compute_capability):
+            return (
+                False,
+                "FlashInfer cuDNN NVFP4 dense is deferred on GB10/SM12x; use "
+                "FlashInfer b12x or FlashInfer CUTLASS until cuDNN dense "
+                "evidence exists.",
+            )
         if has_flashinfer():
             return True, None
         return False, "FlashInfer required"

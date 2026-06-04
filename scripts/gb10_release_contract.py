@@ -25,7 +25,8 @@ REQUIRED_SOURCE_DEPENDENCIES = (
 )
 
 REQUIRED_GB10_SUPPORT_MATRIX = {
-    "flashinfer_nvfp4_dense": "supported_native",
+    "flashinfer_b12x_nvfp4_dense": "supported_native",
+    "flashinfer_cutlass_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
     "modelopt_fp4_quantization": "supported_native",
     "flashinfer_attention_fa2": "supported_native",
@@ -38,10 +39,12 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     ),
     "gb10_moe_trtllm_gen_to_flashinfer_non_ep": "supported_routed",
     "public_flashattention_runtime": "not_supported",
+    "flashinfer_trtllm_nvfp4_dense": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
+    "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
 }
 
@@ -68,6 +71,10 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Public FlashAttention runtime is not validated for the GB10 first "
         "release path; route attention through FlashInfer or FlashMLA."
     ),
+    "flashinfer_trtllm_nvfp4_dense": (
+        "FlashInfer TRTLLM dense NVFP4 is not validated on GB10/SM12x; use "
+        "FlashInfer b12x or FlashInfer CUTLASS dense NVFP4 evidence instead."
+    ),
     "trtllm_gen_attention": (
         "TRTLLM Gen attention artifacts and metadata do not support SM121; "
         "route GB10 attention through FlashInfer or FlashMLA."
@@ -87,6 +94,10 @@ GB10_DEFERRED_PATH_REASONS = {
         "FlashInfer b12x expert-parallel all-to-all/EPLB NVFP4 MoE is "
         "deferred until multi-Spark communication contracts are validated on "
         "GB10 hardware."
+    ),
+    "flashinfer_cudnn_nvfp4_dense": (
+        "FlashInfer cuDNN dense NVFP4 is deferred on GB10/SM12x until "
+        "correctness, artifact, and runtime evidence exist."
     ),
     "multi_spark_ep_all2all_eplb": (
         "Multi-Spark expert-parallel all-to-all/EPLB serving is deferred until "

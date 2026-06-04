@@ -51,7 +51,8 @@ GB10_EXPECTED_RELEASE_EVIDENCE_FILES = (
 )
 GB10_RELEASE_SMOKED_IMAGE_DIGEST_FILE = "gb10-smoked-image-digest.txt"
 GB10_REQUIRED_SUPPORT_MATRIX = {
-    "flashinfer_nvfp4_dense": "supported_native",
+    "flashinfer_b12x_nvfp4_dense": "supported_native",
+    "flashinfer_cutlass_nvfp4_dense": "supported_native",
     "flashinfer_nvfp4_quantization": "supported_native",
     "modelopt_fp4_quantization": "supported_native",
     "flashinfer_attention_fa2": "supported_native",
@@ -64,10 +65,12 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     ),
     "gb10_moe_trtllm_gen_to_flashinfer_non_ep": "supported_routed",
     "public_flashattention_runtime": "not_supported",
+    "flashinfer_trtllm_nvfp4_dense": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
+    "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
 }
 
@@ -1848,7 +1851,10 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     support_matrix = data["gb10_support_matrix"]
     assert support_matrix["architecture"] == "sm_121a"
     assert support_matrix["first_release_scope"] == "single_spark_first_path"
-    assert support_matrix["entries"]["flashinfer_nvfp4_dense"]["status"] == (
+    assert support_matrix["entries"]["flashinfer_b12x_nvfp4_dense"]["status"] == (
+        "supported_native"
+    )
+    assert support_matrix["entries"]["flashinfer_cutlass_nvfp4_dense"]["status"] == (
         "supported_native"
     )
     assert support_matrix["entries"]["modelopt_fp4_quantization"]["status"] == (
@@ -1860,8 +1866,14 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["public_flashattention_runtime"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["flashinfer_trtllm_nvfp4_dense"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["trtllm_gen_attention"]["status"] == (
         "not_supported"
+    )
+    assert support_matrix["entries"]["flashinfer_cudnn_nvfp4_dense"]["status"] == (
+        "deferred"
     )
     assert support_matrix["entries"]["multi_spark_ep_all2all_eplb"]["status"] == (
         "deferred"
@@ -1939,6 +1951,34 @@ def test_gb10_required_support_matrix_contract_is_shared():
 def test_gb10_release_evidence_classifies_flashinfer_cutlass_moe_selection():
     verifier = _load_gb10_release_evidence_module()
 
+    assert verifier._support_matrix_entry_for_selection(
+        {
+            "path": "linear",
+            "backend": "FlashInferB12xNvFp4LinearKernel",
+            "is_fallback": False,
+        }
+    ) == "flashinfer_b12x_nvfp4_dense"
+    assert verifier._support_matrix_entry_for_selection(
+        {
+            "path": "linear",
+            "backend": "FlashInferCutlassNvFp4LinearKernel",
+            "is_fallback": False,
+        }
+    ) == "flashinfer_cutlass_nvfp4_dense"
+    assert verifier._support_matrix_entry_for_selection(
+        {
+            "path": "linear",
+            "backend": "FlashInferTrtllmNvFp4LinearKernel",
+            "is_fallback": False,
+        }
+    ) == "flashinfer_trtllm_nvfp4_dense"
+    assert verifier._support_matrix_entry_for_selection(
+        {
+            "path": "linear",
+            "backend": "FlashInferCudnnNvFp4LinearKernel",
+            "is_fallback": False,
+        }
+    ) == "flashinfer_cudnn_nvfp4_dense"
     assert verifier._support_matrix_entry_for_selection(
         {
             "path": "moe",
@@ -2937,6 +2977,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "kernels" / "linear" /
         "__init__.py"
     ).read_text()
+    flashinfer_nvfp4_linear = (
+        REPO_ROOT / "vllm" / "model_executor" / "kernels" / "linear" /
+        "nvfp4" / "flashinfer.py"
+    ).read_text()
     modelopt_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "modelopt.py"
@@ -2953,6 +2997,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "before publishing GB10 artifacts" in linear_selector
     assert "MarlinNvFp4LinearKernel" in linear_selector
     assert "EmulationNvFp4LinearKernel" in linear_selector
+    assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
+        flashinfer_nvfp4_linear
+    )
+    assert "FlashInfer cuDNN NVFP4 dense is deferred on GB10/SM12x" in (
+        flashinfer_nvfp4_linear
+    )
 
     assert "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel" in modelopt_quant
     assert "record_nvfp4_backend_selection" in modelopt_quant
@@ -4568,6 +4618,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "public FlashAttention runtime is not validated",
                 },
+                "flashinfer_trtllm_nvfp4_dense": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "FlashInfer TRTLLM dense is not validated on SM12x",
+                },
                 "trtllm_gen_attention": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4589,6 +4644,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "status": "deferred",
                     "expected_handling": "block_until_hardware_validated",
                     "reason": "multi-Spark EP/all-to-all/EPLB is not validated",
+                },
+                "flashinfer_cudnn_nvfp4_dense": {
+                    "status": "deferred",
+                    "expected_handling": "block_until_hardware_validated",
+                    "reason": "FlashInfer cuDNN dense is not validated on SM12x",
                 },
                 "multi_spark_ep_all2all_eplb": {
                     "status": "deferred",
@@ -4745,7 +4805,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             "architecture": "sm_121a",
             "first_release_scope": "single_spark_first_path",
             "entries": {
-                "flashinfer_nvfp4_dense": {"status": "supported_native"},
+                "flashinfer_b12x_nvfp4_dense": {"status": "supported_native"},
+                "flashinfer_cutlass_nvfp4_dense": {"status": "supported_native"},
                 "flashinfer_nvfp4_quantization": {"status": "supported_native"},
                 "modelopt_fp4_quantization": {"status": "supported_native"},
                 "flashinfer_attention_fa2": {"status": "supported_native"},
@@ -4762,10 +4823,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "status": "supported_routed"
                 },
                 "public_flashattention_runtime": {"status": "not_supported"},
+                "flashinfer_trtllm_nvfp4_dense": {"status": "not_supported"},
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
                 "flashinfer_b12x_ep_all2all_eplb": {"status": "deferred"},
+                "flashinfer_cudnn_nvfp4_dense": {"status": "deferred"},
                 "multi_spark_ep_all2all_eplb": {"status": "deferred"},
             },
         },
@@ -4835,6 +4898,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert checks_by_name["unsupported_paths_reported"]["details"][
         "reported_not_supported_entries"
     ] == [
+        "flashinfer_trtllm_nvfp4_dense",
         "marlin_nvfp4_fallback",
         "public_flashattention_runtime",
         "trtllm_gen_attention",
@@ -4851,6 +4915,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "reported_deferred_entries"
     ] == [
         "flashinfer_b12x_ep_all2all_eplb",
+        "flashinfer_cudnn_nvfp4_dense",
         "multi_spark_ep_all2all_eplb",
     ]
     assert (

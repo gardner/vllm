@@ -35,6 +35,8 @@ import vllm._custom_ops as custom_ops  # noqa: E402
 import vllm.model_executor.kernels.linear.nvfp4.flashinfer as flashinfer_nvfp4  # noqa: E402
 from vllm.model_executor.kernels.linear.nvfp4.flashinfer import (  # noqa: E402
     FlashInferB12xNvFp4LinearKernel,
+    FlashInferCudnnNvFp4LinearKernel,
+    FlashInferTrtllmNvFp4LinearKernel,
 )
 
 
@@ -51,6 +53,18 @@ def _layer(output_size: int = 8) -> SimpleNamespace:
 
 def _kernel() -> FlashInferB12xNvFp4LinearKernel:
     return FlashInferB12xNvFp4LinearKernel.__new__(FlashInferB12xNvFp4LinearKernel)
+
+
+def test_sm12x_rejects_unvalidated_flashinfer_nvfp4_dense_backends() -> None:
+    for kernel_cls in (
+        FlashInferTrtllmNvFp4LinearKernel,
+        FlashInferCudnnNvFp4LinearKernel,
+    ):
+        supported, reason = kernel_cls.is_supported(compute_capability=121)
+
+        assert not supported
+        assert reason is not None
+        assert "GB10/SM12x" in reason
 
 
 def test_scaled_fp4_quant_b12x_uses_flashinfer_128x4_quantizer(
