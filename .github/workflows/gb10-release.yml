@@ -342,42 +342,12 @@ jobs:
       - name: Write GB10 runtime image refs
         if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
-          image_ref="$GB10_IMAGE_NAME:$GB10_IMAGE_TAG"
-          image_digest="$(
-            python3 - "$GB10_RUNTIME_IMAGE_METADATA_JSON" <<'PY'
-          import json
-          import sys
-
-          metadata_path = sys.argv[1]
-          with open(metadata_path, encoding="utf-8") as stream:
-              metadata = json.load(stream)
-
-          candidates = [
-              metadata.get("containerimage.digest"),
-              (metadata.get("containerimage.descriptor") or {}).get("digest"),
-              (metadata.get("image") or {}).get("digest"),
-          ]
-          for candidate in candidates:
-              if candidate:
-                  print(candidate)
-                  break
-          PY
-          )"
-
-          printf '%s\n' "$image_ref" \
-            > "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
-          if [ -z "$image_digest" ] && [ "$GB10_PUSH_IMAGE" = "true" ]; then
-            echo "GB10 pushed runtime image metadata did not include a digest." >&2
-            exit 1
-          fi
-          if [ -n "$image_digest" ]; then
-            if [[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-              echo "GB10 runtime image metadata digest is not a valid sha256 digest: ${image_digest}" >&2
-              exit 1
-            fi
-            printf '%s\n' "$image_digest" \
-              > "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt"
-          fi
+          scripts/gb10-write-runtime-image-provenance.py \
+            --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
+            --gb10-release-manifest-dir "$GB10_RELEASE_MANIFEST_DIR" \
+            --gb10-image-name "$GB10_IMAGE_NAME" \
+            --gb10-image-tag "$GB10_IMAGE_TAG" \
+            --gb10-push-image "$GB10_PUSH_IMAGE"
 
       - name: Write GB10 release checksums
         if: env.GB10_PREFLIGHT_ONLY != 'true'
