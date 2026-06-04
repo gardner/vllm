@@ -69,6 +69,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
+    "quark_nvfp4_checkpoint_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
@@ -1867,6 +1868,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["flashinfer_trtllm_nvfp4_dense"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["trtllm_gen_attention"]["status"] == (
@@ -4640,6 +4644,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Marlin is a fallback path",
                 },
+                "quark_nvfp4_checkpoint_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Quark NVFP4 checkpoint loading is not validated",
+                },
             },
             "deferred_paths": {
                 "flashinfer_b12x_ep_all2all_eplb": {
@@ -4829,6 +4838,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
+                "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
                 "flashinfer_b12x_ep_all2all_eplb": {"status": "deferred"},
                 "flashinfer_cudnn_nvfp4_dense": {"status": "deferred"},
                 "multi_spark_ep_all2all_eplb": {"status": "deferred"},
@@ -4903,6 +4913,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_trtllm_nvfp4_dense",
         "marlin_nvfp4_fallback",
         "public_flashattention_runtime",
+        "quark_nvfp4_checkpoint_loading",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
     ]

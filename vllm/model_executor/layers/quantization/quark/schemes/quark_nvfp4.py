@@ -14,6 +14,9 @@ from vllm.model_executor.kernels.linear.nvfp4.emulation import (
 from vllm.model_executor.layers.quantization.quark.schemes.quark_scheme import (
     QuarkScheme,
 )
+from vllm.model_executor.layers.quantization.quark.utils import (
+    gb10_quark_nvfp4_unsupported_reason,
+)
 from vllm.model_executor.parameter import (
     GroupQuantScaleParameter,
     ModelWeightParameter,
@@ -39,6 +42,10 @@ class QuarkNVFP4(QuarkScheme):
     def __init__(
         self,
     ):
+        unsupported_reason = gb10_quark_nvfp4_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.kernel = init_nvfp4_linear_kernel()
         self.group_size = 16
 

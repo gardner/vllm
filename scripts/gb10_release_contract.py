@@ -43,6 +43,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
+    "quark_nvfp4_checkpoint_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
@@ -86,6 +87,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "marlin_nvfp4_fallback": (
         "Marlin can prove fallback serving reachability, but it is not native "
         "GB10 NVFP4 Tensor Core evidence."
+    ),
+    "quark_nvfp4_checkpoint_loading": (
+        "Quark NVFP4 checkpoint loading is not validated on GB10/SM12x; reject "
+        "it until dense and MoE correctness evidence exists for native GB10 "
+        "backends."
     ),
 }
 

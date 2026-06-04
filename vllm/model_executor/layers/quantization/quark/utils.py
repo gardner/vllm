@@ -8,6 +8,19 @@ from typing import Any
 import regex as re
 import torch
 
+from vllm.platforms import current_platform
+
+
+def gb10_quark_nvfp4_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "Quark NVFP4 checkpoint loading is not supported on GB10/SM12x until "
+        "dense and MoE correctness evidence exists for native GB10 backends; "
+        "use ModelOpt NVFP4 with FlashInfer b12x, FlashInfer CUTLASS, or "
+        "CUTLASS native NVFP4 dense backends for the current GB10 release path."
+    )
+
 
 def deep_compare(dict1: Any, dict2: Any) -> bool:
     if type(dict1) is not type(dict2):

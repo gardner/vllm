@@ -349,6 +349,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "but it cannot satisfy native NVFP4 release evidence."
                 ),
             },
+            "quark_nvfp4_checkpoint_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark NVFP4 checkpoint loading is not validated on "
+                    "GB10/SM12x and must reject before backend selection "
+                    "until dense and MoE correctness evidence exists."
+                ),
+            },
             "flashinfer_b12x_ep_all2all_eplb": {
                 "status": "deferred",
                 "release_contract": (
