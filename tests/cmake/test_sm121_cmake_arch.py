@@ -1746,6 +1746,7 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PUSH_IMAGE": "true",
         "GB10_PREFLIGHT_ONLY": "false",
+        "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
         **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
@@ -1767,6 +1768,7 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "repository"
     ] = "file:///mnt/dgx-ssd/src/GB10/DeepGEMM"
     bad_manifest["build"]["local_gb10_dependency_checkouts"] = True
+    bad_manifest["build"]["native_cuda_archs_only"] = False
     bad_manifest["dependencies"]["flashinfer"]["wheels"][0]["release_tag"] = None
     bad_manifest["dependencies"]["flashinfer"]["wheels"][0]["url"] = (
         "https://github.com/gardner/flashinfer/raw/main/"
@@ -1791,6 +1793,7 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     assert any(
         "GB10 local dependency checkouts are not allowed" in err for err in errors
     )
+    assert any("native_cuda_archs_only=true" in err for err in errors)
     assert any(
         "FlashInfer wheel must come from a GitHub Release" in err for err in errors
     )
@@ -1913,6 +1916,7 @@ def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
         "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PREFLIGHT_ONLY": "true",
+        "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
         **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
@@ -1960,6 +1964,7 @@ def test_gb10_release_manifest_rejects_duplicate_or_extra_flashinfer_wheels(
         "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
         "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
         "GB10_PREFLIGHT_ONLY": "true",
+        "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
         **GB10_RELEASE_CACHE_REF_ENV,
         "VLLM_USE_LOCAL_GB10_DEPS": "0",
     }
@@ -3958,15 +3963,16 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "multi_spark_ep_all2all_eplb": {"status": "deferred"},
             },
         },
-        "build": {
-            "cache_refs": {
-                "preflight": GB10_RELEASE_CACHE_REF_ENV["GB10_PREFLIGHT_CACHE_REF"],
-                "wheel": GB10_RELEASE_CACHE_REF_ENV["GB10_WHEEL_CACHE_REF"],
-                "runtime": GB10_RELEASE_CACHE_REF_ENV["GB10_RUNTIME_CACHE_REF"],
+            "build": {
+                "cache_refs": {
+                    "preflight": GB10_RELEASE_CACHE_REF_ENV["GB10_PREFLIGHT_CACHE_REF"],
+                    "wheel": GB10_RELEASE_CACHE_REF_ENV["GB10_WHEEL_CACHE_REF"],
+                    "runtime": GB10_RELEASE_CACHE_REF_ENV["GB10_RUNTIME_CACHE_REF"],
+                },
+                "local_gb10_dependency_checkouts": False,
+                "native_cuda_archs_only": True,
             },
-            "local_gb10_dependency_checkouts": False,
-        },
-    }
+        }
     runtime_image_digest = "sha256:" + "a" * 64
     runtime_image_metadata = {"containerimage.digest": runtime_image_digest}
 

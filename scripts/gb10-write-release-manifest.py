@@ -634,6 +634,11 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
         errors.append(
             "GB10 local dependency checkouts are not allowed for release builds."
         )
+    if _mapping_value(build, "native_cuda_archs_only") is not True:
+        errors.append(
+            "GB10 release builds must set native_cuda_archs_only=true so "
+            "cross-major PTX fallback images cannot enter SM121A artifacts."
+        )
     cache_refs = _mapping_value(build, "cache_refs")
     if isinstance(cache_refs, Mapping):
         for cache_name in ("preflight", "wheel", "runtime"):
