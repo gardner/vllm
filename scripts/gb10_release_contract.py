@@ -205,6 +205,13 @@ def release_evidence_asset_paths(
     ]
 
 
+def release_evidence_file_paths(report_dir: Path) -> list[Path]:
+    return [
+        report_dir / filename
+        for filename in EXPECTED_RELEASE_EVIDENCE_FILES
+    ]
+
+
 def release_provenance_artifact_paths(provenance_dir: Path) -> dict[str, Path]:
     paths = {
         "release_manifest": provenance_dir / PROVENANCE_FILES["release_manifest"],

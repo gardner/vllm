@@ -150,6 +150,13 @@ def _load_gb10_evidence_release_asset_lister_module():
     )
 
 
+def _load_gb10_release_evidence_report_file_lister_module():
+    return _load_script_module(
+        "gb10_list_release_evidence_report_files",
+        REPO_ROOT / "scripts" / "gb10-list-release-evidence-report-files.py",
+    )
+
+
 def _load_gb10_release_provenance_artifact_file_lister_module():
     return _load_script_module(
         "gb10_list_release_provenance_artifact_files",
@@ -1047,9 +1054,17 @@ def test_gb10_release_evidence_default_dirs_share_contract(monkeypatch):
         f'{contract.DEFAULT_RELEASE_EVIDENCE_REPORT_DIR.as_posix()}'
         in orchestrator_script
     )
+    report_lister_script = (
+        REPO_ROOT / "scripts" / "gb10-list-release-evidence-report-files.py"
+    ).read_text()
+    assert "default_release_evidence_report_dir" in report_lister_script
+    assert "release_evidence_file_paths" in report_lister_script
+    assert "scripts/gb10-list-release-evidence-report-files.py" in (
+        orchestrator_script
+    )
     assert (
-        "${GB10_RELEASE_SMOKE_REPORT_DIR:-./"
-        f"{contract.DEFAULT_RELEASE_EVIDENCE_REPORT_DIR.as_posix()}"
+        "Evidence report files listed by "
+        "scripts/gb10-list-release-evidence-report-files.py."
         in orchestrator_script
     )
     assert (
@@ -2808,11 +2823,13 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-release-image.sh").read_text()
     bundler = _load_gb10_release_bundle_module()
     contract = _load_gb10_release_contract_module()
+    report_lister = _load_gb10_release_evidence_report_file_lister_module()
 
     assert "scripts/gb10-smoke-image.sh" in script
     assert "scripts/gb10-smoke-openai-image.sh" in script
     assert "scripts/gb10-verify-release-evidence.py" in script
     assert "scripts/gb10-bundle-release-evidence.py" in script
+    assert "scripts/gb10-list-release-evidence-report-files.py" in script
     assert "--offline OFFLINE_ARGS" in script
     assert "--serve SERVE_ARGS" in script
     assert "--openai OPENAI_ARGS" in script
@@ -2827,13 +2844,11 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_IMAGE_DIGEST" in script
     assert "GB10_RELEASE_TAG" in script
     assert "GB10_RELEASE_EVIDENCE_BUNDLE_NAME" in script
-    assert "gb10-nvfp4-smoke.json" in script
-    assert "gb10-openai-server-smoke-image.json" in script
-    assert "gb10-release-evidence-image.json" in script
-    assert "gb10-smoked-image-digest.txt" in script
     assert "scripts/gb10-list-evidence-release-assets.py" in script
+    assert "Evidence report files listed by" in script
     assert "GB10 release evidence assets:" in script
-    assert "--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
+    assert "--gb10-report-json" in script
+    assert 'basename "$nvfp4_report"' in script
     assert "--gb10-nvfp4-report-json" in script
     assert "--gb10-openai-report-json" in script
     assert "--gb10-release-manifest-json" in script
@@ -2867,28 +2882,34 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert 'bundle_args+=(--gb10-allow-partial)' in script
     assert 'exit "$verify_status"' in script
 
-    report_assignments = {
-        variable: re.search(
-            rf'^{variable}="\$report_dir/(?P<filename>[^"]+)"',
-            script,
-            re.MULTILINE,
-        )
-        for variable in (
-            "nvfp4_report",
-            "openai_report",
-            "evidence_report",
-            "smoked_image_digest_report",
-        )
-    }
-    for match in report_assignments.values():
-        assert match is not None
+    assert 'report_files_file="$(mktemp)"' in script
+    assert '"$report_file_lister" --gb10-report-dir "$report_dir"' in script
+    assert "mapfile -t release_evidence_files" in script
+    assert '"${#release_evidence_files[@]}" -ne 4' in script
+    assert 'nvfp4_report="${release_evidence_files[0]}"' in script
+    assert 'openai_report="${release_evidence_files[1]}"' in script
+    assert 'evidence_report="${release_evidence_files[2]}"' in script
+    assert 'smoked_image_digest_report="${release_evidence_files[3]}"' in script
+    assert (
+        'nvfp4_report="$report_dir/gb10-nvfp4-smoke.json"'
+        not in script
+    )
+    assert (
+        'openai_report="$report_dir/gb10-openai-server-smoke-image.json"'
+        not in script
+    )
+    assert (
+        'evidence_report="$report_dir/gb10-release-evidence-image.json"'
+        not in script
+    )
+    assert (
+        'smoked_image_digest_report="$report_dir/gb10-smoked-image-digest.txt"'
+        not in script
+    )
     orchestrator_evidence_files = tuple(
-        report_assignments[variable].group("filename")
-        for variable in (
-            "nvfp4_report",
-            "openai_report",
-            "evidence_report",
-            "smoked_image_digest_report",
+        path.name
+        for path in report_lister.list_release_evidence_report_files(
+            Path("reports")
         )
     )
 
@@ -2898,6 +2919,10 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert contract.EXPECTED_RELEASE_EVIDENCE_FILES == (
         GB10_EXPECTED_RELEASE_EVIDENCE_FILES
     )
+    assert report_lister.release_evidence_file_paths(Path("reports")) == [
+        Path("reports") / filename
+        for filename in contract.EXPECTED_RELEASE_EVIDENCE_FILES
+    ]
     assert orchestrator_evidence_files == bundler.EXPECTED_EVIDENCE_FILES
 
 

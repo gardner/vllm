@@ -61,9 +61,7 @@ Argument sections:
   --verify VERIFY_ARGS...    Extra args for scripts/gb10-verify-release-evidence.py.
 
 Default reports:
-  ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-nvfp4-smoke.json
-  ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-openai-server-smoke-image.json
-  ${GB10_RELEASE_SMOKE_REPORT_DIR:-./gb10-smoke-reports}/gb10-release-evidence-image.json
+  Evidence report files listed by scripts/gb10-list-release-evidence-report-files.py.
   Evidence bundle assets listed by scripts/gb10-list-evidence-release-assets.py.
 
 Example:
@@ -86,6 +84,7 @@ offline_wrapper="$repo_root/scripts/gb10-smoke-image.sh"
 openai_wrapper="$repo_root/scripts/gb10-smoke-openai-image.sh"
 verifier="$repo_root/scripts/gb10-verify-release-evidence.py"
 bundler="$repo_root/scripts/gb10-bundle-release-evidence.py"
+report_file_lister="$repo_root/scripts/gb10-list-release-evidence-report-files.py"
 asset_lister="$repo_root/scripts/gb10-list-evidence-release-assets.py"
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -151,6 +150,7 @@ for script in \
     "$openai_wrapper" \
     "$verifier" \
     "$bundler" \
+    "$report_file_lister" \
     "$asset_lister"
 do
     if [ ! -f "$script" ]; then
@@ -173,11 +173,19 @@ has_arg() {
 }
 
 report_dir="${GB10_RELEASE_SMOKE_REPORT_DIR:-$PWD/gb10-smoke-reports}"
-nvfp4_report="$report_dir/gb10-nvfp4-smoke.json"
-openai_report="$report_dir/gb10-openai-server-smoke-image.json"
-evidence_report="$report_dir/gb10-release-evidence-image.json"
-smoked_image_digest_report="$report_dir/gb10-smoked-image-digest.txt"
 mkdir -p "$report_dir"
+report_files_file="$(mktemp)"
+trap 'rm -f "$report_files_file"' EXIT
+"$report_file_lister" --gb10-report-dir "$report_dir" > "$report_files_file"
+mapfile -t release_evidence_files < "$report_files_file"
+if [ "${#release_evidence_files[@]}" -ne 4 ]; then
+    echo "GB10 release evidence report lister returned ${#release_evidence_files[@]} files; expected 4." >&2
+    exit 1
+fi
+nvfp4_report="${release_evidence_files[0]}"
+openai_report="${release_evidence_files[1]}"
+evidence_report="${release_evidence_files[2]}"
+smoked_image_digest_report="${release_evidence_files[3]}"
 
 if [ -z "${GB10_IMAGE_DIGEST:-}" ] && command -v docker >/dev/null 2>&1; then
     image_digest="$(
@@ -194,7 +202,7 @@ if [ -n "${GB10_IMAGE_DIGEST:-}" ]; then
 fi
 
 if ! has_arg --gb10-report-json "${offline_args[@]}"; then
-    offline_args+=(--gb10-report-json /gb10-smoke-reports/gb10-nvfp4-smoke.json)
+    offline_args+=(--gb10-report-json "/gb10-smoke-reports/$(basename "$nvfp4_report")")
 fi
 
 if ! has_arg --gb10-report-json "${openai_args[@]}"; then
