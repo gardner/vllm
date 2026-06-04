@@ -19,6 +19,7 @@ REQUIRED_FLASHINFER_COMPONENTS = (
     "flashinfer_jit_cache",
 )
 DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
+DOCKER_TAG_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
 
 
 def _env(env: Mapping[str, str], name: str, default: str = "") -> str:
@@ -314,6 +315,10 @@ def _ghcr_image_repository_name(value: object) -> bool:
     )
 
 
+def _docker_image_tag(value: object) -> bool:
+    return isinstance(value, str) and DOCKER_TAG_RE.fullmatch(value) is not None
+
+
 def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
     """Return release-input validation errors for a GB10 manifest."""
 
@@ -470,6 +475,11 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
             errors.append(
                 "GB10 tagged full release image.name must be a GHCR repository "
                 f"name without tag or digest, got {image_name!r}."
+            )
+        if not _docker_image_tag(image_tag):
+            errors.append(
+                "GB10 tagged full release image.tag must be a Docker-compatible "
+                f"tag, got {image_tag!r}."
             )
         if image_tag != release_tag:
             errors.append(

@@ -143,6 +143,10 @@ jobs:
                 exit 1
               fi
             done
+            if [[ ! "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+              echo "GB10 full release runtime image tag must be a Docker-compatible tag, got ${image_tag}." >&2
+              exit 1
+            fi
             if [ "$image_tag" != "$release_tag" ]; then
               echo "GB10 full release runtime image tag must match the release tag." >&2
               echo "  image-tag:   ${image_tag}" >&2

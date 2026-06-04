@@ -387,6 +387,11 @@ def test_gb10_release_workflow_requires_durable_image_ref_for_tagged_release():
     assert "image_repository=\"${image_name#ghcr.io/}\"" in resolve_step
     assert "IFS=/ read -r -a image_repository_parts" in resolve_step
     assert "must be a lowercase Docker repository name" in resolve_step
+    assert (
+        '[[ ! "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]'
+        in resolve_step
+    )
+    assert "runtime image tag must be a Docker-compatible tag" in resolve_step
     assert '[ "$image_tag" != "$release_tag" ]' in resolve_step
     assert "runtime image tag must match the release tag" in resolve_step
 
@@ -718,6 +723,19 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
 
         assert any(
             "GB10 tagged full release image.name must be a GHCR repository name"
+            in err
+            for err in errors
+        )
+
+    for malformed_image_tag in ("-bad", "bad/tag", "x" * 129):
+        malformed_manifest = copy.deepcopy(good_manifest)
+        malformed_manifest["release"]["tag"] = malformed_image_tag
+        malformed_manifest["image"]["tag"] = malformed_image_tag
+
+        errors = manifest.validate_manifest(malformed_manifest)
+
+        assert any(
+            "GB10 tagged full release image.tag must be a Docker-compatible tag"
             in err
             for err in errors
         )
