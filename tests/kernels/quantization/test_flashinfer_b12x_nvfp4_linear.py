@@ -218,6 +218,36 @@ def test_sm12x_auto_rejects_nvfp4_dense_fallback_when_no_native_backend(
     assert "not supported on GB10/SM12x" in message
 
 
+def test_sm12x_batch_invariant_does_not_force_nvfp4_emulation_fallback(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(
+        linear_kernels.CutlassNvFp4LinearKernel,
+        "is_supported",
+        classmethod(lambda cls: (False, "mock CUTLASS unsupported")),
+    )
+    monkeypatch.setattr(
+        linear_kernels.envs,
+        "VLLM_BATCH_INVARIANT",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(linear_kernels, "_get_linear_backend", lambda: "auto")
+    monkeypatch.delenv("VLLM_NVFP4_GEMM_BACKEND", raising=False)
+
+    with pytest.raises(ValueError) as exc_info:
+        linear_kernels.init_nvfp4_linear_kernel()
+
+    message = str(exc_info.value)
+    assert "EmulationNvFp4LinearKernel" in message
+    assert "not supported on GB10/SM12x" in message
+
+
 def test_scaled_fp4_quant_b12x_uses_flashinfer_128x4_quantizer(
     monkeypatch,
 ) -> None:
