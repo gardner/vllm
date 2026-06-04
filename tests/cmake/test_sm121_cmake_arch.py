@@ -517,6 +517,7 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "gb10-vllm-release-SHA256SUMS" in gb10_workflow
     assert "Write GB10 runtime image refs" in gb10_workflow
     assert "Write GB10 release checksums" in gb10_workflow
+    assert "Validate GB10 release assets" in gb10_workflow
     assert "Upload GB10 release manifest" in gb10_workflow
     assert "name: gb10-release-manifest" in gb10_workflow
     assert "if: always()" in gb10_workflow
@@ -537,10 +538,38 @@ def test_gb10_release_workflow_publishes_release_manifest():
         gb10_workflow.index("Write GB10 release checksums")
     )
     assert gb10_workflow.index("Write GB10 release checksums") < (
+        gb10_workflow.index("Validate GB10 release assets")
+    )
+    assert gb10_workflow.index("Validate GB10 release assets") < (
         gb10_workflow.index("Upload GB10 release manifest")
+    )
+    assert gb10_workflow.index("Validate GB10 release assets") < (
+        gb10_workflow.index("Publish GB10 release assets")
     )
     assert gb10_workflow.index("Build runtime image") < (
         gb10_workflow.index("Publish GB10 release assets")
+    )
+
+    validation_step = gb10_workflow.split(
+        "- name: Validate GB10 release assets",
+        1,
+    )[1].split("- name: Upload GB10 release manifest", 1)[0]
+    assert "env.GB10_PREFLIGHT_ONLY != 'true'" in validation_step
+    assert "env.GB10_RELEASE_TAG != ''" in validation_step
+    assert "dist/vllm-*.whl" in validation_step
+    assert "GB10 release publication expects exactly one vLLM wheel" in (
+        validation_step
+    )
+    assert "GB10 release asset is missing or empty" in validation_step
+    assert "sha256sum --check" in validation_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json" in validation_step
+    assert "$GB10_RUNTIME_IMAGE_METADATA_JSON" in validation_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in validation_step
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in (
+        validation_step
+    )
+    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS" in (
+        validation_step
     )
 
     release_step = gb10_workflow.split(
@@ -549,13 +578,19 @@ def test_gb10_release_workflow_publishes_release_manifest():
     )[1]
     assert "env.GB10_PREFLIGHT_ONLY != 'true'" in release_step
     assert "env.GB10_RELEASE_TAG != ''" in release_step
-    assert "dist/*.whl" in release_step
+    assert "dist/vllm-*.whl" in release_step
+    assert "GB10 release publication expects exactly one vLLM wheel" in release_step
     assert "release_assets=(" in release_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json" in release_step
     assert "$GB10_RUNTIME_IMAGE_METADATA_JSON" in release_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in release_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in release_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS" in release_step
+    assert 'if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]' not in release_step
+    assert (
+        'if [ -f "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" ]'
+        not in release_step
+    )
 
     refs_step = gb10_workflow.split(
         "- name: Write GB10 runtime image refs",

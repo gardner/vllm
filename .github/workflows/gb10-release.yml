@@ -397,6 +397,34 @@ jobs:
           sha256sum "${checksum_inputs[@]}" > "$checksum_file"
           cat "$checksum_file"
 
+      - name: Validate GB10 release assets
+        if: env.GB10_PREFLIGHT_ONLY != 'true' && env.GB10_RELEASE_TAG != ''
+        run: |
+          shopt -s nullglob
+          wheel_assets=(dist/vllm-*.whl)
+          if [ "${#wheel_assets[@]}" -ne 1 ]; then
+            echo "GB10 release publication expects exactly one vLLM wheel." >&2
+            ls -lh dist >&2 || true
+            exit 1
+          fi
+
+          required_release_assets=(
+            "${wheel_assets[0]}"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+            "$GB10_RUNTIME_IMAGE_METADATA_JSON"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+          )
+          for asset in "${required_release_assets[@]}"; do
+            if [ ! -s "$asset" ]; then
+              echo "GB10 release asset is missing or empty: $asset" >&2
+              exit 1
+            fi
+          done
+
+          sha256sum --check "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+
       - name: Upload GB10 release manifest
         if: always()
         uses: actions/upload-artifact@v4
@@ -409,19 +437,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          shopt -s nullglob
+          wheel_assets=(dist/vllm-*.whl)
+          if [ "${#wheel_assets[@]}" -ne 1 ]; then
+            echo "GB10 release publication expects exactly one vLLM wheel." >&2
+            ls -lh dist >&2 || true
+            exit 1
+          fi
+
           if ! gh release view "$GB10_RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$GB10_RELEASE_TAG" --title "$GB10_RELEASE_TAG" --notes "GB10/DGX Spark native vLLM wheel and image"
           fi
           release_assets=(
-            dist/*.whl
+            "${wheel_assets[0]}"
             "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+            "$GB10_RUNTIME_IMAGE_METADATA_JSON"
             "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
+            "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt"
             "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
           )
-          if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]; then
-            release_assets+=("$GB10_RUNTIME_IMAGE_METADATA_JSON")
-          fi
-          if [ -f "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" ]; then
-            release_assets+=("$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt")
-          fi
           gh release upload "$GB10_RELEASE_TAG" "${release_assets[@]}" --clobber
