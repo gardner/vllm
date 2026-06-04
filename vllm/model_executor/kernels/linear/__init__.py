@@ -843,6 +843,20 @@ _NVFP4_LINEAR_FALLBACK_KERNELS = {
 }
 
 
+def _gb10_nvfp4_linear_fallback_unsupported_reason(
+    kernel_cls: type[NvFp4LinearKernel],
+) -> str | None:
+    if kernel_cls not in _NVFP4_LINEAR_FALLBACK_KERNELS:
+        return None
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        f"{kernel_cls.__name__} is a non-native NVFP4 dense fallback and is "
+        "not supported on GB10/SM12x; use FlashInfer b12x, FlashInfer CUTLASS, "
+        "or CUTLASS native NVFP4 dense backends instead."
+    )
+
+
 def _log_nvfp4_linear_kernel_selection(
     kernel_cls: type[NvFp4LinearKernel],
     failure_reasons: list[str] | None = None,
@@ -931,6 +945,12 @@ def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
                 )
 
     if force_kernel is not None:
+        fallback_reason = _gb10_nvfp4_linear_fallback_unsupported_reason(force_kernel)
+        if fallback_reason is not None:
+            raise ValueError(
+                f"Forced NVFP4 kernel {force_kernel.__name__} is not "
+                f"supported: {fallback_reason}"
+            )
         is_supported, reason = force_kernel.is_supported()
         if not is_supported:
             raise ValueError(
@@ -960,6 +980,11 @@ def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
             failure_reasons.append(
                 f" {kernel_cls.__name__} disabled by environment variable"
             )
+            continue
+
+        fallback_reason = _gb10_nvfp4_linear_fallback_unsupported_reason(kernel_cls)
+        if fallback_reason is not None:
+            failure_reasons.append(f"{kernel_cls.__name__}: {fallback_reason}")
             continue
 
         is_supported, reason = kernel_cls.is_supported()

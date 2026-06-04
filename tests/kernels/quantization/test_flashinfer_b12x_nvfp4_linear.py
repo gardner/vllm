@@ -139,6 +139,85 @@ def test_sm12x_linear_backend_unvalidated_flashinfer_nvfp4_dense_fails_fast(
         linear_kernels.init_nvfp4_linear_kernel()
 
 
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "marlin",
+        "emulation",
+    ],
+)
+def test_sm12x_forced_fallback_nvfp4_dense_backends_fail_fast(
+    monkeypatch,
+    backend: str,
+) -> None:
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.delenv("VLLM_USE_FBGEMM", raising=False)
+    monkeypatch.delenv("VLLM_USE_NVFP4_CT_EMULATIONS", raising=False)
+    monkeypatch.setenv("VLLM_NVFP4_GEMM_BACKEND", backend)
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        linear_kernels.init_nvfp4_linear_kernel()
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "marlin",
+        "emulation",
+    ],
+)
+def test_sm12x_linear_backend_fallback_nvfp4_dense_fails_fast(
+    monkeypatch,
+    backend: str,
+) -> None:
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(linear_kernels, "_get_linear_backend", lambda: backend)
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.delenv("VLLM_NVFP4_GEMM_BACKEND", raising=False)
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        linear_kernels.init_nvfp4_linear_kernel()
+
+
+def test_sm12x_auto_rejects_nvfp4_dense_fallback_when_no_native_backend(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(
+        linear_kernels,
+        "_POSSIBLE_NVFP4_KERNELS",
+        {
+            PlatformEnum.CUDA: [
+                linear_kernels.MarlinNvFp4LinearKernel,
+                linear_kernels.EmulationNvFp4LinearKernel,
+            ]
+        },
+    )
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.delenv("VLLM_NVFP4_GEMM_BACKEND", raising=False)
+
+    with pytest.raises(ValueError) as exc_info:
+        linear_kernels.init_nvfp4_linear_kernel()
+
+    message = str(exc_info.value)
+    assert "MarlinNvFp4LinearKernel" in message
+    assert "EmulationNvFp4LinearKernel" in message
+    assert "not supported on GB10/SM12x" in message
+
+
 def test_scaled_fp4_quant_b12x_uses_flashinfer_128x4_quantizer(
     monkeypatch,
 ) -> None:
