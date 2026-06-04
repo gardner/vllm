@@ -94,6 +94,7 @@ from vllm.model_executor.parameter import (
     PerTensorScaleParameter,
 )
 from vllm.model_executor.utils import replace_parameter, set_weight_attrs
+from vllm.platforms import current_platform
 
 if TYPE_CHECKING:
     from vllm.model_executor.models.utils import WeightsMapper
@@ -117,6 +118,17 @@ QUANT_ALGOS = [
     "MIXED_PRECISION",
 ]
 KV_CACHE_QUANT_ALGOS = ["FP8", "NVFP4"]
+
+
+def _gb10_w4a16_nvfp4_marlin_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "W4A16_NVFP4 linear would select MarlinNvFp4LinearKernel, a "
+        "non-native NVFP4 dense fallback that is not supported on GB10/SM12x; "
+        "use ModelOpt NVFP4 W4A4 with FlashInfer b12x, FlashInfer CUTLASS, "
+        "or CUTLASS native NVFP4 dense backends instead."
+    )
 
 
 class ModelOptKVCacheMethod(BaseKVCacheMethod):
@@ -1268,8 +1280,12 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         # Direct-instantiate the Marlin NVFP4 adapter rather than going through
         # init_nvfp4_linear_kernel(): the latter's priority list returns a
         # cutlass W4A4 kernel as first-pick on this hardware, which would
-        # silently try to quantize activations (we have no input_scale). For
-        # W4A16 there is exactly one valid kernel, so we pin it.
+        # silently try to quantize activations (we have no input_scale). W4A16
+        # has no native GB10 backend yet, so SM12x rejects this fallback before
+        # model load instead of treating Marlin as support.
+        unsupported_reason = _gb10_w4a16_nvfp4_marlin_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.kernel = MarlinNvFp4LinearKernel(NvFp4LinearLayerConfig())
         fallback_message = (
             "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel. This is a "

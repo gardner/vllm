@@ -3005,6 +3005,8 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     )
 
     assert "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel" in modelopt_quant
+    assert "_gb10_w4a16_nvfp4_marlin_unsupported_reason" in modelopt_quant
+    assert "not supported on GB10/SM12x" in modelopt_quant
     assert "record_nvfp4_backend_selection" in modelopt_quant
     assert "record_nvfp4_fallback" in modelopt_quant
     assert '"linear_w4a16"' in modelopt_quant

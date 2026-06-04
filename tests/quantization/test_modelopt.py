@@ -380,6 +380,25 @@ def test_modelopt_nvfp4_config_dispatches_w4a16_method():
     assert config.quant_method == "W4A16_NVFP4"
 
 
+def test_modelopt_w4a16_nvfp4_rejects_marlin_fallback_on_sm12x(monkeypatch):
+    import vllm.model_executor.layers.quantization.modelopt as modelopt
+
+    class Sm12xPlatform:
+        def is_device_capability_family(self, capability: int) -> bool:
+            return capability == 120
+
+    config = ModelOptNvFp4Config(
+        quant_method="W4A16_NVFP4",
+        is_checkpoint_nvfp4_serialized=True,
+        kv_cache_quant_algo=None,
+        exclude_modules=[],
+    )
+    monkeypatch.setattr(modelopt, "current_platform", Sm12xPlatform(), raising=False)
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        modelopt.ModelOptNvFp4W4A16LinearMethod(config)
+
+
 @pytest.mark.parametrize(
     "quant_method, expected_use_a16, act_key_is_none",
     [
@@ -446,7 +465,7 @@ def test_modelopt_nvfp4_moe_dispatches_to_marlin_when_w4a16(
     ],
 )
 def test_modelopt_mixed_precision_dispatches_w4a16_layer(
-    per_layer_algo, expected_linear_cls_name
+    monkeypatch, per_layer_algo, expected_linear_cls_name
 ):
     """``ModelOptMixedPrecisionConfig.get_quant_method`` must route a Linear
     layer to the right LinearMethod based on its per-layer ``quant_algo``
@@ -466,6 +485,12 @@ def test_modelopt_mixed_precision_dispatches_w4a16_layer(
     """
     from vllm.model_executor.layers.linear import LinearBase
     from vllm.model_executor.layers.quantization import modelopt as m
+
+    class NonSm12xPlatform:
+        def is_device_capability_family(self, capability: int) -> bool:
+            return False
+
+    monkeypatch.setattr(m, "current_platform", NonSm12xPlatform())
 
     hf_quant_config: dict[str, Any] = {
         "quantization": {
