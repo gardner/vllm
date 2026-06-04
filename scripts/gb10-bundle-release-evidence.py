@@ -431,6 +431,9 @@ def _empty_support_matrix_summary(
         "status_counts": {},
         "entries": {},
         "invalid_entries": [],
+        "required_entries": dict(REQUIRED_GB10_SUPPORT_MATRIX),
+        "missing_required_entries": sorted(REQUIRED_GB10_SUPPORT_MATRIX),
+        "mismatched_required_entries": {},
     }
     if reason is not None:
         summary["reason"] = reason
@@ -504,6 +507,7 @@ def _summarize_support_matrix(
                 "reason": "gb10_support_matrix.entries is missing or is not an object",
             }
         )
+        _annotate_support_matrix_requirements(summary)
         return summary
 
     entries: dict[str, str] = {}
@@ -520,7 +524,7 @@ def _summarize_support_matrix(
         entries[str(entry_name)] = status
         status_counts[status] += 1
 
-    return {
+    summary = {
         "present": True,
         "release_manifest_present": True,
         "architecture": matrix.get("architecture"),
@@ -531,6 +535,28 @@ def _summarize_support_matrix(
         "entries": entries,
         "invalid_entries": invalid_entries,
     }
+    _annotate_support_matrix_requirements(summary)
+    return summary
+
+
+def _annotate_support_matrix_requirements(summary: dict[str, Any]) -> None:
+    entries = summary.get("entries")
+    valid_entries = entries if isinstance(entries, dict) else {}
+    missing_required_entries = sorted(
+        name for name in REQUIRED_GB10_SUPPORT_MATRIX if name not in valid_entries
+    )
+    mismatched_required_entries = {
+        name: {
+            "expected": expected_status,
+            "actual": valid_entries.get(name),
+        }
+        for name, expected_status in REQUIRED_GB10_SUPPORT_MATRIX.items()
+        if name in valid_entries and valid_entries.get(name) != expected_status
+    }
+
+    summary["required_entries"] = dict(REQUIRED_GB10_SUPPORT_MATRIX)
+    summary["missing_required_entries"] = missing_required_entries
+    summary["mismatched_required_entries"] = mismatched_required_entries
 
 
 def _support_matrix_metadata_complete(summary: dict[str, Any]) -> bool:
@@ -545,9 +571,9 @@ def _support_matrix_metadata_complete(summary: dict[str, Any]) -> bool:
     ):
         return False
 
-    return all(
-        entries.get(name) == expected_status
-        for name, expected_status in REQUIRED_GB10_SUPPORT_MATRIX.items()
+    return (
+        not summary.get("missing_required_entries")
+        and not summary.get("mismatched_required_entries")
     )
 
 

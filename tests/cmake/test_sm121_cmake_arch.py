@@ -1991,6 +1991,9 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert '"support_matrix_summary"' in script
     assert '"support_matrix_complete"' in script
     assert "REQUIRED_GB10_SUPPORT_MATRIX" in script
+    assert '"required_entries"' in script
+    assert '"missing_required_entries"' in script
+    assert '"mismatched_required_entries"' in script
     assert "status_counts" in script
     assert '"failure_count"' in script
     assert "sha256:[0-9a-f]{64}" in script
@@ -2115,6 +2118,9 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
             "not_supported": 4,
             "supported_native": 5,
         },
+        "required_entries": GB10_REQUIRED_SUPPORT_MATRIX,
+        "missing_required_entries": [],
+        "mismatched_required_entries": {},
         "entries": GB10_REQUIRED_SUPPORT_MATRIX,
         "invalid_entries": [],
     }
@@ -2292,6 +2298,9 @@ def test_gb10_release_evidence_bundle_marks_missing_support_matrix_partial(
         "status_definitions": {},
         "entry_count": 0,
         "status_counts": {},
+        "required_entries": GB10_REQUIRED_SUPPORT_MATRIX,
+        "missing_required_entries": sorted(GB10_REQUIRED_SUPPORT_MATRIX),
+        "mismatched_required_entries": {},
         "entries": {},
         "invalid_entries": [],
         "reason": "release manifest was not included",
