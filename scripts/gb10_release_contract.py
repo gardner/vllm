@@ -66,4 +66,9 @@ PROVENANCE_RELATIVE_PATHS = {
     "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",
 }
 
+REQUIRED_RELEASE_EVIDENCE_PROVENANCE = (
+    "release_manifest",
+    "runtime_image_metadata",
+)
+
 SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")

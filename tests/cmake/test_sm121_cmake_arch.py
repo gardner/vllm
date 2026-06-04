@@ -106,6 +106,13 @@ def _load_gb10_release_bundle_module():
     )
 
 
+def _load_gb10_release_asset_validator_module():
+    return _load_script_module(
+        "gb10_validate_evidence_release_assets",
+        REPO_ROOT / "scripts" / "gb10-validate-evidence-release-assets.py",
+    )
+
+
 def _load_gb10_release_manifest_module():
     return _load_script_module(
         "gb10_write_release_manifest",
@@ -747,10 +754,15 @@ def test_gb10_required_support_matrix_contract_is_shared():
     manifest = _load_gb10_release_manifest_module()
     verifier = _load_gb10_release_evidence_module()
     bundler = _load_gb10_release_bundle_module()
+    release_asset_validator = _load_gb10_release_asset_validator_module()
 
     assert manifest.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
     assert verifier.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
     assert bundler.REQUIRED_GB10_SUPPORT_MATRIX == GB10_REQUIRED_SUPPORT_MATRIX
+    assert (
+        release_asset_validator.REQUIRED_GB10_SUPPORT_MATRIX
+        == GB10_REQUIRED_SUPPORT_MATRIX
+    )
 
 
 def test_gb10_release_provenance_contracts_are_shared():
@@ -776,25 +788,19 @@ def test_gb10_evidence_upload_support_matrix_contract_is_shared():
     smoke_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-smoke-release-image.yml"
     ).read_text()
-    validation_block_match = re.search(
-        r'python3 - "\$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/'
-        r"release-evidence-metadata\.json\" <<'PY'\n"
-        r"(?P<block>.*?)\n          PY",
-        smoke_workflow,
-        re.DOTALL,
-    )
-    assert validation_block_match is not None
-    validation_block = validation_block_match.group("block")
+    release_asset_validator = _load_gb10_release_asset_validator_module()
 
-    assert "from pathlib import Path" in validation_block
-    assert 'sys.path.insert(0, str(Path.cwd() / "scripts"))' in validation_block
-    assert "from gb10_release_contract import" in validation_block
-    assert "REQUIRED_GB10_SUPPORT_MATRIX" in validation_block
-    assert "SHA256_DIGEST_RE" in validation_block
-    assert "required_support_matrix = REQUIRED_GB10_SUPPORT_MATRIX" in (
-        validation_block
+    assert "scripts/gb10-validate-evidence-release-assets.py" in smoke_workflow
+    assert "--gb10-metadata-json" in smoke_workflow
+    assert "--gb10-image-ref" in smoke_workflow
+    assert "--gb10-image-digest" in smoke_workflow
+    assert "--gb10-release-tag" in smoke_workflow
+    assert "required_support_matrix = {" not in smoke_workflow
+    assert '"flashinfer_nvfp4_dense": "supported_native"' not in smoke_workflow
+    assert (
+        release_asset_validator.REQUIRED_GB10_SUPPORT_MATRIX
+        == GB10_REQUIRED_SUPPORT_MATRIX
     )
-    assert '"flashinfer_nvfp4_dense": "supported_native"' not in validation_block
 
 
 def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
@@ -1253,15 +1259,9 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "dist/gb10-release-evidence/**" in smoke_workflow
     assert "Validate GB10 evidence release assets" in smoke_workflow
     assert "id: validate_evidence_release_assets" in smoke_workflow
-    validation_block_match = re.search(
-        r'python3 - "\$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/'
-        r"release-evidence-metadata\.json\" <<'PY'\n"
-        r"(?P<block>.*?)\n          PY",
-        smoke_workflow,
-        re.DOTALL,
-    )
-    assert validation_block_match is not None
-    validation_block = validation_block_match.group("block")
+    validator_script = (
+        REPO_ROOT / "scripts" / "gb10-validate-evidence-release-assets.py"
+    ).read_text()
     assert "GB10 evidence release asset is missing or empty" in smoke_workflow
     assert "sha256sum --check \"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS\"" in (
         smoke_workflow
@@ -1270,86 +1270,79 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         "sha256sum --check "
         '"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"'
     ) in smoke_workflow
+    assert "scripts/gb10-validate-evidence-release-assets.py" in smoke_workflow
     assert (
-        "GB10 evidence release metadata does not prove a passed release gate"
-        in smoke_workflow
-    )
-    assert 'metadata.get("status") != "complete"' in smoke_workflow
-    assert 'metadata.get("release_gate_passed") is not True' in smoke_workflow
+        '--gb10-metadata-json "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/'
+        'release-evidence-metadata.json"'
+    ) in smoke_workflow
+    assert '--gb10-image-ref "$GB10_IMAGE_REF"' in smoke_workflow
+    assert '--gb10-image-digest "$GB10_IMAGE_DIGEST"' in smoke_workflow
+    assert '--gb10-release-tag "$GB10_RELEASE_TAG"' in smoke_workflow
+    assert "does not prove a passed release" in validator_script
+    assert "status={metadata.get('status')}" in validator_script
+    assert 'metadata.get("status") != "complete"' in validator_script
+    assert 'metadata.get("release_gate_passed") is not True' in validator_script
     image_digest_mismatch = (
         "GB10 evidence release metadata image digest does not match pulled digest"
     )
-    assert image_digest_mismatch in smoke_workflow
+    assert image_digest_mismatch in validator_script
     image_ref_mismatch = (
         "GB10 evidence release metadata image ref does not match input image-ref"
     )
-    assert image_ref_mismatch in smoke_workflow
+    assert image_ref_mismatch in validator_script
     assert "GB10 evidence release metadata tag does not match release-tag" in (
-        smoke_workflow
+        validator_script
     )
     assert (
         "GB10 evidence release metadata is missing a GB10 support matrix summary"
-        in smoke_workflow
+        in validator_script
     )
     assert (
         "GB10 evidence release metadata does not prove a complete GB10 support matrix"
-        in smoke_workflow
+        in validator_script
     )
-    assert 'metadata.get("support_matrix_complete") is not True' in (
-        validation_block
-    )
+    assert 'metadata.get("support_matrix_complete") is not True' in validator_script
     assert 'support_matrix = metadata.get("support_matrix_summary")' in (
-        validation_block
+        validator_script
     )
-    assert 'support_matrix.get("present") is not True' in validation_block
+    assert 'support_matrix.get("present") is not True' in validator_script
     assert (
         'support_matrix.get("release_manifest_present") is not True'
-        in validation_block
+        in validator_script
     )
-    assert 'support_matrix.get("architecture") != "sm_121a"' in validation_block
+    assert 'support_matrix.get("architecture") != "sm_121a"' in validator_script
     assert (
         'support_matrix.get("first_release_scope") != "single_spark_first_path"'
-        in validation_block
+        in validator_script
     )
-    assert 'support_matrix.get("entry_count", 0) <= 0' in validation_block
-    assert 'support_matrix.get("invalid_entries")' in validation_block
+    assert 'support_matrix.get("entry_count", 0) <= 0' in validator_script
+    assert 'support_matrix.get("invalid_entries")' in validator_script
     assert "GB10 evidence release metadata support matrix does not match" in (
-        smoke_workflow
+        validator_script
     )
-    assert "from gb10_release_contract import" in validation_block
-    assert "REQUIRED_GB10_SUPPORT_MATRIX" in validation_block
-    assert "required_support_matrix = REQUIRED_GB10_SUPPORT_MATRIX" in (
-        validation_block
-    )
-    assert '"flashinfer_nvfp4_dense": "supported_native"' not in validation_block
-    assert 'entries = support_matrix.get("entries")' in validation_block
-    assert "mismatched_support = {" in validation_block
-    assert validation_block.index(
+    assert "from gb10_release_contract import" in validator_script
+    assert "REQUIRED_GB10_SUPPORT_MATRIX" in validator_script
+    assert '"flashinfer_nvfp4_dense": "supported_native"' not in validator_script
+    assert 'entries = support_matrix.get("entries")' in validator_script
+    assert "def _mismatched_support_entries" in validator_script
+    assert validator_script.index(
         'support_matrix = metadata.get("support_matrix_summary")'
-    ) < validation_block.index(
+    ) < validator_script.index(
         'metadata.get("status") != "complete"'
     )
     assert "GB10 evidence release metadata is missing release provenance" in (
-        smoke_workflow
+        validator_script
     )
-    assert 'source = metadata.get("source")' in smoke_workflow
-    assert 'source.get("image_ref") != os.environ["GB10_IMAGE_REF"]' in smoke_workflow
+    assert 'source = metadata.get("source")' in validator_script
+    assert 'source.get("image_ref") != image_ref' in validator_script
     assert (
         'normalize_image_digest(source.get("image_digest"))'
-        in validation_block
+        in validator_script
     )
-    assert (
-        'normalize_image_digest(os.environ.get("GB10_IMAGE_DIGEST"))'
-        in validation_block
-    )
-    assert "SHA256_DIGEST_RE.fullmatch" in validation_block
-    assert (
-        'source.get("release_tag") != os.environ["GB10_RELEASE_TAG"]'
-        in smoke_workflow
-    )
-    assert 'required_provenance = {"release_manifest", "runtime_image_metadata"}' in (
-        smoke_workflow
-    )
+    assert "pulled_digest = normalize_image_digest(image_digest)" in validator_script
+    assert "SHA256_DIGEST_RE.fullmatch" in validator_script
+    assert 'source.get("release_tag") != release_tag' in validator_script
+    assert "REQUIRED_RELEASE_EVIDENCE_PROVENANCE" in validator_script
     assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" in (
         smoke_workflow
     )
@@ -1367,6 +1360,82 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "gb10-release-evidence.tar.gz" in smoke_workflow
     assert "release-evidence-metadata.json" in smoke_workflow
     assert "SHA256SUMS" in smoke_workflow
+
+
+def test_gb10_evidence_release_asset_validator_accepts_complete_metadata():
+    validator = _load_gb10_release_asset_validator_module()
+    digest = "sha256:" + "a" * 64
+    metadata = {
+        "status": "complete",
+        "release_gate_passed": True,
+        "source": {
+            "image_ref": "ghcr.io/gardner/vllm-gb10:gb10-test",
+            "image_digest": f"ghcr.io/gardner/vllm-gb10@{digest}",
+            "release_tag": "gb10-test",
+        },
+        "support_matrix_complete": True,
+        "support_matrix_summary": {
+            "present": True,
+            "release_manifest_present": True,
+            "architecture": "sm_121a",
+            "first_release_scope": "single_spark_first_path",
+            "entry_count": len(GB10_REQUIRED_SUPPORT_MATRIX),
+            "invalid_entries": [],
+            "entries": dict(GB10_REQUIRED_SUPPORT_MATRIX),
+        },
+        "included_provenance": [
+            {"kind": "release_manifest"},
+            {"kind": "runtime_image_metadata"},
+        ],
+    }
+
+    assert validator.validate_metadata(
+        metadata,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-test",
+        image_digest=digest,
+        release_tag="gb10-test",
+    ) == []
+
+
+def test_gb10_evidence_release_asset_validator_rejects_incomplete_metadata():
+    validator = _load_gb10_release_asset_validator_module()
+    digest = "sha256:" + "a" * 64
+    wrong_digest = "sha256:" + "b" * 64
+    incomplete_support_entries = dict(GB10_REQUIRED_SUPPORT_MATRIX)
+    del incomplete_support_entries["flashinfer_b12x_non_ep_moe"]
+    metadata = {
+        "status": "partial",
+        "release_gate_passed": False,
+        "source": {
+            "image_ref": "ghcr.io/gardner/vllm-gb10:gb10-test",
+            "image_digest": digest,
+            "release_tag": "gb10-test",
+        },
+        "support_matrix_complete": False,
+        "support_matrix_summary": {
+            "present": True,
+            "release_manifest_present": True,
+            "architecture": "sm_121a",
+            "first_release_scope": "single_spark_first_path",
+            "entry_count": len(incomplete_support_entries),
+            "invalid_entries": [],
+            "entries": incomplete_support_entries,
+        },
+        "included_provenance": [{"kind": "release_manifest"}],
+    }
+
+    errors = validator.validate_metadata(
+        metadata,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-test",
+        image_digest=wrong_digest,
+        release_tag="gb10-test",
+    )
+
+    assert any("does not prove a complete GB10 support matrix" in err for err in errors)
+    assert any("support matrix does not match" in err for err in errors)
+    assert any("does not prove a passed release gate" in err for err in errors)
+    assert any("image digest does not match pulled digest" in err for err in errors)
+    assert any("missing release provenance" in err for err in errors)
 
 
 def test_gb10_local_cached_build_script_defaults_to_serial_builds():
