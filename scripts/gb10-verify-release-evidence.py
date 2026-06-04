@@ -188,6 +188,7 @@ def _check_nvfp4_report(
     device_major = _nested_get(report, "runtime", "device_capability", "major")
     device_minor = _nested_get(report, "runtime", "device_capability", "minor")
     device_arch = _nested_get(report, "runtime", "device_capability", "arch")
+    flashinfer_version = _nested_get(report, "runtime", "flashinfer_version")
     attention_backend_check = _nested_get(
         report,
         "gb10_release_summary",
@@ -257,6 +258,17 @@ def _check_nvfp4_report(
                 if isinstance(device_capability, dict)
                 else {},
             },
+        ),
+        _check(
+            name="flashinfer_gb10_runtime_version",
+            passed=isinstance(flashinfer_version, str)
+            and "+cu13" in flashinfer_version
+            and "gb10" in flashinfer_version,
+            message=(
+                "offline NVFP4 smoke imported the GB10 CUDA 13 FlashInfer "
+                "runtime package"
+            ),
+            details={"flashinfer_version": flashinfer_version},
         ),
         _check(
             name="kv_cache_fp8_e4m3",
