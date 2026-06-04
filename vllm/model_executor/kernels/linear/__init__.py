@@ -406,6 +406,25 @@ _POSSIBLE_MXFP4_KERNELS: dict[PlatformEnum, list[type[MxFp4LinearKernel]]] = {
     ],
 }
 
+_MXFP4_LINEAR_FALLBACK_KERNELS = {
+    MarlinMxFp4LinearKernel,
+}
+
+
+def _gb10_mxfp4_linear_fallback_unsupported_reason(
+    kernel_cls: type[MxFp4LinearKernel],
+) -> str | None:
+    if kernel_cls not in _MXFP4_LINEAR_FALLBACK_KERNELS:
+        return None
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        f"{kernel_cls.__name__} is a non-native MXFP4 dense fallback and is "
+        "not supported on GB10/SM12x; use FlashInfer CUTLASS native MXFP4 "
+        "dense support after correctness evidence is available, or keep the "
+        "path unselected."
+    )
+
 # TODO make all kernels inherit from MMLinearKernel
 # then bound _KernelT only to MMLinearKernel
 _KernelT = TypeVar("_KernelT", bound=ScaledMMLinearKernel | MMLinearKernel)
@@ -747,6 +766,9 @@ def init_mxfp4_linear_kernel() -> MxFp4LinearKernel:
         force_kernel = MarlinMxFp4LinearKernel
 
     if force_kernel is not None:
+        fallback_reason = _gb10_mxfp4_linear_fallback_unsupported_reason(force_kernel)
+        if fallback_reason is not None:
+            raise ValueError(fallback_reason)
         is_supported, reason = force_kernel.is_supported()
         if not is_supported:
             raise ValueError(
@@ -780,6 +802,11 @@ def init_mxfp4_linear_kernel() -> MxFp4LinearKernel:
         is_supported, reason = kernel_cls.is_supported()
         if not is_supported:
             failure_reasons.append(f"{kernel_cls.__name__}: {reason}")
+            continue
+
+        fallback_reason = _gb10_mxfp4_linear_fallback_unsupported_reason(kernel_cls)
+        if fallback_reason is not None:
+            failure_reasons.append(f"{kernel_cls.__name__}: {fallback_reason}")
             continue
 
         logger.info_once("Using %s for MXFP4 GEMM", kernel_cls.__name__)

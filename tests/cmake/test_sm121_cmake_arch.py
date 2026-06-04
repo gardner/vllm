@@ -69,6 +69,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
+    "marlin_mxfp4_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
@@ -1871,6 +1872,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["flashinfer_trtllm_nvfp4_dense"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
         "not_supported"
     )
@@ -3010,6 +3014,9 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "before publishing GB10 artifacts" in linear_selector
     assert "MarlinNvFp4LinearKernel" in linear_selector
     assert "EmulationNvFp4LinearKernel" in linear_selector
+    assert "MarlinMxFp4LinearKernel" in linear_selector
+    assert "_gb10_mxfp4_linear_fallback_unsupported_reason" in linear_selector
+    assert "non-native MXFP4 dense fallback" in linear_selector
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -4661,6 +4668,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Marlin is a fallback path",
                 },
+                "marlin_mxfp4_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "MXFP4 Marlin is a fallback path",
+                },
                 "quark_nvfp4_checkpoint_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4860,6 +4872,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
+                "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
@@ -4937,6 +4950,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     ] == [
         "compressed_tensors_w4a16_nvfp4_loading",
         "flashinfer_trtllm_nvfp4_dense",
+        "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "public_flashattention_runtime",
         "quark_nvfp4_checkpoint_loading",

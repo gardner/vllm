@@ -349,6 +349,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "but it cannot satisfy native NVFP4 release evidence."
                 ),
             },
+            "marlin_mxfp4_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Marlin-backed MXFP4 can prove fallback reachability, "
+                    "but it cannot satisfy native GB10 MXFP4 release evidence."
+                ),
+            },
             "quark_nvfp4_checkpoint_loading": {
                 "status": "not_supported",
                 "release_contract": (
