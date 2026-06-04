@@ -599,6 +599,18 @@ jobs:
               sys.exit(1)
 
           support_matrix = metadata.get("support_matrix_summary")
+          if metadata.get("support_matrix_complete") is not True:
+              print(
+                  "GB10 evidence release metadata does not prove a complete GB10 support matrix.",
+                  file=sys.stderr,
+              )
+              print(
+                  "  support_matrix_complete: "
+                  f"{metadata.get('support_matrix_complete')}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
           if (
               not isinstance(support_matrix, dict)
               or support_matrix.get("present") is not True

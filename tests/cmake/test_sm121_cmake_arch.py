@@ -1225,6 +1225,13 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         "GB10 evidence release metadata is missing a GB10 support matrix summary"
         in smoke_workflow
     )
+    assert (
+        "GB10 evidence release metadata does not prove a complete GB10 support matrix"
+        in smoke_workflow
+    )
+    assert 'metadata.get("support_matrix_complete") is not True' in (
+        validation_block
+    )
     assert 'support_matrix = metadata.get("support_matrix_summary")' in (
         validation_block
     )
