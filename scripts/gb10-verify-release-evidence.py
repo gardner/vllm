@@ -20,6 +20,7 @@ from typing import Any
 
 from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
+    GB10_NOT_SUPPORTED_PATH_REASONS,
     RELEASE_NVFP4_SMOKE_REPORT_FILE,
     RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE,
     REQUIRED_GB10_SUPPORT_MATRIX,
@@ -834,6 +835,71 @@ def _check_quantization_against_support_matrix(
     ]
 
 
+def _check_unsupported_paths_reported(
+    report: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    unsupported_paths = _nested_get(
+        report,
+        "gb10_release_summary",
+        "unsupported_paths",
+    )
+    required_entries = sorted(GB10_NOT_SUPPORTED_PATH_REASONS)
+    if not isinstance(unsupported_paths, dict):
+        return [
+            _check(
+                name="unsupported_paths_reported",
+                passed=False,
+                message=(
+                    "offline smoke report lists Not Supported GB10 paths and "
+                    "their expected handling"
+                ),
+                details={
+                    "required_not_supported_entries": required_entries,
+                    "reported_not_supported_entries": [],
+                    "missing_not_supported_entries": required_entries,
+                    "malformed_not_supported_entries": required_entries,
+                },
+            )
+        ]
+
+    reported_entries: list[str] = []
+    missing_entries: list[str] = []
+    malformed_entries: list[str] = []
+    expected_handling = "route_or_reject_before_release_evidence"
+    for entry_name in required_entries:
+        entry = unsupported_paths.get(entry_name)
+        if not isinstance(entry, dict):
+            missing_entries.append(entry_name)
+            malformed_entries.append(entry_name)
+            continue
+        reported_entries.append(entry_name)
+        reason = entry.get("reason")
+        if (
+            entry.get("status") != "not_supported"
+            or entry.get("expected_handling") != expected_handling
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
+            malformed_entries.append(entry_name)
+
+    return [
+        _check(
+            name="unsupported_paths_reported",
+            passed=not missing_entries and not malformed_entries,
+            message=(
+                "offline smoke report lists Not Supported GB10 paths and "
+                "their expected handling"
+            ),
+            details={
+                "required_not_supported_entries": required_entries,
+                "reported_not_supported_entries": reported_entries,
+                "missing_not_supported_entries": missing_entries,
+                "malformed_not_supported_entries": malformed_entries,
+            },
+        )
+    ]
+
+
 def _check_backend_selections_against_support_matrix(
     report: dict[str, Any] | None,
     manifest: dict[str, Any] | None,
@@ -1270,6 +1336,7 @@ def _build_summary(
             release_manifest,
             required=require_release_manifest,
         ),
+        *_check_unsupported_paths_reported(nvfp4_report),
         *_check_backend_selections_against_support_matrix(
             nvfp4_report,
             release_manifest,

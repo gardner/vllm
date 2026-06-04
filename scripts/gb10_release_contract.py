@@ -39,6 +39,25 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "multi_spark_ep_all2all_eplb": "deferred",
 }
 
+GB10_NOT_SUPPORTED_PATH_REASONS = {
+    "public_flashattention_runtime": (
+        "Public FlashAttention runtime is not validated for the GB10 first "
+        "release path; route attention through FlashInfer or FlashMLA."
+    ),
+    "trtllm_gen_attention": (
+        "TRTLLM Gen attention artifacts and metadata do not support SM121; "
+        "route GB10 attention through FlashInfer or FlashMLA."
+    ),
+    "trtllm_gen_moe": (
+        "TRTLLM Gen MoE rejects SM121 today and must not satisfy native NVFP4 "
+        "MoE release evidence."
+    ),
+    "marlin_nvfp4_fallback": (
+        "Marlin can prove fallback serving reachability, but it is not native "
+        "GB10 NVFP4 Tensor Core evidence."
+    ),
+}
+
 GB10_SUPPORT_STATUSES = frozenset(
     {
         "supported_native",

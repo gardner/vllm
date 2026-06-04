@@ -21,7 +21,10 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
-from gb10_release_contract import FLASHINFER_RUNTIME_DISTRIBUTIONS
+from gb10_release_contract import (
+    FLASHINFER_RUNTIME_DISTRIBUTIONS,
+    GB10_NOT_SUPPORTED_PATH_REASONS,
+)
 
 DEFAULT_PROMPT = "NVIDIA DGX Spark native NVFP4 support means"
 DEFAULT_REQUIRED_PATHS = ("linear",)
@@ -703,10 +706,20 @@ def _build_gb10_release_summary(
             "match smoke request"
         )
 
+    unsupported_paths = {
+        name: {
+            "status": "not_supported",
+            "expected_handling": "route_or_reject_before_release_evidence",
+            "reason": reason,
+        }
+        for name, reason in sorted(GB10_NOT_SUPPORTED_PATH_REASONS.items())
+    }
+
     return {
         "first_path_smoke_passed": not smoke_blockers,
         "smoke_blockers": smoke_blockers,
         "checks": smoke_checks,
+        "unsupported_paths": unsupported_paths,
         "release_ready": False,
         "remaining_release_evidence": [
             "final runtime image smoke with the published GB10 dependency wheels",

@@ -1751,6 +1751,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
 
 
 def test_gb10_required_support_matrix_contract_is_shared():
+    smoke = _load_gb10_smoke_module()
     manifest = _load_gb10_release_manifest_module()
     verifier = _load_gb10_release_evidence_module()
     bundler = _load_gb10_release_bundle_module()
@@ -1762,6 +1763,16 @@ def test_gb10_required_support_matrix_contract_is_shared():
     assert (
         release_asset_validator.REQUIRED_GB10_SUPPORT_MATRIX
         == GB10_REQUIRED_SUPPORT_MATRIX
+    )
+    required_not_supported_entries = {
+        name
+        for name, status in GB10_REQUIRED_SUPPORT_MATRIX.items()
+        if status == "not_supported"
+    }
+    assert set(smoke.GB10_NOT_SUPPORTED_PATH_REASONS) == required_not_supported_entries
+    assert (
+        verifier.GB10_NOT_SUPPORTED_PATH_REASONS
+        == smoke.GB10_NOT_SUPPORTED_PATH_REASONS
     )
 
 
@@ -2797,6 +2808,7 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert '"native_nvfp4_moe_ep"' in script
     assert '"cuda_graph"' in script
     assert '"model_shape"' in script
+    assert '"unsupported_paths"' in script
     assert "attention_backend" in script
     assert "attention_backend_mismatch" in script
     assert "quantization_mode_mismatch" in script
@@ -3016,6 +3028,14 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
         "status": "not_validated_by_smoke",
         "configured_mode": "PIECEWISE",
         "configured_enabled": True,
+    }
+    assert release_summary["unsupported_paths"] == {
+        name: {
+            "status": "not_supported",
+            "expected_handling": "route_or_reject_before_release_evidence",
+            "reason": reason,
+        }
+        for name, reason in smoke.GB10_NOT_SUPPORTED_PATH_REASONS.items()
     }
     assert "OpenAI-compatible server smoke" in release_summary[
         "remaining_release_evidence"
@@ -3925,6 +3945,28 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "gb10_release_summary": {
             "first_path_smoke_passed": True,
             "smoke_blockers": [],
+            "unsupported_paths": {
+                "public_flashattention_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "public FlashAttention runtime is not validated",
+                },
+                "trtllm_gen_attention": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "TRTLLM Gen attention rejects SM121",
+                },
+                "trtllm_gen_moe": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "TRTLLM Gen MoE rejects SM121",
+                },
+                "marlin_nvfp4_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Marlin is a fallback path",
+                },
+            },
             "checks": {
                 "kv_cache_dtype": {
                     "status": "passed",
@@ -4097,9 +4139,18 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["attention_backend_allowed_by_support_matrix"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["quantization_allowed_by_support_matrix"] == "passed"
+    assert check_statuses["unsupported_paths_reported"] == "passed"
     assert checks_by_name["quantization_allowed_by_support_matrix"]["details"][
         "support_matrix_entry"
     ] == "modelopt_fp4_quantization"
+    assert checks_by_name["unsupported_paths_reported"]["details"][
+        "reported_not_supported_entries"
+    ] == [
+        "marlin_nvfp4_fallback",
+        "public_flashattention_runtime",
+        "trtllm_gen_attention",
+        "trtllm_gen_moe",
+    ]
     assert (
         check_statuses["nvfp4_backend_selections_allowed_by_support_matrix"]
         == "passed"
@@ -4150,6 +4201,30 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     }
     assert "nvfp4_backend_selections_allowed_by_support_matrix" in (
         unsupported_selection_failures
+    )
+
+    missing_unsupported_paths_report = copy.deepcopy(nvfp4_report)
+    del missing_unsupported_paths_report["gb10_release_summary"]["unsupported_paths"][
+        "trtllm_gen_attention"
+    ]
+    missing_unsupported_paths_summary = verifier._build_summary(
+        nvfp4_report=missing_unsupported_paths_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+    assert missing_unsupported_paths_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "unsupported_paths_reported"
+        for failure in missing_unsupported_paths_summary["failures"]
     )
 
     nvfp4_report["fallback_events"] = [
