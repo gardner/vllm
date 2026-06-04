@@ -1830,11 +1830,12 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert "release-evidence-metadata.json" in script
     assert "SHA256SUMS" in script
     assert '"report_summaries"' in script
+    assert '"release_gate_summary"' in script
     assert '"release_gate_passed"' in script
     assert '"failure_count"' in script
     assert "tarfile.open" in script
     assert "hashlib.sha256" in script
-    assert '"status": "partial" if missing_evidence_files else "complete"' in script
+    assert "_metadata_status(" in script
 
 
 def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
@@ -1912,6 +1913,13 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
 
     metadata = json.loads(metadata_path.read_text())
     assert metadata["status"] == "complete"
+    assert metadata["release_gate_passed"] is True
+    assert metadata["release_gate_summary"] == {
+        "present": True,
+        "status": "passed",
+        "release_gate_passed": True,
+        "failure_count": 0,
+    }
     assert metadata["missing_reports"] == []
     assert metadata["missing_evidence_files"] == []
     assert metadata["report_summaries"] == {
@@ -1989,6 +1997,52 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     assert "evidence/reports/gb10-smoked-image-digest.txt" in tar_names
     assert "evidence/provenance/gb10-release-manifest.json" in tar_names
     assert "evidence/provenance/buildx-runtime-image-metadata.json" in tar_names
+
+
+def test_gb10_release_evidence_bundle_marks_failed_gate(tmp_path):
+    bundler = _load_gb10_release_bundle_module()
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "bundle"
+    report_dir.mkdir()
+
+    report_payloads = {
+        "gb10-nvfp4-smoke.json": {"status": "passed"},
+        "gb10-openai-server-smoke-image.json": {"status": "passed"},
+        "gb10-release-evidence-image.json": {
+            "status": "failed",
+            "release_gate_passed": False,
+            "failure_count": 2,
+        },
+    }
+    for name, payload in report_payloads.items():
+        (report_dir / name).write_text(json.dumps(payload) + "\n")
+    (report_dir / "gb10-smoked-image-digest.txt").write_text(
+        "ghcr.io/gardner/vllm-gb10@sha256:" + "b" * 64 + "\n"
+    )
+
+    exit_code = bundler.main(
+        [
+            "--gb10-report-dir",
+            str(report_dir),
+            "--gb10-output-dir",
+            str(output_dir),
+            "--gb10-bundle-name",
+            "evidence",
+        ]
+    )
+
+    assert exit_code == 0
+    metadata = json.loads((output_dir / "release-evidence-metadata.json").read_text())
+    assert metadata["status"] == "failed"
+    assert metadata["release_gate_passed"] is False
+    assert metadata["release_gate_summary"] == {
+        "present": True,
+        "status": "failed",
+        "release_gate_passed": False,
+        "failure_count": 2,
+    }
+    assert metadata["missing_reports"] == []
+    assert metadata["missing_evidence_files"] == []
 
 
 def test_gb10_openai_server_smoke_reports_api_evidence():

@@ -312,9 +312,19 @@ def _write_metadata(
         if evidence_file in EXPECTED_REPORTS
     ]
 
+    report_summaries = _summarize_reports(
+        output_dir=output_dir,
+        included_files=included_files,
+    )
+    release_gate_summary = report_summaries["gb10-release-evidence-image.json"]
+    metadata_status = _metadata_status(
+        missing_evidence_files=missing_evidence_files,
+        release_gate_summary=release_gate_summary,
+    )
+
     metadata = {
         "schema_version": 1,
-        "status": "partial" if missing_evidence_files else "complete",
+        "status": metadata_status,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source": {
             "report_dir": str(report_dir),
@@ -324,10 +334,9 @@ def _write_metadata(
         },
         "expected_reports": expected_reports,
         "expected_evidence_files": expected_evidence_files,
-        "report_summaries": _summarize_reports(
-            output_dir=output_dir,
-            included_files=included_files,
-        ),
+        "report_summaries": report_summaries,
+        "release_gate_summary": release_gate_summary,
+        "release_gate_passed": release_gate_summary.get("release_gate_passed"),
         "missing_reports": missing_reports,
         "missing_evidence_files": missing_evidence_files,
         "included_files": included_files,
@@ -373,6 +382,18 @@ def _summarize_reports(
                 )
         summaries[report_name] = report_summary
     return summaries
+
+
+def _metadata_status(
+    *,
+    missing_evidence_files: list[str],
+    release_gate_summary: dict[str, Any],
+) -> str:
+    if missing_evidence_files:
+        return "partial"
+    if release_gate_summary.get("release_gate_passed") is True:
+        return "complete"
+    return "failed"
 
 
 def _missing_evidence(
@@ -490,9 +511,11 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         args.gb10_bundle_name,
         bundle_files + [checksum_path],
     )
+    metadata = json.loads(metadata_path.read_text())
 
     return {
-        "status": "partial" if missing_evidence_files else "complete",
+        "status": metadata["status"],
+        "release_gate_passed": metadata.get("release_gate_passed"),
         "output_dir": str(output_dir),
         "archive_path": str(archive_path),
         "archive_sha256": _sha256(archive_path),
