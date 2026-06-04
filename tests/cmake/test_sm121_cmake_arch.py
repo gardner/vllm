@@ -1116,6 +1116,15 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "dist/gb10-release-evidence/**" in smoke_workflow
     assert "Validate GB10 evidence release assets" in smoke_workflow
     assert "id: validate_evidence_release_assets" in smoke_workflow
+    validation_block_match = re.search(
+        r'python3 - "\$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/'
+        r"release-evidence-metadata\.json\" <<'PY'\n"
+        r"(?P<block>.*?)\n          PY",
+        smoke_workflow,
+        re.DOTALL,
+    )
+    assert validation_block_match is not None
+    validation_block = validation_block_match.group("block")
     assert "GB10 evidence release asset is missing or empty" in smoke_workflow
     assert "sha256sum --check \"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS\"" in (
         smoke_workflow
@@ -1130,6 +1139,10 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     )
     assert 'metadata.get("status") != "complete"' in smoke_workflow
     assert 'metadata.get("release_gate_passed") is not True' in smoke_workflow
+    image_digest_mismatch = (
+        "GB10 evidence release metadata image digest does not match pulled digest"
+    )
+    assert image_digest_mismatch in smoke_workflow
     image_ref_mismatch = (
         "GB10 evidence release metadata image ref does not match input image-ref"
     )
@@ -1142,6 +1155,16 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     )
     assert 'source = metadata.get("source")' in smoke_workflow
     assert 'source.get("image_ref") != os.environ["GB10_IMAGE_REF"]' in smoke_workflow
+    assert (
+        'normalize_image_digest(source.get("image_digest"))'
+        in validation_block
+    )
+    assert (
+        'normalize_image_digest(os.environ.get("GB10_IMAGE_DIGEST"))'
+        in validation_block
+    )
+    assert "          import re" in validation_block
+    assert "re.fullmatch" in validation_block
     assert (
         'source.get("release_tag") != os.environ["GB10_RELEASE_TAG"]'
         in smoke_workflow
@@ -1857,7 +1880,9 @@ def test_gb10_release_evidence_bundle_preserves_smoke_artifacts():
     assert '"report_summaries"' in script
     assert '"release_gate_summary"' in script
     assert '"release_gate_passed"' in script
+    assert '"smoked_image_digest"' in script
     assert '"failure_count"' in script
+    assert "sha256:[0-9a-f]{64}" in script
     assert "tarfile.open" in script
     assert "hashlib.sha256" in script
     assert "_metadata_status(" in script
@@ -1945,6 +1970,11 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "release_gate_passed": True,
         "failure_count": 0,
     }
+    assert metadata["smoked_image_digest"] == {
+        "present": True,
+        "raw": "ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
+        "digest": "sha256:" + "a" * 64,
+    }
     assert metadata["missing_reports"] == []
     assert metadata["missing_evidence_files"] == []
     assert metadata["report_summaries"] == {
@@ -1968,6 +1998,7 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         "commit": "abc123",
         "release_tag": "gb10-vllm-test",
         "image_ref": "ghcr.io/gardner/vllm-gb10:test",
+        "image_digest": "sha256:" + "a" * 64,
     }
     assert {
         item["relative_path"]: item["source_path"]

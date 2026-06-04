@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -43,6 +44,7 @@ PROVENANCE_RELATIVE_PATHS = {
     "release_manifest": "provenance/gb10-release-manifest.json",
     "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",
 }
+SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def _default_report_dir() -> Path:
@@ -317,6 +319,10 @@ def _write_metadata(
         included_files=included_files,
     )
     release_gate_summary = report_summaries["gb10-release-evidence-image.json"]
+    smoked_image_digest = _summarize_smoked_image_digest(
+        output_dir=output_dir,
+        included_files=included_files,
+    )
     metadata_status = _metadata_status(
         missing_evidence_files=missing_evidence_files,
         release_gate_summary=release_gate_summary,
@@ -331,12 +337,14 @@ def _write_metadata(
             "commit": commit,
             "release_tag": release_tag,
             "image_ref": image_ref,
+            "image_digest": smoked_image_digest["digest"],
         },
         "expected_reports": expected_reports,
         "expected_evidence_files": expected_evidence_files,
         "report_summaries": report_summaries,
         "release_gate_summary": release_gate_summary,
         "release_gate_passed": release_gate_summary.get("release_gate_passed"),
+        "smoked_image_digest": smoked_image_digest,
         "missing_reports": missing_reports,
         "missing_evidence_files": missing_evidence_files,
         "included_files": included_files,
@@ -382,6 +390,46 @@ def _summarize_reports(
                 )
         summaries[report_name] = report_summary
     return summaries
+
+
+def _normalize_image_digest(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if "@" in value:
+        value = value.rsplit("@", 1)[1].strip()
+    marker = "sha256:"
+    marker_index = value.find(marker)
+    if marker_index >= 0:
+        value = value[marker_index:]
+    value = value.split()[0].strip().strip('",')
+    if SHA256_DIGEST_RE.fullmatch(value) is None:
+        return None
+    return value
+
+
+def _summarize_smoked_image_digest(
+    *,
+    output_dir: Path,
+    included_files: list[dict[str, Any]],
+) -> dict[str, Any]:
+    digest_path = None
+    for item in included_files:
+        if Path(item["relative_path"]).name == "gb10-smoked-image-digest.txt":
+            digest_path = output_dir / item["relative_path"]
+            break
+
+    if digest_path is None:
+        return {"present": False, "raw": None, "digest": None}
+
+    raw_digest = digest_path.read_text().strip()
+    return {
+        "present": True,
+        "raw": raw_digest,
+        "digest": _normalize_image_digest(raw_digest),
+    }
 
 
 def _metadata_status(
@@ -516,6 +564,7 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "status": metadata["status"],
         "release_gate_passed": metadata.get("release_gate_passed"),
+        "smoked_image_digest": metadata.get("smoked_image_digest"),
         "output_dir": str(output_dir),
         "archive_path": str(archive_path),
         "archive_sha256": _sha256(archive_path),
