@@ -135,6 +135,13 @@ def _load_gb10_vllm_release_checksum_writer_module():
     )
 
 
+def _load_gb10_vllm_release_asset_lister_module():
+    return _load_script_module(
+        "gb10_list_vllm_release_assets",
+        REPO_ROOT / "scripts" / "gb10-list-vllm-release-assets.py",
+    )
+
+
 def _load_gb10_release_manifest_module():
     return _load_script_module(
         "gb10_write_release_manifest",
@@ -566,9 +573,21 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "--gb10-validate-release-inputs" in gb10_workflow
     assert "gb10-release-manifest.json" in gb10_workflow
     assert "buildx-runtime-image-metadata.json" in gb10_workflow
-    assert "gb10-runtime-image-ref.txt" in gb10_workflow
-    assert "gb10-runtime-image-digest.txt" in gb10_workflow
     assert "gb10-vllm-release-SHA256SUMS" in gb10_workflow
+    release_asset_contract = "\n".join(
+        (
+            REPO_ROOT / "scripts" / name
+        ).read_text()
+        for name in (
+            "gb10-write-runtime-image-provenance.py",
+            "gb10-write-vllm-release-checksums.py",
+            "gb10-validate-vllm-release-assets.py",
+            "gb10-list-vllm-release-assets.py",
+        )
+    )
+    assert "gb10-runtime-image-ref.txt" in release_asset_contract
+    assert "gb10-runtime-image-digest.txt" in release_asset_contract
+    assert "gb10-vllm-release-SHA256SUMS" in release_asset_contract
     assert "Write GB10 runtime image refs" in gb10_workflow
     assert "Write GB10 release checksums" in gb10_workflow
     assert "Validate GB10 release assets" in gb10_workflow
@@ -653,19 +672,31 @@ def test_gb10_release_workflow_publishes_release_manifest():
     )[1]
     assert "env.GB10_PREFLIGHT_ONLY != 'true'" in release_step
     assert "env.GB10_RELEASE_TAG != ''" in release_step
-    assert "dist/vllm-*.whl" in release_step
-    assert "GB10 release publication expects exactly one vLLM wheel" in release_step
-    assert "release_assets=(" in release_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json" in release_step
+    assert "scripts/gb10-list-vllm-release-assets.py" in release_step
+    assert "--gb10-dist-dir dist" in release_step
+    assert '--gb10-release-manifest-dir "$GB10_RELEASE_MANIFEST_DIR"' in release_step
+    assert '--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in (
+        release_step
+    )
+    assert "mapfile -t release_assets" in release_step
+    assert "dist/vllm-*.whl" not in release_step
+    assert "GB10 release publication expects exactly one vLLM wheel" not in (
+        release_step
+    )
+    assert "release_assets=(" not in release_step
     assert "$GB10_RUNTIME_IMAGE_METADATA_JSON" in release_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in release_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in release_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS" in release_step
     assert 'if [ -f "$GB10_RUNTIME_IMAGE_METADATA_JSON" ]' not in release_step
     assert (
         'if [ -f "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" ]'
         not in release_step
     )
+
+    asset_lister = (
+        REPO_ROOT / "scripts" / "gb10-list-vllm-release-assets.py"
+    ).read_text()
+    assert "GB10 release publication expects exactly one vLLM wheel" in asset_lister
+    assert "PROVENANCE_FILES" in asset_lister
+    assert "VLLM_RELEASE_ASSET_FILES" in asset_lister
 
     refs_step = gb10_workflow.split(
         "- name: Write GB10 runtime image refs",
@@ -848,6 +879,44 @@ def test_gb10_vllm_release_checksum_writer_rejects_missing_wheel(tmp_path):
 
     assert any("expects exactly one vLLM wheel" in error for error in errors)
     assert not checksum_file.exists()
+
+
+def test_gb10_vllm_release_asset_lister_returns_publish_assets(tmp_path):
+    asset_lister = _load_gb10_vllm_release_asset_lister_module()
+    dist_dir, manifest_dir, metadata = _write_gb10_vllm_release_assets(tmp_path)
+
+    release_assets, errors = asset_lister.list_release_assets(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+    )
+
+    assert errors == []
+    assert release_assets == [
+        dist_dir / "vllm-0.22.1rc0+gb10.test-cp313-cp313-linux_aarch64.whl",
+        manifest_dir / "gb10-release-manifest.json",
+        metadata,
+        manifest_dir / "gb10-runtime-image-ref.txt",
+        manifest_dir / "gb10-runtime-image-digest.txt",
+        manifest_dir / "gb10-vllm-release-SHA256SUMS",
+    ]
+
+
+def test_gb10_vllm_release_asset_lister_rejects_bad_assets(tmp_path):
+    asset_lister = _load_gb10_vllm_release_asset_lister_module()
+    dist_dir, manifest_dir, metadata = _write_gb10_vllm_release_assets(tmp_path)
+    (dist_dir / "vllm-extra-0.0.0.whl").write_bytes(b"extra")
+    (manifest_dir / "gb10-runtime-image-digest.txt").write_text("", encoding="utf-8")
+
+    release_assets, errors = asset_lister.list_release_assets(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+    )
+
+    assert len(release_assets) == 7
+    assert any("expects exactly one vLLM wheel" in error for error in errors)
+    assert any("missing or empty" in error for error in errors)
 
 
 def _write_gb10_vllm_release_assets(tmp_path: Path) -> tuple[Path, Path, Path]:
