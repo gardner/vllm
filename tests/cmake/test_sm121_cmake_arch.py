@@ -1114,7 +1114,24 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "gb10-smoke-reports/**" in smoke_workflow
     assert "gb10-release-provenance/**" in smoke_workflow
     assert "dist/gb10-release-evidence/**" in smoke_workflow
+    assert "Validate GB10 evidence release assets" in smoke_workflow
+    assert "id: validate_evidence_release_assets" in smoke_workflow
+    assert "GB10 evidence release asset is missing or empty" in smoke_workflow
+    assert "sha256sum --check \"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS\"" in (
+        smoke_workflow
+    )
+    assert (
+        "sha256sum --check "
+        '"$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"'
+    ) in smoke_workflow
+    assert "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz" in (
+        smoke_workflow
+    )
     assert "Attach evidence to GitHub Release" in smoke_workflow
+    assert (
+        "steps.validate_evidence_release_assets.outcome == 'success'"
+        in smoke_workflow
+    )
     assert "GB10 release tag does not exist; run the release workflow first" in (
         smoke_workflow
     )

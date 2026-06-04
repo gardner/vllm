@@ -526,8 +526,30 @@ jobs:
             gb10-release-provenance/**
             dist/gb10-release-evidence/**
 
-      - name: Attach evidence to GitHub Release
+      - name: Validate GB10 evidence release assets
+        id: validate_evidence_release_assets
         if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != ''
+        run: |
+          required_evidence_assets=(
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz"
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/release-evidence-metadata.json"
+            "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS"
+          )
+          for asset in "${required_evidence_assets[@]}"; do
+            if [ ! -s "$asset" ]; then
+              echo "GB10 evidence release asset is missing or empty: $asset" >&2
+              exit 1
+            fi
+          done
+
+          pushd "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR" >/dev/null
+          sha256sum --check "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/SHA256SUMS"
+          sha256sum --check "$GB10_RELEASE_EVIDENCE_OUTPUT_DIR/gb10-release-evidence.tar.gz.sha256"
+          popd >/dev/null
+
+      - name: Attach evidence to GitHub Release
+        if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != '' && steps.validate_evidence_release_assets.outcome == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
