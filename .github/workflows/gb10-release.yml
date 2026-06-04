@@ -207,7 +207,9 @@ jobs:
             echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
             echo "GB10_PUSH_IMAGE=${push_image}"
             echo "GB10_PREFLIGHT_ONLY=${preflight_only}"
-            echo "GB10_RUNNER_LABELS=${release_runner_labels}"
+            echo "GB10_RUNNER_LABELS<<GB10_RUNNER_LABELS_EOF"
+            echo "$release_runner_labels"
+            echo "GB10_RUNNER_LABELS_EOF"
           } >> "$GITHUB_ENV"
 
       - name: Write GB10 release manifest

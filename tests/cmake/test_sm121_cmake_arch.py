@@ -486,7 +486,8 @@ def test_gb10_release_workflow_routes_full_builds_to_self_hosted_gb10():
     assert 'release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"' in (
         resolve_step
     )
-    assert 'GB10_RUNNER_LABELS=${release_runner_labels}' in resolve_step
+    assert "GB10_RUNNER_LABELS<<GB10_RUNNER_LABELS_EOF" in resolve_step
+    assert 'echo "$release_runner_labels"' in resolve_step
     assert "reject_multiline_env_value \"release_runner_labels\"" in resolve_step
     assert '[ "$preflight_only" != "true" ]' in resolve_step
     assert '[[ "$release_runner_labels" != *"\\"self-hosted\\""* ]]' in (
