@@ -286,6 +286,7 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
         for wheel in wheels:
             component = _mapping_value(wheel, "component")
             url = _mapping_value(wheel, "url")
+            url_component = _wheel_component(url) if isinstance(url, str) else None
             release_identity = (
                 _github_release_identity(url) if isinstance(url, str) else None
             )
@@ -295,12 +296,23 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
                     f"{component or url}."
                 )
 
-            if component in REQUIRED_FLASHINFER_COMPONENTS:
-                component_counts[str(component)] += 1
+            if (
+                isinstance(component, str)
+                and url_component is not None
+                and component != url_component
+            ):
+                errors.append(
+                    "FlashInfer wheel component metadata does not match URL: "
+                    f"component={component!r}, url_component={url_component!r}, "
+                    f"url={url!r}."
+                )
+
+            if url_component in REQUIRED_FLASHINFER_COMPONENTS:
+                component_counts[str(url_component)] += 1
                 if release_identity is not None:
                     release_identities.add(release_identity)
             else:
-                unexpected_components.append(str(component or url))
+                unexpected_components.append(str(url_component or component or url))
 
         missing_components = [
             component

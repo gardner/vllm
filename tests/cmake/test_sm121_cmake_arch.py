@@ -747,6 +747,23 @@ def test_gb10_release_manifest_rejects_duplicate_or_extra_flashinfer_wheels(
         for err in duplicate_errors
     )
 
+    url_duplicate_manifest = copy.deepcopy(good_manifest)
+    url_duplicate_manifest["dependencies"]["flashinfer"]["wheels"][1]["url"] = (
+        "https://github.com/gardner/flashinfer/releases/download/"
+        f"{FLASHINFER_RELEASE_TAG}/"
+        "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl"
+    )
+    url_duplicate_errors = manifest.validate_manifest(url_duplicate_manifest)
+
+    assert any(
+        "FlashInfer wheel component metadata does not match URL" in err
+        for err in url_duplicate_errors
+    )
+    assert any(
+        "FlashInfer GB10 wheel URLs must include exactly one" in err
+        for err in url_duplicate_errors
+    )
+
     extra_manifest = copy.deepcopy(good_manifest)
     extra_manifest["dependencies"]["flashinfer"]["wheels"].append(
         {
