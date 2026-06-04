@@ -244,7 +244,7 @@ jobs:
           exit 1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -687,7 +687,7 @@ jobs:
 
       - name: Upload GB10 evidence artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ env.GB10_RELEASE_EVIDENCE_ARTIFACT_NAME }}
           if-no-files-found: warn
