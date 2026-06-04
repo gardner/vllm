@@ -282,6 +282,7 @@ class CudaGraphManager:
         # while those copies are still in flight.
         get_offloader().sync_prev_onload()
         self.graphs[desc].replay()
+        compilation_counter.num_cudagraph_replayed += 1
 
 
 class ModelCudaGraphManager(CudaGraphManager):

@@ -52,6 +52,16 @@ def _is_observed_model_shape(value: Any) -> bool:
     )
 
 
+def _is_passed_cuda_graph_check(value: Any) -> bool:
+    if not isinstance(value, dict) or value.get("status") != "passed":
+        return False
+    return (
+        value.get("configured_enabled") is True
+        and _is_positive_int(value.get("num_cudagraph_captured"))
+        and _is_positive_int(value.get("num_cudagraph_replayed"))
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -237,6 +247,12 @@ def _check_nvfp4_report(
         "checks",
         "attention_backend",
     )
+    cuda_graph_check = _nested_get(
+        report,
+        "gb10_release_summary",
+        "checks",
+        "cuda_graph",
+    )
     model_shape_check = _nested_get(
         report,
         "gb10_release_summary",
@@ -346,6 +362,12 @@ def _check_nvfp4_report(
                 "kv_cache_dtype",
             )
             or {},
+        ),
+        _check(
+            name="cuda_graph_capture_replay",
+            passed=_is_passed_cuda_graph_check(cuda_graph_check),
+            message="offline smoke observed CUDA graph capture and replay",
+            details=cuda_graph_check if isinstance(cuda_graph_check, dict) else {},
         ),
         _check(
             name="model_shape_reported",
@@ -1442,7 +1464,6 @@ def _build_summary(
         "failures": failures,
         "remaining_release_evidence": [
             "final runtime image smoke with the published GB10 dependency wheels",
-            "CUDA graph capture/replay validation",
             "prefill/decode benchmark evidence",
         ],
     }

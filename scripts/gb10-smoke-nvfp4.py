@@ -198,6 +198,28 @@ def _collect_distribution_versions(
     return versions
 
 
+def _collect_compilation_counter() -> dict[str, Any]:
+    try:
+        from vllm.compilation.counter import compilation_counter
+    except ImportError:
+        return {
+            "num_cudagraph_captured": None,
+            "num_cudagraph_replayed": None,
+        }
+    return {
+        "num_cudagraph_captured": getattr(
+            compilation_counter,
+            "num_cudagraph_captured",
+            None,
+        ),
+        "num_cudagraph_replayed": getattr(
+            compilation_counter,
+            "num_cudagraph_replayed",
+            None,
+        ),
+    }
+
+
 def _collect_runtime_metadata() -> dict[str, Any]:
     import torch
 
@@ -211,6 +233,7 @@ def _collect_runtime_metadata() -> dict[str, Any]:
         "flashinfer_distributions": _collect_distribution_versions(
             FLASHINFER_RUNTIME_DISTRIBUTIONS
         ),
+        "compilation_counter": _collect_compilation_counter(),
         "env": {
             "VLLM_FAIL_ON_NVFP4_FALLBACK": os.environ.get(
                 "VLLM_FAIL_ON_NVFP4_FALLBACK"
@@ -596,6 +619,50 @@ def _model_shape_status(shape: dict[str, Any]) -> str:
     )
 
 
+def _build_cuda_graph_check(
+    *,
+    runtime_metadata: dict[str, Any],
+    vllm_config_summary: dict[str, Any] | None,
+) -> dict[str, Any]:
+    configured_mode = _nested_get(
+        vllm_config_summary,
+        "compilation",
+        "cudagraph_mode",
+    )
+    configured_enabled = _nested_get(
+        vllm_config_summary,
+        "compilation",
+        "cudagraph_enabled",
+    )
+    captured = _nested_get(
+        runtime_metadata,
+        "compilation_counter",
+        "num_cudagraph_captured",
+    )
+    replayed = _nested_get(
+        runtime_metadata,
+        "compilation_counter",
+        "num_cudagraph_replayed",
+    )
+    if configured_enabled is True:
+        status = (
+            "passed"
+            if _is_positive_int(captured) and _is_positive_int(replayed)
+            else "not_observed"
+        )
+    elif configured_enabled is False:
+        status = "disabled"
+    else:
+        status = "not_observed"
+    return {
+        "status": status,
+        "configured_mode": configured_mode,
+        "configured_enabled": configured_enabled,
+        "num_cudagraph_captured": captured,
+        "num_cudagraph_replayed": replayed,
+    }
+
+
 def _build_model_shape_check(
     *,
     args: argparse.Namespace,
@@ -617,6 +684,7 @@ def _build_gb10_release_summary(
     selections: Sequence[Any],
     fallbacks: Sequence[Any],
     backend_summary: dict[str, Any],
+    runtime_metadata: dict[str, Any],
     vllm_config_summary: dict[str, Any] | None,
 ) -> dict[str, Any]:
     native_gemm_status = _capability_status(backend_summary, "native_nvfp4_gemm")
@@ -657,15 +725,9 @@ def _build_gb10_release_summary(
         attention_backend_status = "passed"
     else:
         attention_backend_status = "mismatched"
-    configured_cudagraph_mode = _nested_get(
-        vllm_config_summary,
-        "compilation",
-        "cudagraph_mode",
-    )
-    configured_cudagraph_enabled = _nested_get(
-        vllm_config_summary,
-        "compilation",
-        "cudagraph_enabled",
+    cuda_graph_check = _build_cuda_graph_check(
+        runtime_metadata=runtime_metadata,
+        vllm_config_summary=vllm_config_summary,
     )
     model_shape_check = _build_model_shape_check(
         args=args,
@@ -718,11 +780,7 @@ def _build_gb10_release_summary(
                 "mla_prefill_backend",
             ),
         },
-        "cuda_graph": {
-            "status": "not_validated_by_smoke",
-            "configured_mode": configured_cudagraph_mode,
-            "configured_enabled": configured_cudagraph_enabled,
-        },
+        "cuda_graph": cuda_graph_check,
     }
 
     smoke_blockers = []
@@ -738,6 +796,8 @@ def _build_gb10_release_summary(
         smoke_blockers.append("configured KV cache dtype did not match smoke request")
     if smoke_checks["model_shape"]["status"] != "observed":
         smoke_blockers.append("model shape metadata was not observed")
+    if smoke_checks["cuda_graph"]["status"] != "passed":
+        smoke_blockers.append("CUDA graph capture/replay was not observed")
     if (
         expected_quantization is not None
         and smoke_checks["quantization"]["status"] != "passed"
@@ -782,7 +842,6 @@ def _build_gb10_release_summary(
         "remaining_release_evidence": [
             "final runtime image smoke with the published GB10 dependency wheels",
             "OpenAI-compatible server smoke",
-            "CUDA graph capture/replay validation",
             "correctness or deterministic generation evidence for the target model",
             "prefill/decode benchmark evidence",
         ],
@@ -804,11 +863,12 @@ def _build_report(
     for output in outputs:
         completions = getattr(output, "outputs", [])
         generated_texts.append(completions[0].text if completions else "")
+    runtime_metadata = _collect_runtime_metadata()
 
     report = {
         "schema_version": 1,
         "status": status,
-        "runtime": _collect_runtime_metadata(),
+        "runtime": runtime_metadata,
         "model": args.model,
         "quantization": args.quantization,
         "kv_cache_dtype": args.kv_cache_dtype,
@@ -846,6 +906,7 @@ def _build_report(
         selections=selections,
         fallbacks=fallbacks,
         backend_summary=backend_summary,
+        runtime_metadata=runtime_metadata,
         vllm_config_summary=vllm_config_summary,
     )
     if error is not None:

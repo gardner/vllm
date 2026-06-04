@@ -7,6 +7,7 @@ from typing import Any
 
 import torch
 
+from vllm.compilation.counter import compilation_counter
 from vllm.config import VllmConfig
 from vllm.distributed import (
     get_tensor_model_parallel_rank,
@@ -302,6 +303,7 @@ class EncoderCudaGraphManager:
                 padding_logic(buf, src)
 
         graph_meta.graph.replay()
+        compilation_counter.num_cudagraph_replayed += 1
 
         self.graph_hits += num_items
         return graph_meta.output_buffer

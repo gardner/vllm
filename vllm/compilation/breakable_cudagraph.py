@@ -33,6 +33,7 @@ from typing import Any, ClassVar, TypeVar
 import torch
 
 import vllm.envs as envs
+from vllm.compilation.counter import compilation_counter
 from vllm.compilation.monitor import validate_cudagraph_capturing_enabled
 from vllm.config import CUDAGraphMode, VllmConfig
 from vllm.distributed.device_communicators.pynccl_allocator import set_graph_pool_id
@@ -421,4 +422,5 @@ class BreakableCUDAGraphWrapper:
         get_offloader().sync_prev_onload()
         assert entry.capture is not None
         entry.capture.replay()
+        compilation_counter.num_cudagraph_replayed += 1
         return entry.output

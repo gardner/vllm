@@ -9,6 +9,7 @@ from typing import Any
 import torch
 
 import vllm.envs as envs
+from vllm.compilation.counter import compilation_counter
 from vllm.compilation.cuda_graph import CUDAGraphWrapper
 from vllm.config import CUDAGraphMode, VllmConfig
 from vllm.distributed import get_ep_group
@@ -508,6 +509,7 @@ class UBatchWrapper:
             # from pre-capture prefetches are satisfied.
             get_offloader().sync_prev_onload()
             cudagraph_metadata.cudagraph.replay()
+            compilation_counter.num_cudagraph_replayed += 1
             return cudagraph_metadata.outputs
         else:
             ubatch_metadata = self._make_ubatch_metadata(

@@ -13,6 +13,7 @@ from copy import copy
 import torch
 import torch.nn as nn
 
+from vllm.compilation.counter import compilation_counter
 from vllm.config import VllmConfig, get_layers_from_vllm_config, replace
 from vllm.logger import init_logger
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
@@ -103,6 +104,7 @@ class Gemma4Proposer(SpecDecodeBaseProposer):
                 if size >= T:
                     self._centroids_inputs[size][:T].copy_(hidden_states)
                     self._centroids_graphs[size].replay()
+                    compilation_counter.num_cudagraph_replayed += 1
                     return self._centroids_outputs[size][:T].clone()
             return self.model.get_top_tokens(hidden_states)
         return super()._greedy_sample(hidden_states)

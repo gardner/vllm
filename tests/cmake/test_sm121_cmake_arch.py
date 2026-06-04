@@ -2817,6 +2817,8 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert '"model_shape"' in script
     assert '"unsupported_paths"' in script
     assert '"deferred_paths"' in script
+    assert "num_cudagraph_captured" in script
+    assert "num_cudagraph_replayed" in script
     assert "attention_backend" in script
     assert "attention_backend_mismatch" in script
     assert "quantization_mode_mismatch" in script
@@ -2962,8 +2964,18 @@ def test_gb10_nvfp4_model_smoke_summarizes_vllm_config():
     )
 
 
-def test_gb10_nvfp4_model_smoke_builds_release_summary():
+def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
     smoke = _load_gb10_smoke_module()
+    monkeypatch.setattr(
+        smoke,
+        "_collect_runtime_metadata",
+        lambda: {
+            "compilation_counter": {
+                "num_cudagraph_captured": 2,
+                "num_cudagraph_replayed": 1,
+            },
+        },
+    )
     args = SimpleNamespace(
         model="gb10-model",
         quantization="modelopt_fp4",
@@ -3045,9 +3057,11 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
         "configured": "modelopt_fp4",
     }
     assert release_summary["checks"]["cuda_graph"] == {
-        "status": "not_validated_by_smoke",
+        "status": "passed",
         "configured_mode": "PIECEWISE",
         "configured_enabled": True,
+        "num_cudagraph_captured": 2,
+        "num_cudagraph_replayed": 1,
     }
     assert release_summary["unsupported_paths"] == {
         name: {
@@ -3087,6 +3101,40 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
     assert (
         "model shape metadata was not observed"
         in missing_shape_report["gb10_release_summary"]["smoke_blockers"]
+    )
+
+    monkeypatch.setattr(
+        smoke,
+        "_collect_runtime_metadata",
+        lambda: {
+            "compilation_counter": {
+                "num_cudagraph_captured": 2,
+                "num_cudagraph_replayed": 0,
+            },
+        },
+    )
+    missing_replay_report = smoke._build_report(
+        args=args,
+        required_paths=("linear", "moe"),
+        selections=selections,
+        fallbacks=(),
+        outputs=(),
+        status="passed",
+        vllm_config_summary=vllm_config_summary,
+    )
+    assert (
+        missing_replay_report["gb10_release_summary"]["checks"]["cuda_graph"][
+            "status"
+        ]
+        == "not_observed"
+    )
+    assert (
+        missing_replay_report["gb10_release_summary"]["first_path_smoke_passed"]
+        is False
+    )
+    assert (
+        "CUDA graph capture/replay was not observed"
+        in missing_replay_report["gb10_release_summary"]["smoke_blockers"]
     )
 
 
@@ -3935,6 +3983,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"attention_backend_allowed_by_support_matrix"' in script
+    assert '"cuda_graph_capture_replay"' in script
     assert '"model_shape_reported"' in script
     assert '"quantization_modelopt_fp4"' in script
     assert '"quantization_allowed_by_support_matrix"' in script
@@ -4041,6 +4090,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "status": "passed",
                     "expected": "fp8_e4m3",
                     "configured": "fp8_e4m3",
+                },
+                "cuda_graph": {
+                    "status": "passed",
+                    "configured_mode": "PIECEWISE",
+                    "configured_enabled": True,
+                    "num_cudagraph_captured": 2,
+                    "num_cudagraph_replayed": 1,
                 },
                 "attention_backend": {
                     "status": "passed",
@@ -4204,6 +4260,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["gb10_device_sm121"] == "passed"
     assert check_statuses["flashinfer_gb10_runtime_version"] == "passed"
     assert check_statuses["flashinfer_gb10_distribution_versions"] == "passed"
+    assert check_statuses["cuda_graph_capture_replay"] == "passed"
     assert check_statuses["model_shape_reported"] == "passed"
     assert checks_by_name["model_shape_reported"]["details"] == {
         "status": "observed",
@@ -4356,6 +4413,33 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "model_shape_reported"
         for failure in missing_model_shape_summary["failures"]
+    )
+
+    missing_cuda_graph_replay_report = copy.deepcopy(nvfp4_report)
+    missing_cuda_graph_replay_report["gb10_release_summary"]["checks"]["cuda_graph"][
+        "num_cudagraph_replayed"
+    ] = 0
+    missing_cuda_graph_replay_report["gb10_release_summary"]["checks"]["cuda_graph"][
+        "status"
+    ] = "not_observed"
+    missing_cuda_graph_replay_summary = verifier._build_summary(
+        nvfp4_report=missing_cuda_graph_replay_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+    assert missing_cuda_graph_replay_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "cuda_graph_capture_replay"
+        for failure in missing_cuda_graph_replay_summary["failures"]
     )
 
     nvfp4_report["fallback_events"] = [

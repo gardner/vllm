@@ -6271,6 +6271,7 @@ class GPUModelRunner(
             self._init_minimal_kv_cache_for_profiling()
 
         saved_num_cudagraph_captured = compilation_counter.num_cudagraph_captured
+        saved_num_cudagraph_replayed = compilation_counter.num_cudagraph_replayed
 
         capture_descs = self.cudagraph_dispatcher.get_capture_descs()
 
@@ -6359,6 +6360,7 @@ class GPUModelRunner(
         self.maybe_remove_all_loras(self.lora_config)
         self._cleanup_profiling_kv_cache()
         compilation_counter.num_cudagraph_captured = saved_num_cudagraph_captured
+        compilation_counter.num_cudagraph_replayed = saved_num_cudagraph_replayed
 
         # FULL and PIECEWISE graphs share the global pool at runtime and are
         # never replayed concurrently, so the pool overlays their memory.
