@@ -396,6 +396,34 @@ def test_gb10_release_workflow_requires_durable_image_ref_for_tagged_release():
     assert "runtime image tag must match the release tag" in resolve_step
 
 
+def test_gb10_release_workflow_rejects_multiline_env_values():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    resolve_step = gb10_workflow.split(
+        "- name: Resolve release settings",
+        1,
+    )[1].split("- name: Write GB10 release manifest", 1)[0]
+
+    assert "reject_multiline_env_value()" in resolve_step
+    assert '$\'\\n\'' in resolve_step
+    assert '$\'\\r\'' in resolve_step
+    assert "GB10 release setting must be single-line" in resolve_step
+    for variable in (
+        "release_tag",
+        "image_name",
+        "image_tag",
+        "vllm_version",
+        "prebuilt_wheel_urls",
+        "flash_attn_repo",
+        "flash_attn_ref",
+        "push_image",
+        "preflight_only",
+    ):
+        assert f'reject_multiline_env_value "{variable}" "${variable}"' in resolve_step
+
+
 def test_gb10_release_workflow_uses_durable_split_build_caches():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"

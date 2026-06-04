@@ -105,6 +105,15 @@ jobs:
             prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
           fi
 
+          reject_multiline_env_value() {
+            local name="$1"
+            local value="$2"
+            if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+              echo "GB10 release setting must be single-line: ${name}" >&2
+              exit 1
+            fi
+          }
+
           if [ "$preflight_only" != "true" ] && [ -n "$release_tag" ] && [ "$push_image" != "true" ]; then
             echo "GB10 full release publication requires push-image=true so the runtime image is durable in GHCR." >&2
             exit 1
@@ -160,6 +169,15 @@ jobs:
             vllm_version_base="${BASH_REMATCH[1]}"
           fi
           vllm_version="${vllm_version_base}+gb10.${GITHUB_SHA::12}"
+          reject_multiline_env_value "release_tag" "$release_tag"
+          reject_multiline_env_value "image_name" "$image_name"
+          reject_multiline_env_value "image_tag" "$image_tag"
+          reject_multiline_env_value "vllm_version" "$vllm_version"
+          reject_multiline_env_value "prebuilt_wheel_urls" "$prebuilt_wheel_urls"
+          reject_multiline_env_value "flash_attn_repo" "$flash_attn_repo"
+          reject_multiline_env_value "flash_attn_ref" "$flash_attn_ref"
+          reject_multiline_env_value "push_image" "$push_image"
+          reject_multiline_env_value "preflight_only" "$preflight_only"
           {
             echo "GB10_RELEASE_TAG=${release_tag}"
             echo "GB10_IMAGE_NAME=${image_name}"
