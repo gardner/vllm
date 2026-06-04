@@ -2107,6 +2107,17 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "runs-on: [self-hosted, linux, aarch64, cuda13, dgx-spark, sm121]" in (
         smoke_workflow
     )
+    assert "${{ runner.temp }}" not in smoke_workflow
+    assert (
+        "GB10_SMOKE_CACHE_DIR: "
+        "${{ github.workspace }}/.gb10-hf-cache"
+        in smoke_workflow
+    )
+    assert (
+        "GB10_OPENAI_IMAGE_CACHE_DIR: "
+        "${{ github.workspace }}/.gb10-hf-cache"
+        in smoke_workflow
+    )
     assert "permissions:" in smoke_workflow
     assert "contents: write" in smoke_workflow
     assert "packages: read" in smoke_workflow
