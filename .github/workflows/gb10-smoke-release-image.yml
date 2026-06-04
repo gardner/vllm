@@ -606,6 +606,21 @@ jobs:
           smoked_image_digest_report="${release_evidence_files[3]}"
           printf '%s\n' "$image_digest" > "$smoked_image_digest_report"
 
+      - name: Verify candidate image GB10 packages
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          package_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-image-package-check.json"
+          docker run --rm \
+            --network none \
+            --entrypoint python3 \
+            -e GB10_IMAGE_REF="$GB10_IMAGE_REF" \
+            -e GB10_IMAGE_DIGEST="$GB10_IMAGE_DIGEST" \
+            -v "$PWD/scripts/gb10-verify-image-packages.py:/tmp/gb10-verify-image-packages.py:ro" \
+            -v "$GB10_RELEASE_SMOKE_REPORT_DIR:/gb10-smoke-reports" \
+            "$GB10_IMAGE_REF" \
+            /tmp/gb10-verify-image-packages.py \
+              --gb10-output-json "/gb10-smoke-reports/$(basename "$package_report")"
+
       - name: Record provenance-only evidence
         if: inputs['provenance-only'] == true
         run: |

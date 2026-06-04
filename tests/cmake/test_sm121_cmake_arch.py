@@ -168,6 +168,13 @@ def _load_gb10_release_provenance_artifact_file_lister_module():
     )
 
 
+def _load_gb10_image_package_verifier_module():
+    return _load_script_module(
+        "gb10_verify_image_packages",
+        REPO_ROOT / "scripts" / "gb10-verify-image-packages.py",
+    )
+
+
 def _load_gb10_release_contract_module():
     return _load_script_module(
         "gb10_release_contract_for_tests",
@@ -812,6 +819,45 @@ def test_gb10_release_workflow_sets_runtime_image_build_metadata():
             'actions/runs/${GITHUB_RUN_ID}"'
         ) in step_block
         assert '--build-arg VLLM_IMAGE_TAG="$GB10_IMAGE_TAG"' in step_block
+
+
+def test_gb10_image_package_verifier_requires_gb10_runtime_distributions():
+    verifier = _load_gb10_image_package_verifier_module()
+
+    good_versions = {
+        "vllm": "0.22.1rc0+gb10.abc123",
+        "flashinfer-python": "0.6.12+cu130gb10",
+        "flashinfer-cubin": "0.6.12+cu130gb10",
+        "flashinfer-jit-cache": "0.6.12+cu130gb10",
+    }
+
+    def good_version_getter(distribution_name: str) -> str:
+        return good_versions[distribution_name]
+
+    good_report = verifier.collect_image_package_report(
+        image_ref="ghcr.io/gardner/vllm-gb10:tag",
+        image_digest="ghcr.io/gardner/vllm-gb10@sha256:" + "a" * 64,
+        version_getter=good_version_getter,
+    )
+
+    assert good_report["status"] == "passed"
+    assert good_report["vllm_version_is_gb10"] is True
+    assert all(good_report["flashinfer_versions_are_gb10_cuda13"].values())
+
+    bad_versions = dict(good_versions)
+    bad_versions["flashinfer-cubin"] = "0.6.12+cu130"
+
+    def bad_version_getter(distribution_name: str) -> str:
+        return bad_versions[distribution_name]
+
+    bad_report = verifier.collect_image_package_report(
+        version_getter=bad_version_getter,
+    )
+
+    assert bad_report["status"] == "failed"
+    assert bad_report["non_gb10_flashinfer_distributions"] == {
+        "flashinfer-cubin": "0.6.12+cu130",
+    }
 
 
 def test_gb10_release_workflow_publishes_release_manifest():
@@ -2349,6 +2395,20 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
         smoke_workflow
     )
     assert "GB10 candidate image pull failed" in smoke_workflow
+    assert "Verify candidate image GB10 packages" in smoke_workflow
+    assert "scripts/gb10-verify-image-packages.py" in smoke_workflow
+    assert "gb10-image-package-check.json" in smoke_workflow
+    assert "docker run --rm" in smoke_workflow
+    assert "--network none" in smoke_workflow
+    assert smoke_workflow.index("Pull candidate image") < smoke_workflow.index(
+        "Verify candidate image GB10 packages"
+    )
+    assert smoke_workflow.index("Verify candidate image GB10 packages") < (
+        smoke_workflow.index("Record provenance-only evidence")
+    )
+    assert smoke_workflow.index("Verify candidate image GB10 packages") < (
+        smoke_workflow.index("Run final-image smoke and evidence verifier")
+    )
     report_lister_script = (
         REPO_ROOT / "scripts" / "gb10-list-release-evidence-report-files.py"
     ).read_text()
