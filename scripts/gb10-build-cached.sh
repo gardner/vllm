@@ -153,7 +153,8 @@ fi
 docker buildx inspect "$GB10_BUILDX_BUILDER" --bootstrap >/dev/null
 
 set +e
-docker buildx build \
+scripts/gb10-run-with-heartbeat.sh "local ${cache_key} build" \
+    docker buildx build \
     --builder "$GB10_BUILDX_BUILDER" \
     --file docker/Dockerfile \
     --target "$docker_target" \

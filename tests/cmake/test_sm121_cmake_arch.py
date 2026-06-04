@@ -2446,6 +2446,7 @@ def test_gb10_local_cached_build_script_defaults_to_serial_builds():
     assert "--driver docker-container" in script
     assert '--cache-to "type=local,dest=$cache_next,mode=max"' in script
     assert "GB10_USE_REGISTRY_CACHE=1" in script
+    assert 'scripts/gb10-run-with-heartbeat.sh "local ${cache_key} build"' in script
     assert "--builder \"$GB10_BUILDX_BUILDER\"" in script
     assert "--target \"$docker_target\"" in script
     assert (
