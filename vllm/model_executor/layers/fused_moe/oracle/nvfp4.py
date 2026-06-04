@@ -377,8 +377,9 @@ def select_nvfp4_moe_backend(
             if _is_sm12x_device():
                 fi_backends = [
                     b
-                    for b in fi_backends
-                    if b != NvFp4MoeBackend.FLASHINFER_TRTLLM
+                    for b in AVAILABLE_BACKENDS
+                    if b in FLASHINFER_NVFP4_MOE_BACKENDS
+                    and (config.swiglu_limit is None or b in NVFP4_BACKENDS_WITH_CLAMP)
                 ]
             for backend in fi_backends:
                 for k_cls in backend_to_kernel_cls(backend):

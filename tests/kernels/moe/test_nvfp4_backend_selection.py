@@ -169,6 +169,27 @@ def test_gb10_flashinfer_env_auto_nvfp4_moe_skips_trtllm_gen(monkeypatch):
     assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_flashinfer_env_auto_nvfp4_moe_prefers_b12x(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP4", "1")
+    kernel_by_backend = _mock_backend_support(
+        monkeypatch,
+        {
+            NvFp4MoeBackend.FLASHINFER_B12X,
+            NvFp4MoeBackend.FLASHINFER_CUTLASS,
+        },
+    )
+
+    backend, experts_cls = select_nvfp4_moe_backend(
+        _make_nvfp4_moe_config(),
+        weight_key=kNvfp4Static,
+        activation_key=kNvfp4Dynamic,
+    )
+
+    assert backend == NvFp4MoeBackend.FLASHINFER_B12X
+    assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_B12X]
+
+
 def test_gb10_flashinfer_env_explicit_trtllm_nvfp4_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP4", "1")
