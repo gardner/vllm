@@ -142,6 +142,13 @@ def _load_gb10_vllm_release_asset_lister_module():
     )
 
 
+def _load_gb10_release_contract_module():
+    return _load_script_module(
+        "gb10_release_contract_for_tests",
+        REPO_ROOT / "scripts" / "gb10_release_contract.py",
+    )
+
+
 def _load_gb10_release_manifest_module():
     return _load_script_module(
         "gb10_write_release_manifest",
@@ -647,6 +654,8 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "hashlib.sha256" in checksum_writer
     assert "PROVENANCE_FILES" in checksum_writer
     assert "VLLM_RELEASE_ASSET_FILES" in checksum_writer
+    assert "find_vllm_wheel_assets" in checksum_writer
+    assert "vllm_release_checksum_asset_paths" in checksum_writer
     assert "GB10 release checksum generation expects exactly one vLLM wheel" in (
         checksum_writer
     )
@@ -701,7 +710,8 @@ def test_gb10_release_workflow_publishes_release_manifest():
     ).read_text()
     assert "GB10 release publication expects exactly one vLLM wheel" in asset_lister
     assert "PROVENANCE_FILES" in asset_lister
-    assert "VLLM_RELEASE_ASSET_FILES" in asset_lister
+    assert "find_vllm_wheel_assets" in asset_lister
+    assert "vllm_release_asset_paths" in asset_lister
 
     refs_step = gb10_workflow.split(
         "- name: Write GB10 runtime image refs",
@@ -813,6 +823,53 @@ def test_gb10_runtime_image_provenance_writer_rejects_malformed_digest(
         manifest_dir / "gb10-runtime-image-ref.txt"
     ).read_text() == "ghcr.io/gardner/vllm-gb10:gb10-test\n"
     assert not (manifest_dir / "gb10-runtime-image-digest.txt").exists()
+
+
+def test_gb10_vllm_release_asset_helpers_share_contract(tmp_path):
+    contract = _load_gb10_release_contract_module()
+    dist_dir, manifest_dir, metadata = _write_gb10_vllm_release_assets(tmp_path)
+    wheel = dist_dir / "vllm-0.22.1rc0+gb10.test-cp313-cp313-linux_aarch64.whl"
+    manifest = manifest_dir / "gb10-release-manifest.json"
+    image_ref = manifest_dir / "gb10-runtime-image-ref.txt"
+    image_digest = manifest_dir / "gb10-runtime-image-digest.txt"
+    checksums = manifest_dir / "gb10-vllm-release-SHA256SUMS"
+
+    assert contract.find_vllm_wheel_assets(dist_dir) == [wheel]
+    assert contract.vllm_release_asset_paths(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+    ) == [wheel, manifest, metadata, image_ref, image_digest, checksums]
+    assert contract.vllm_release_checksum_asset_paths(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+    ) == [wheel, manifest, metadata, image_ref, image_digest]
+
+    image_digest.unlink()
+    assert contract.vllm_release_checksum_asset_paths(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+    ) == [wheel, manifest, metadata, image_ref]
+
+    script_texts = {
+        name: (REPO_ROOT / "scripts" / name).read_text()
+        for name in (
+            "gb10-list-vllm-release-assets.py",
+            "gb10-write-vllm-release-checksums.py",
+            "gb10-validate-vllm-release-assets.py",
+        )
+    }
+    assert "vllm_release_asset_paths" in script_texts[
+        "gb10-list-vllm-release-assets.py"
+    ]
+    assert "vllm_release_asset_paths" in script_texts[
+        "gb10-validate-vllm-release-assets.py"
+    ]
+    assert "vllm_release_checksum_asset_paths" in script_texts[
+        "gb10-write-vllm-release-checksums.py"
+    ]
 
 
 def test_gb10_vllm_release_checksum_writer_writes_release_assets(tmp_path):

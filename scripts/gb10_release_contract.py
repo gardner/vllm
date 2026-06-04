@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 FLASHINFER_RUNTIME_DISTRIBUTIONS = (
     "flashinfer-python",
@@ -67,6 +68,8 @@ VLLM_RELEASE_ASSET_FILES = {
     "checksums": "gb10-vllm-release-SHA256SUMS",
 }
 
+VLLM_RELEASE_WHEEL_GLOB = "vllm-*.whl"
+
 PROVENANCE_RELATIVE_PATHS = {
     "release_manifest": "provenance/gb10-release-manifest.json",
     "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",
@@ -78,3 +81,44 @@ REQUIRED_RELEASE_EVIDENCE_PROVENANCE = (
 )
 
 SHA256_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+def find_vllm_wheel_assets(dist_dir: Path) -> list[Path]:
+    return sorted(dist_dir.glob(VLLM_RELEASE_WHEEL_GLOB))
+
+
+def vllm_release_asset_paths(
+    *,
+    dist_dir: Path,
+    release_manifest_dir: Path,
+    runtime_image_metadata_json: Path,
+) -> list[Path]:
+    return [
+        *find_vllm_wheel_assets(dist_dir),
+        release_manifest_dir / PROVENANCE_FILES["release_manifest"],
+        runtime_image_metadata_json,
+        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_ref"],
+        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_digest"],
+        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["checksums"],
+    ]
+
+
+def vllm_release_checksum_asset_paths(
+    *,
+    dist_dir: Path,
+    release_manifest_dir: Path,
+    runtime_image_metadata_json: Path,
+) -> list[Path]:
+    checksum_assets = [
+        *find_vllm_wheel_assets(dist_dir),
+        release_manifest_dir / PROVENANCE_FILES["release_manifest"],
+        runtime_image_metadata_json,
+        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_ref"],
+    ]
+
+    runtime_image_digest = (
+        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_digest"]
+    )
+    if runtime_image_digest.is_file():
+        checksum_assets.append(runtime_image_digest)
+    return checksum_assets

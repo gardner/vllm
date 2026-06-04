@@ -12,7 +12,12 @@ import re
 import sys
 from pathlib import Path
 
-from gb10_release_contract import PROVENANCE_FILES, VLLM_RELEASE_ASSET_FILES
+from gb10_release_contract import (
+    PROVENANCE_FILES,
+    VLLM_RELEASE_ASSET_FILES,
+    find_vllm_wheel_assets,
+    vllm_release_asset_paths,
+)
 
 SHA256_HEX_RE = re.compile(r"[0-9a-f]{64}")
 
@@ -140,21 +145,18 @@ def validate_release_assets(
     repo_root: Path,
 ) -> list[str]:
     errors: list[str] = []
-    wheel_assets = sorted(dist_dir.glob("vllm-*.whl"))
+    wheel_assets = find_vllm_wheel_assets(dist_dir)
     if len(wheel_assets) != 1:
         errors.append(
             "GB10 release publication expects exactly one vLLM wheel. "
             f"found={len(wheel_assets)} dist_dir={dist_dir}"
         )
 
-    required_assets = [
-        *wheel_assets,
-        release_manifest_dir / PROVENANCE_FILES["release_manifest"],
-        runtime_image_metadata_json,
-        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_ref"],
-        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_digest"],
-        release_manifest_dir / VLLM_RELEASE_ASSET_FILES["checksums"],
-    ]
+    required_assets = vllm_release_asset_paths(
+        dist_dir=dist_dir,
+        release_manifest_dir=release_manifest_dir,
+        runtime_image_metadata_json=runtime_image_metadata_json,
+    )
 
     for asset in required_assets:
         if not asset.is_file() or asset.stat().st_size <= 0:
