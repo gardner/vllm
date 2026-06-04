@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+from collections import Counter
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -276,32 +277,69 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
 
     dependencies = _mapping_value(manifest, "dependencies")
     flashinfer = _mapping_value(dependencies, "flashinfer")
-    if _mapping_value(flashinfer, "all_required_components_present") is not True:
-        errors.append(
-            "FlashInfer release manifest must include all required GB10 wheels."
-        )
-
     wheels = _mapping_value(flashinfer, "wheels")
     if isinstance(wheels, list):
+        component_counts: Counter[str] = Counter()
+        unexpected_components: list[str] = []
+        release_identities: set[tuple[str, str]] = set()
+
         for wheel in wheels:
             component = _mapping_value(wheel, "component")
             url = _mapping_value(wheel, "url")
-            if _mapping_value(wheel, "release_tag") is None or not _github_release_url(
-                url
-            ):
+            release_identity = (
+                _github_release_identity(url) if isinstance(url, str) else None
+            )
+            if not _github_release_url(url):
                 errors.append(
                     f"FlashInfer wheel must come from a GitHub Release: "
                     f"{component or url}."
                 )
-        release_identities = {
-            (
-                _mapping_value(wheel, "release_repository"),
-                _mapping_value(wheel, "release_tag"),
-            )
-            for wheel in wheels
-            if _mapping_value(wheel, "component") in REQUIRED_FLASHINFER_COMPONENTS
+
+            if component in REQUIRED_FLASHINFER_COMPONENTS:
+                component_counts[str(component)] += 1
+                if release_identity is not None:
+                    release_identities.add(release_identity)
+            else:
+                unexpected_components.append(str(component or url))
+
+        missing_components = [
+            component
+            for component in REQUIRED_FLASHINFER_COMPONENTS
+            if component_counts[component] == 0
+        ]
+        duplicate_components = {
+            component: count
+            for component, count in component_counts.items()
+            if count > 1
         }
-        if len(release_identities) != 1:
+        if missing_components or duplicate_components:
+            errors.append(
+                "FlashInfer GB10 wheel URLs must include exactly one of each "
+                f"required component; missing={missing_components!r}, "
+                f"duplicates={duplicate_components!r}."
+            )
+
+        if unexpected_components:
+            errors.append(
+                "FlashInfer release manifest has unexpected wheel components: "
+                f"{sorted(unexpected_components)!r}."
+            )
+
+        if (
+            _mapping_value(flashinfer, "all_required_components_present")
+            is not True
+            and not missing_components
+        ):
+            errors.append(
+                "FlashInfer release manifest all_required_components_present "
+                "does not match the wheel URL set."
+            )
+
+        if (
+            not missing_components
+            and not duplicate_components
+            and len(release_identities) != 1
+        ):
             release_identity_details = sorted(
                 repr(identity) for identity in release_identities
             )

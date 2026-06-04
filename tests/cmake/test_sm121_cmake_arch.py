@@ -642,6 +642,10 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
     ] = "file:///mnt/dgx-ssd/src/GB10/DeepGEMM"
     bad_manifest["build"]["local_gb10_dependency_checkouts"] = True
     bad_manifest["dependencies"]["flashinfer"]["wheels"][0]["release_tag"] = None
+    bad_manifest["dependencies"]["flashinfer"]["wheels"][0]["url"] = (
+        "https://github.com/gardner/flashinfer/raw/main/"
+        "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl"
+    )
     bad_manifest["image"]["push"] = False
 
     errors = manifest.validate_manifest(bad_manifest)
@@ -688,21 +692,80 @@ def test_gb10_release_manifest_rejects_mixed_flashinfer_release_sets(tmp_path):
     assert manifest.validate_manifest(good_manifest) == []
 
     mixed_manifest = copy.deepcopy(good_manifest)
-    mixed_manifest["dependencies"]["flashinfer"]["wheels"][1][
-        "release_repository"
-    ] = "gardner/flashinfer"
-    mixed_manifest["dependencies"]["flashinfer"]["wheels"][1][
-        "release_tag"
-    ] = "gb10-flashinfer-v0.6.12-deadbeef"
-    mixed_manifest["dependencies"]["flashinfer"]["wheels"][2][
-        "release_repository"
-    ] = "other/flashinfer"
+    mixed_manifest["dependencies"]["flashinfer"]["wheels"][1]["url"] = (
+        "https://github.com/gardner/flashinfer/releases/download/"
+        "gb10-flashinfer-v0.6.12-deadbeef/"
+        "flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl"
+    )
+    mixed_manifest["dependencies"]["flashinfer"]["wheels"][2]["url"] = (
+        "https://github.com/other/flashinfer/releases/download/"
+        f"{FLASHINFER_RELEASE_TAG}/"
+        "flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl"
+    )
 
     errors = manifest.validate_manifest(mixed_manifest)
 
     assert any(
         "FlashInfer GB10 wheels must come from one GitHub Release" in err
         for err in errors
+    )
+
+
+def test_gb10_release_manifest_rejects_duplicate_or_extra_flashinfer_wheels(
+    tmp_path,
+):
+    manifest = _load_gb10_release_manifest_module()
+    env = {
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_IMAGE_TAG": "gb10-abcdef123456",
+        "GB10_PREBUILT_WHEEL_URLS": " ".join(
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+            for wheel in FLASHINFER_RELEASE_WHEELS
+        ),
+        "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
+        "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_PREFLIGHT_ONLY": "true",
+        "VLLM_USE_LOCAL_GB10_DEPS": "0",
+    }
+
+    good_manifest = manifest.write_manifest(
+        tmp_path / "gb10-release-manifest.json",
+        env=env,
+    )
+    assert manifest.validate_manifest(good_manifest) == []
+
+    duplicate_manifest = copy.deepcopy(good_manifest)
+    duplicate_manifest["dependencies"]["flashinfer"]["wheels"].append(
+        copy.deepcopy(duplicate_manifest["dependencies"]["flashinfer"]["wheels"][0])
+    )
+    duplicate_errors = manifest.validate_manifest(duplicate_manifest)
+
+    assert any(
+        "FlashInfer GB10 wheel URLs must include exactly one" in err
+        for err in duplicate_errors
+    )
+
+    extra_manifest = copy.deepcopy(good_manifest)
+    extra_manifest["dependencies"]["flashinfer"]["wheels"].append(
+        {
+            "component": "flashinfer_debug",
+            "filename": "flashinfer_debug-0.6.12+cu130gb10-py3-none-any.whl",
+            "release_repository": "gardner/flashinfer",
+            "release_tag": FLASHINFER_RELEASE_TAG,
+            "url": (
+                "https://github.com/gardner/flashinfer/releases/download/"
+                f"{FLASHINFER_RELEASE_TAG}/"
+                "flashinfer_debug-0.6.12+cu130gb10-py3-none-any.whl"
+            ),
+        }
+    )
+    extra_errors = manifest.validate_manifest(extra_manifest)
+
+    assert any(
+        "FlashInfer release manifest has unexpected wheel components" in err
+        for err in extra_errors
     )
 
 
@@ -2071,9 +2134,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "all_required_components_present"
     ] = True
     release_manifest["dependencies"]["flashinfer"]["missing_components"] = []
-    release_manifest["dependencies"]["flashinfer"]["wheels"][0][
-        "release_tag"
-    ] = None
+    original_flashinfer_python_url = release_manifest["dependencies"]["flashinfer"][
+        "wheels"
+    ][0]["url"]
+    release_manifest["dependencies"]["flashinfer"]["wheels"][0]["url"] = (
+        "https://github.com/gardner/flashinfer/raw/main/"
+        "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl"
+    )
     durable_manifest_failed_summary = verifier._build_summary(
         nvfp4_report={**nvfp4_report, "fallback_events": []},
         nvfp4_error=None,
@@ -2096,8 +2163,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     )
 
     release_manifest["dependencies"]["flashinfer"]["wheels"][0][
-        "release_tag"
-    ] = FLASHINFER_RELEASE_TAG
+        "url"
+    ] = original_flashinfer_python_url
     image_mismatch_summary = verifier._build_summary(
         nvfp4_report={**nvfp4_report, "fallback_events": []},
         nvfp4_error=None,
