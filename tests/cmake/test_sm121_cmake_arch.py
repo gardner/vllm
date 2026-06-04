@@ -918,6 +918,59 @@ def test_gb10_vllm_release_default_paths_share_contract(monkeypatch):
         assert "DEFAULT_VLLM_RELEASE_DIST_DIR" in script_texts[name]
 
 
+def test_gb10_release_evidence_default_provenance_paths_share_contract(
+    monkeypatch,
+):
+    contract = _load_gb10_release_contract_module()
+    for env_var in (
+        "GB10_RELEASE_EVIDENCE_MANIFEST_JSON",
+        "GB10_RELEASE_MANIFEST_JSON",
+        "GB10_RELEASE_MANIFEST_DIR",
+        "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON",
+        "GB10_RUNTIME_IMAGE_METADATA_JSON",
+    ):
+        monkeypatch.delenv(env_var, raising=False)
+
+    assert contract.default_release_evidence_manifest_json() is None
+    assert contract.default_release_evidence_runtime_image_metadata_json() is None
+
+    monkeypatch.setenv("GB10_RELEASE_MANIFEST_DIR", "release-manifest-dir")
+    assert contract.default_release_evidence_manifest_json() == (
+        Path("release-manifest-dir") / "gb10-release-manifest.json"
+    )
+
+    monkeypatch.setenv("GB10_RELEASE_MANIFEST_JSON", "release/manifest.json")
+    assert contract.default_release_evidence_manifest_json() == Path(
+        "release/manifest.json"
+    )
+
+    monkeypatch.setenv("GB10_RELEASE_EVIDENCE_MANIFEST_JSON", "evidence/manifest.json")
+    assert contract.default_release_evidence_manifest_json() == Path(
+        "evidence/manifest.json"
+    )
+
+    monkeypatch.setenv("GB10_RUNTIME_IMAGE_METADATA_JSON", "release/metadata.json")
+    assert contract.default_release_evidence_runtime_image_metadata_json() == Path(
+        "release/metadata.json"
+    )
+
+    monkeypatch.setenv(
+        "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON",
+        "evidence/metadata.json",
+    )
+    assert contract.default_release_evidence_runtime_image_metadata_json() == Path(
+        "evidence/metadata.json"
+    )
+
+    bundler_script = (
+        REPO_ROOT / "scripts" / "gb10-bundle-release-evidence.py"
+    ).read_text()
+    assert "default_release_evidence_manifest_json" in bundler_script
+    assert "default_release_evidence_runtime_image_metadata_json" in bundler_script
+    assert "def _default_release_manifest_json" not in bundler_script
+    assert "def _default_runtime_image_metadata_json" not in bundler_script
+
+
 def test_gb10_vllm_release_checksum_writer_writes_release_assets(tmp_path):
     checksum_writer = _load_gb10_vllm_release_checksum_writer_module()
     validator = _load_gb10_vllm_release_asset_validator_module()

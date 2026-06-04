@@ -99,6 +99,27 @@ def default_runtime_image_metadata_json() -> Path:
     return default_release_manifest_dir() / PROVENANCE_FILES["runtime_image_metadata"]
 
 
+def default_release_evidence_manifest_json() -> Path | None:
+    explicit = os.environ.get("GB10_RELEASE_EVIDENCE_MANIFEST_JSON") or os.environ.get(
+        "GB10_RELEASE_MANIFEST_JSON"
+    )
+    if explicit:
+        return Path(explicit)
+    manifest_dir = os.environ.get("GB10_RELEASE_MANIFEST_DIR")
+    if manifest_dir:
+        return Path(manifest_dir) / PROVENANCE_FILES["release_manifest"]
+    return None
+
+
+def default_release_evidence_runtime_image_metadata_json() -> Path | None:
+    explicit = os.environ.get(
+        "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON"
+    ) or os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
+    if explicit:
+        return Path(explicit)
+    return None
+
+
 def find_vllm_wheel_assets(dist_dir: Path) -> list[Path]:
     return sorted(dist_dir.glob(VLLM_RELEASE_WHEEL_GLOB))
 

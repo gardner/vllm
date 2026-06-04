@@ -27,10 +27,11 @@ from typing import Any
 from gb10_release_contract import (
     EXPECTED_RELEASE_EVIDENCE_FILES,
     EXPECTED_RELEASE_REPORTS,
-    PROVENANCE_FILES,
     PROVENANCE_RELATIVE_PATHS,
     REQUIRED_GB10_SUPPORT_MATRIX,
     SHA256_DIGEST_RE,
+    default_release_evidence_manifest_json,
+    default_release_evidence_runtime_image_metadata_json,
 )
 
 EXPECTED_REPORTS = EXPECTED_RELEASE_REPORTS
@@ -50,27 +51,6 @@ def _default_output_dir() -> Path:
             "dist/gb10-release-evidence",
         )
     )
-
-
-def _default_release_manifest_json() -> Path | None:
-    explicit = os.environ.get("GB10_RELEASE_EVIDENCE_MANIFEST_JSON") or os.environ.get(
-        "GB10_RELEASE_MANIFEST_JSON"
-    )
-    if explicit:
-        return Path(explicit)
-    manifest_dir = os.environ.get("GB10_RELEASE_MANIFEST_DIR")
-    if manifest_dir:
-        return Path(manifest_dir) / PROVENANCE_FILES["release_manifest"]
-    return None
-
-
-def _default_runtime_image_metadata_json() -> Path | None:
-    explicit = os.environ.get(
-        "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON"
-    ) or os.environ.get("GB10_RUNTIME_IMAGE_METADATA_JSON")
-    if explicit:
-        return Path(explicit)
-    return None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -134,7 +114,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gb10-release-manifest-json",
         type=Path,
-        default=_default_release_manifest_json(),
+        default=default_release_evidence_manifest_json(),
         help=(
             "Optional gb10-release-manifest.json from the release workflow. "
             "Defaults to GB10_RELEASE_EVIDENCE_MANIFEST_JSON, "
@@ -145,7 +125,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gb10-runtime-image-metadata-json",
         type=Path,
-        default=_default_runtime_image_metadata_json(),
+        default=default_release_evidence_runtime_image_metadata_json(),
         help=(
             "Optional BuildKit runtime-image metadata JSON. Defaults to "
             "GB10_RELEASE_EVIDENCE_RUNTIME_IMAGE_METADATA_JSON or "
