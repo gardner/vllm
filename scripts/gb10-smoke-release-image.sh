@@ -51,6 +51,13 @@ Useful environment:
                                       unset, the script records the first
                                       docker RepoDigest for IMAGE when
                                       available.
+  GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS
+                                      Set to 1 to allow final-image smoke to
+                                      start while another running Docker
+                                      container appears to be a vLLM service.
+                                      The default is 0, which fails fast to
+                                      avoid loading a second large model on the
+                                      same Spark.
 
 Argument sections:
   --offline OFFLINE_ARGS...  Extra args for scripts/gb10-smoke-image.sh after --.
@@ -186,6 +193,48 @@ nvfp4_report="${release_evidence_files[0]}"
 openai_report="${release_evidence_files[1]}"
 evidence_report="${release_evidence_files[2]}"
 smoked_image_digest_report="${release_evidence_files[3]}"
+
+if [ "${GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS:-0}" != "1" ] \
+    && command -v docker >/dev/null 2>&1; then
+    existing_vllm_containers="$(
+        docker ps --format '{{.ID}} {{.Names}} {{.Image}} {{.Command}}' 2>/dev/null \
+            | awk 'BEGIN { IGNORECASE = 1 } /vllm/ { print }'
+    )"
+    if [ -n "$existing_vllm_containers" ]; then
+        export GB10_EXISTING_VLLM_CONTAINERS="$existing_vllm_containers"
+        python3 - "$evidence_report" "$image" <<'PY'
+import json
+import os
+import sys
+
+path, image_ref = sys.argv[1:3]
+report = {
+    "schema_version": 1,
+    "status": "failed",
+    "phase": "pre_smoke_resource_guard",
+    "message": (
+        "GB10 final-image smoke refused to start while an existing vLLM "
+        "Docker container was running."
+    ),
+    "image_ref": image_ref,
+    "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+    "allow_override_env": "GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS=1",
+    "existing_vllm_containers": [
+        line
+        for line in os.environ.get("GB10_EXISTING_VLLM_CONTAINERS", "").splitlines()
+        if line
+    ],
+}
+with open(path, "w", encoding="utf-8") as stream:
+    json.dump(report, stream, indent=2, sort_keys=True)
+    stream.write("\n")
+PY
+        echo "GB10 final-image smoke refused to start while an existing vLLM Docker container is running:" >&2
+        printf '%s\n' "$existing_vllm_containers" >&2
+        echo "Stop the existing service first, or set GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS=1 for an intentionally isolated runner." >&2
+        exit 1
+    fi
+fi
 
 if [ -z "${GB10_IMAGE_DIGEST:-}" ] && command -v docker >/dev/null 2>&1; then
     image_digest="$(

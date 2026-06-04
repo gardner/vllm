@@ -3267,6 +3267,9 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in script
     assert "GB10_IMAGE_DIGEST" in script
     assert "GB10_RELEASE_TAG" in script
+    assert "GB10_RELEASE_ALLOW_EXISTING_VLLM_CONTAINERS" in script
+    assert "docker ps --format" in script
+    assert "pre_smoke_resource_guard" in script
     assert "GB10_RELEASE_EVIDENCE_BUNDLE_NAME" in script
     assert "scripts/gb10-list-evidence-release-assets.py" in script
     assert "Evidence report files listed by" in script
