@@ -1458,6 +1458,7 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert '"model_shape"' in script
     assert "attention_backend" in script
     assert "attention_backend_mismatch" in script
+    assert "quantization_mode_mismatch" in script
     assert '"not_validated_by_smoke"' in script
     assert '"configured_cudagraph_mode"' in script
     assert '"configured_cudagraph_enabled"' in script
@@ -1592,6 +1593,9 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
         SimpleNamespace(path="moe", backend="FLASHINFER_B12X", is_fallback=False),
     )
     vllm_config_summary = {
+        "model": {
+            "quantization": "modelopt_fp4",
+        },
         "attention": {
             "requested_backend": "FLASHINFER",
             "mla_prefill_backend": None,
@@ -1630,6 +1634,11 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary():
         "expected": "FLASHINFER",
         "requested_backend": "FLASHINFER",
         "mla_prefill_backend": None,
+    }
+    assert release_summary["checks"]["quantization"] == {
+        "status": "passed",
+        "expected": "modelopt_fp4",
+        "configured": "modelopt_fp4",
     }
     assert release_summary["checks"]["cuda_graph"] == {
         "status": "not_validated_by_smoke",
@@ -2184,6 +2193,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"openai_deterministic_generation"' in script
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
+    assert '"quantization_modelopt_fp4"' in script
     assert '"release_manifest_flashinfer_components"' in script
     assert '"release_manifest_durable_inputs"' in script
     assert '"release_manifest_source_refs_pinned"' in script
@@ -2233,6 +2243,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected": "FLASHINFER",
                     "requested_backend": "FLASHINFER",
                     "mla_prefill_backend": None,
+                },
+                "quantization": {
+                    "status": "passed",
+                    "expected": "modelopt_fp4",
+                    "configured": "modelopt_fp4",
                 },
             },
         },
@@ -2363,6 +2378,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["native_nvfp4_moe_non_ep_observed"] == "passed"
     assert check_statuses["nvfp4_fallback_free"] == "passed"
     assert check_statuses["attention_backend_flashinfer"] == "passed"
+    assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
     assert check_statuses["release_manifest_durable_inputs"] == "passed"
@@ -2439,6 +2455,42 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "attention_backend_flashinfer"
         for failure in attention_failed_summary["failures"]
+    )
+
+    quantization_failed_report = {
+        **nvfp4_report,
+        "fallback_events": [],
+        "gb10_release_summary": {
+            **nvfp4_report["gb10_release_summary"],
+            "checks": {
+                **nvfp4_report["gb10_release_summary"]["checks"],
+                "quantization": {
+                    "status": "mismatched",
+                    "expected": "modelopt_fp4",
+                    "configured": "none",
+                },
+            },
+        },
+    }
+    quantization_failed_summary = verifier._build_summary(
+        nvfp4_report=quantization_failed_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert quantization_failed_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "quantization_modelopt_fp4"
+        for failure in quantization_failed_summary["failures"]
     )
 
     release_manifest["dependencies"]["flashinfer"][

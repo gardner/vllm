@@ -189,6 +189,12 @@ def _check_nvfp4_report(
         "checks",
         "attention_backend",
     )
+    quantization_check = _nested_get(
+        report,
+        "gb10_release_summary",
+        "checks",
+        "quantization",
+    )
 
     checks = [
         _check(
@@ -262,6 +268,15 @@ def _check_nvfp4_report(
             details=attention_backend_check
             if isinstance(attention_backend_check, dict)
             else {},
+        ),
+        _check(
+            name="quantization_modelopt_fp4",
+            passed=isinstance(quantization_check, dict)
+            and quantization_check.get("status") == "passed"
+            and quantization_check.get("expected") == "modelopt_fp4"
+            and quantization_check.get("configured") == "modelopt_fp4",
+            message="offline smoke observed requested ModelOpt FP4 quantization",
+            details=quantization_check if isinstance(quantization_check, dict) else {},
         ),
     ]
 

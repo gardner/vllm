@@ -232,6 +232,13 @@ def _normalize_backend_name(value: Any) -> str | None:
     return str(value).replace("-", "_").upper()
 
 
+def _normalize_config_string(value: Any) -> str | None:
+    value = _json_value(value)
+    if value is None:
+        return None
+    return str(value).lower()
+
+
 def _summarize_int_list(values: Sequence[int] | None) -> dict[str, Any] | None:
     if values is None:
         return None
@@ -557,6 +564,20 @@ def _build_gb10_release_summary(
     fallback_event_count = len(fallbacks)
     fallback_free = fallback_selection_count == 0 and fallback_event_count == 0
     configured_cache_dtype = _nested_get(vllm_config_summary, "cache", "cache_dtype")
+    configured_quantization = _normalize_config_string(
+        _nested_get(vllm_config_summary, "model", "quantization")
+    )
+    expected_quantization = _normalize_config_string(
+        getattr(args, "quantization", None)
+    )
+    if vllm_config_summary is None:
+        quantization_status = "not_observed_by_report"
+    elif expected_quantization is None:
+        quantization_status = "configured"
+    elif configured_quantization == expected_quantization:
+        quantization_status = "passed"
+    else:
+        quantization_status = "mismatched"
     configured_attention_backend = _normalize_backend_name(
         _nested_get(vllm_config_summary, "attention", "requested_backend")
     )
@@ -608,6 +629,11 @@ def _build_gb10_release_summary(
             "expected": args.kv_cache_dtype,
             "configured": configured_cache_dtype,
         },
+        "quantization": {
+            "status": quantization_status,
+            "expected": expected_quantization,
+            "configured": configured_quantization,
+        },
         "attention_backend": {
             "status": attention_backend_status,
             "expected": expected_attention_backend,
@@ -640,6 +666,14 @@ def _build_gb10_release_summary(
         smoke_blockers.append("NVFP4 fallback events or selections were observed")
     if smoke_checks["kv_cache_dtype"]["status"] != "passed":
         smoke_blockers.append("configured KV cache dtype did not match smoke request")
+    if (
+        expected_quantization is not None
+        and smoke_checks["quantization"]["status"] != "passed"
+    ):
+        smoke_blockers.append(
+            "quantization_mode_mismatch: configured quantization did not "
+            "match smoke request"
+        )
     if (
         expected_attention_backend is not None
         and smoke_checks["attention_backend"]["status"] != "passed"
