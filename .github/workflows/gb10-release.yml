@@ -110,7 +110,7 @@ jobs:
             flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
             push_image="${{ inputs.push-image }}"
             preflight_only="${{ inputs['preflight-only'] }}"
-            runner_labels="${{ inputs['runner-labels'] }}"
+            runner_labels='${{ inputs['runner-labels'] }}'
             release_runner_labels="$runner_labels"
           fi
           if [ -z "${prebuilt_wheel_urls}" ]; then

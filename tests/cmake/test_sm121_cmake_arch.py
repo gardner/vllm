@@ -482,7 +482,7 @@ def test_gb10_release_workflow_routes_full_builds_to_self_hosted_gb10():
         "- name: Resolve release settings",
         1,
     )[1].split("- name: Write GB10 release manifest", 1)[0]
-    assert 'runner_labels="${{ inputs[\'runner-labels\'] }}"' in resolve_step
+    assert "runner_labels='${{ inputs['runner-labels'] }}'" in resolve_step
     assert 'release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"' in (
         resolve_step
     )
