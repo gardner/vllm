@@ -61,6 +61,12 @@ PROVENANCE_FILES = {
     "runtime_image_metadata": "buildx-runtime-image-metadata.json",
 }
 
+VLLM_RELEASE_ASSET_FILES = {
+    "runtime_image_ref": "gb10-runtime-image-ref.txt",
+    "runtime_image_digest": "gb10-runtime-image-digest.txt",
+    "checksums": "gb10-vllm-release-SHA256SUMS",
+}
+
 PROVENANCE_RELATIVE_PATHS = {
     "release_manifest": "provenance/gb10-release-manifest.json",
     "runtime_image_metadata": "provenance/buildx-runtime-image-metadata.json",

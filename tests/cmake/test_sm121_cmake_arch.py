@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 import json
 import re
@@ -110,6 +111,13 @@ def _load_gb10_release_asset_validator_module():
     return _load_script_module(
         "gb10_validate_evidence_release_assets",
         REPO_ROOT / "scripts" / "gb10-validate-evidence-release-assets.py",
+    )
+
+
+def _load_gb10_vllm_release_asset_validator_module():
+    return _load_script_module(
+        "gb10_validate_vllm_release_assets",
+        REPO_ROOT / "scripts" / "gb10-validate-vllm-release-assets.py",
     )
 
 
@@ -588,21 +596,14 @@ def test_gb10_release_workflow_publishes_release_manifest():
     )[1].split("- name: Upload GB10 release manifest", 1)[0]
     assert "env.GB10_PREFLIGHT_ONLY != 'true'" in validation_step
     assert "env.GB10_RELEASE_TAG != ''" in validation_step
-    assert "dist/vllm-*.whl" in validation_step
-    assert "GB10 release publication expects exactly one vLLM wheel" in (
+    assert "scripts/gb10-validate-vllm-release-assets.py" in validation_step
+    assert "--gb10-dist-dir dist" in validation_step
+    assert '--gb10-release-manifest-dir "$GB10_RELEASE_MANIFEST_DIR"' in (
         validation_step
     )
-    assert "GB10 release asset is missing or empty" in validation_step
-    assert "sha256sum --check" in validation_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-release-manifest.json" in validation_step
     assert "$GB10_RUNTIME_IMAGE_METADATA_JSON" in validation_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in validation_step
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in (
-        validation_step
-    )
-    assert "$GB10_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS" in (
-        validation_step
-    )
+    assert "required_release_assets=(" not in validation_step
+    assert "sha256sum --check" not in validation_step
 
     release_step = gb10_workflow.split(
         "- name: Publish GB10 release assets",
@@ -636,6 +637,73 @@ def test_gb10_release_workflow_publishes_release_manifest():
     )
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt" in refs_step
     assert "$GB10_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt" in refs_step
+
+
+def _write_gb10_vllm_release_assets(tmp_path: Path) -> tuple[Path, Path, Path]:
+    dist_dir = tmp_path / "dist"
+    manifest_dir = tmp_path / "gb10-release-manifest"
+    dist_dir.mkdir()
+    manifest_dir.mkdir()
+    wheel = dist_dir / "vllm-0.22.1rc0+gb10.test-cp313-cp313-linux_aarch64.whl"
+    manifest = manifest_dir / "gb10-release-manifest.json"
+    metadata = manifest_dir / "buildx-runtime-image-metadata.json"
+    image_ref = manifest_dir / "gb10-runtime-image-ref.txt"
+    image_digest = manifest_dir / "gb10-runtime-image-digest.txt"
+    checksum_file = manifest_dir / "gb10-vllm-release-SHA256SUMS"
+
+    for path, content in (
+        (wheel, b"wheel"),
+        (manifest, b'{"schema_version":1}\n'),
+        (metadata, b'{"containerimage.digest":"sha256:' + b"a" * 64 + b'"}\n'),
+        (image_ref, b"ghcr.io/gardner/vllm-gb10:gb10-test\n"),
+        (image_digest, b"sha256:" + b"a" * 64 + b"\n"),
+    ):
+        path.write_bytes(content)
+
+    checksum_assets = [wheel, manifest, metadata, image_ref, image_digest]
+    checksum_lines = []
+    for path in checksum_assets:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        checksum_lines.append(f"{digest}  {path.relative_to(tmp_path).as_posix()}")
+    checksum_file.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
+    return dist_dir, manifest_dir, metadata
+
+
+def test_gb10_vllm_release_asset_validator_accepts_complete_assets(tmp_path):
+    validator = _load_gb10_vllm_release_asset_validator_module()
+    dist_dir, manifest_dir, metadata = _write_gb10_vllm_release_assets(tmp_path)
+
+    assert validator.validate_release_assets(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+        repo_root=tmp_path,
+    ) == []
+
+
+def test_gb10_vllm_release_asset_validator_rejects_bad_assets(tmp_path):
+    validator = _load_gb10_vllm_release_asset_validator_module()
+    dist_dir, manifest_dir, metadata = _write_gb10_vllm_release_assets(tmp_path)
+
+    (dist_dir / "vllm-extra-0.0.0.whl").write_bytes(b"extra")
+    (manifest_dir / "gb10-runtime-image-digest.txt").write_text("", encoding="utf-8")
+    (manifest_dir / "gb10-vllm-release-SHA256SUMS").write_text(
+        "0" * 64
+        + "  dist/vllm-0.22.1rc0+gb10.test-cp313-cp313-linux_aarch64.whl\n",
+        encoding="utf-8",
+    )
+
+    errors = validator.validate_release_assets(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+        repo_root=tmp_path,
+    )
+
+    assert any("expects exactly one vLLM wheel" in error for error in errors)
+    assert any("missing or empty" in error for error in errors)
+    assert any("checksum mismatch" in error for error in errors)
+    assert any("checksums omit required assets" in error for error in errors)
 
 
 def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
