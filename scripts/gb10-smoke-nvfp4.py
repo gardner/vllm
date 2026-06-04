@@ -225,6 +225,13 @@ def _json_value(value: Any) -> Any:
     return str(value)
 
 
+def _normalize_backend_name(value: Any) -> str | None:
+    value = _json_value(value)
+    if value is None:
+        return None
+    return str(value).replace("-", "_").upper()
+
+
 def _summarize_int_list(values: Sequence[int] | None) -> dict[str, Any] | None:
     if values is None:
         return None
@@ -550,6 +557,20 @@ def _build_gb10_release_summary(
     fallback_event_count = len(fallbacks)
     fallback_free = fallback_selection_count == 0 and fallback_event_count == 0
     configured_cache_dtype = _nested_get(vllm_config_summary, "cache", "cache_dtype")
+    configured_attention_backend = _normalize_backend_name(
+        _nested_get(vllm_config_summary, "attention", "requested_backend")
+    )
+    expected_attention_backend = _normalize_backend_name(
+        getattr(args, "attention_backend", None)
+    )
+    if vllm_config_summary is None:
+        attention_backend_status = "not_observed_by_report"
+    elif expected_attention_backend is None:
+        attention_backend_status = "configured"
+    elif configured_attention_backend == expected_attention_backend:
+        attention_backend_status = "passed"
+    else:
+        attention_backend_status = "mismatched"
     configured_cudagraph_mode = _nested_get(
         vllm_config_summary,
         "compilation",
@@ -588,11 +609,8 @@ def _build_gb10_release_summary(
             "configured": configured_cache_dtype,
         },
         "attention_backend": {
-            "status": (
-                "configured"
-                if vllm_config_summary is not None
-                else "not_observed_by_report"
-            ),
+            "status": attention_backend_status,
+            "expected": expected_attention_backend,
             "requested_backend": _nested_get(
                 vllm_config_summary,
                 "attention",
@@ -622,6 +640,14 @@ def _build_gb10_release_summary(
         smoke_blockers.append("NVFP4 fallback events or selections were observed")
     if smoke_checks["kv_cache_dtype"]["status"] != "passed":
         smoke_blockers.append("configured KV cache dtype did not match smoke request")
+    if (
+        expected_attention_backend is not None
+        and smoke_checks["attention_backend"]["status"] != "passed"
+    ):
+        smoke_blockers.append(
+            "attention_backend_mismatch: configured attention backend did not "
+            "match smoke request"
+        )
 
     return {
         "first_path_smoke_passed": not smoke_blockers,

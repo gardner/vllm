@@ -183,6 +183,12 @@ def _check_nvfp4_report(
         "status",
     )
     release_summary = report.get("gb10_release_summary")
+    attention_backend_check = _nested_get(
+        report,
+        "gb10_release_summary",
+        "checks",
+        "attention_backend",
+    )
 
     checks = [
         _check(
@@ -245,6 +251,17 @@ def _check_nvfp4_report(
                 "kv_cache_dtype",
             )
             or {},
+        ),
+        _check(
+            name="attention_backend_flashinfer",
+            passed=isinstance(attention_backend_check, dict)
+            and attention_backend_check.get("status") == "passed"
+            and attention_backend_check.get("expected") == "FLASHINFER"
+            and attention_backend_check.get("requested_backend") == "FLASHINFER",
+            message="offline smoke observed requested FlashInfer attention backend",
+            details=attention_backend_check
+            if isinstance(attention_backend_check, dict)
+            else {},
         ),
     ]
 
