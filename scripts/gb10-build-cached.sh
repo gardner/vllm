@@ -14,6 +14,7 @@ Defaults are intentionally conservative for local work:
 
 Set GB10_USE_REGISTRY_CACHE=1 to also import/export GHCR build cache.
 Set GB10_BUILDX_BUILDER to override the local buildx builder name.
+Failed builds preserve any exported cache for the next retry.
 EOF
 }
 
@@ -84,11 +85,15 @@ esac
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 cache_dir="$cache_root/$cache_key"
 cache_next="$cache_root/${cache_key}.next"
+cache_failed="$cache_root/${cache_key}.failed"
 mkdir -p "$cache_root"
 
 cache_args=()
 if [ -f "$cache_dir/index.json" ]; then
     cache_args+=(--cache-from "type=local,src=$cache_dir")
+fi
+if [ -f "$cache_failed/index.json" ]; then
+    cache_args+=(--cache-from "type=local,src=$cache_failed")
 fi
 cache_args+=(--cache-to "type=local,dest=$cache_next,mode=max")
 
@@ -109,6 +114,7 @@ if ! docker buildx inspect "$GB10_BUILDX_BUILDER" >/dev/null 2>&1; then
 fi
 docker buildx inspect "$GB10_BUILDX_BUILDER" --bootstrap >/dev/null
 
+set +e
 docker buildx build \
     --builder "$GB10_BUILDX_BUILDER" \
     --file docker/Dockerfile \
@@ -125,6 +131,23 @@ docker buildx build \
     --build-arg "vllm_flash_attn_git_repository=$GB10_FLASH_ATTN_REPO" \
     --build-arg "vllm_flash_attn_git_tag=$GB10_FLASH_ATTN_REF" \
     .
+build_status=$?
+set -e
 
-rm -rf "$cache_dir"
-mv "$cache_next" "$cache_dir"
+if [ -f "$cache_next/index.json" ]; then
+    if [ "$build_status" -eq 0 ]; then
+        rm -rf "$cache_failed" "$cache_dir"
+        mv "$cache_next" "$cache_dir"
+    else
+        rm -rf "$cache_failed"
+        mv "$cache_next" "$cache_failed"
+        echo "GB10 BuildKit cache export from failed build preserved at $cache_failed." >&2
+        echo "The next retry will import both the last successful cache and failed-build cache." >&2
+    fi
+else
+    rm -rf "$cache_next"
+fi
+
+if [ "$build_status" -ne 0 ]; then
+    exit "$build_status"
+fi

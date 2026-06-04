@@ -707,6 +707,19 @@ def test_gb10_local_cached_build_script_defaults_to_serial_builds():
     assert "--target \"$docker_target\"" in script
 
 
+def test_gb10_local_cached_build_script_preserves_failed_cache_exports():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert 'cache_failed="$cache_root/${cache_key}.failed"' in script
+    assert '[ -f "$cache_failed/index.json" ]' in script
+    assert '--cache-from "type=local,src=$cache_failed"' in script
+    assert "build_status=$?" in script
+    assert '[ "$build_status" -ne 0 ]' in script
+    assert 'mv "$cache_next" "$cache_failed"' in script
+    assert "GB10 BuildKit cache export from failed build preserved" in script
+    assert 'exit "$build_status"' in script
+
+
 def test_gb10_release_workflow_overrides_pep440_wheel_version():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
