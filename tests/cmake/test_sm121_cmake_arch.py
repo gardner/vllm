@@ -2,6 +2,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -565,6 +566,55 @@ def test_gb10_release_workflow_uses_durable_split_build_caches():
     assert '--cache-to type=registry,ref="$GB10_RUNTIME_CACHE_REF",mode=max' in (
         gb10_workflow
     )
+
+
+def test_gb10_release_workflow_heartbeats_long_buildx_steps():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+
+    assert 'GB10_BUILD_HEARTBEAT_SECONDS: "300"' in gb10_workflow
+    assert "scripts/gb10-run-with-heartbeat.sh" in gb10_workflow
+    assert gb10_workflow.count("--progress=plain") == 3
+
+    for step_name in ("Build wheel stage", "Build runtime image"):
+        step_block = gb10_workflow.split(f"- name: {step_name}", 1)[1].split(
+            "\n      - name:",
+            1,
+        )[0]
+        assert "bash scripts/gb10-run-with-heartbeat.sh" in step_block
+        assert "docker buildx build" in step_block
+        assert "--progress=plain" in step_block
+
+
+def test_gb10_build_heartbeat_wrapper_logs_and_preserves_exit_status():
+    script = REPO_ROOT / "scripts" / "gb10-run-with-heartbeat.sh"
+
+    proc = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "test build",
+            "bash",
+            "-c",
+            "sleep 2.2; exit 7",
+        ],
+        env={
+            **os.environ,
+            "GB10_BUILD_HEARTBEAT_SECONDS": "1",
+            "GB10_BUILD_HEARTBEAT_DOCKER_DF": "0",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=10,
+    )
+
+    assert proc.returncode == 7
+    assert "GB10 test build starting" in proc.stdout
+    assert "GB10 test build still running" in proc.stdout
+    assert "GB10 test build failed with exit code 7" in proc.stdout
 
 
 def test_gb10_release_workflows_cancel_superseded_runs():

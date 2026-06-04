@@ -61,6 +61,8 @@ env:
   # vLLM divides MAX_JOBS by NVCC_THREADS for CUDA builds; 24 / 8 = 3 jobs.
   GB10_MAX_JOBS: "24"
   GB10_NVCC_THREADS: "8"
+  GB10_BUILD_HEARTBEAT_SECONDS: "300"
+  GB10_BUILD_HEARTBEAT_DOCKER_DF: "1"
 
 defaults:
   run:
@@ -212,6 +214,7 @@ jobs:
       - name: Preflight GB10 FlashInfer wheels
         run: |
           docker buildx build \
+            --progress=plain \
             --file docker/Dockerfile \
             --target gb10-flashinfer-preflight \
             --platform linux/arm64 \
@@ -228,25 +231,27 @@ jobs:
       - name: Build wheel stage
         if: env.GB10_PREFLIGHT_ONLY != 'true'
         run: |
-          docker buildx build \
-            --file docker/Dockerfile \
-            --target build \
-            --platform linux/arm64 \
-            --load \
-            --tag vllm-gb10-wheel:${GITHUB_SHA::12} \
-            --cache-from type=gha,scope=gb10-vllm \
-            --cache-from type=gha,scope=gb10-vllm-wheel \
-            --cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF" \
-            --cache-to type=gha,scope=gb10-vllm-wheel,mode=max \
-            --cache-to type=registry,ref="$GB10_WHEEL_CACHE_REF",mode=max \
-            --build-arg max_jobs="$GB10_MAX_JOBS" \
-            --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
-            --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
-            --build-arg gb10_require_flashinfer_wheels=true \
-            --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
-            --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
-            --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
-            .
+          bash scripts/gb10-run-with-heartbeat.sh "wheel stage" \
+            docker buildx build \
+              --progress=plain \
+              --file docker/Dockerfile \
+              --target build \
+              --platform linux/arm64 \
+              --load \
+              --tag vllm-gb10-wheel:${GITHUB_SHA::12} \
+              --cache-from type=gha,scope=gb10-vllm \
+              --cache-from type=gha,scope=gb10-vllm-wheel \
+              --cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF" \
+              --cache-to type=gha,scope=gb10-vllm-wheel,mode=max \
+              --cache-to type=registry,ref="$GB10_WHEEL_CACHE_REF",mode=max \
+              --build-arg max_jobs="$GB10_MAX_JOBS" \
+              --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
+              --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+              --build-arg gb10_require_flashinfer_wheels=true \
+              --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
+              --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
+              --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+              .
 
       - name: Extract vLLM wheel
         if: env.GB10_PREFLIGHT_ONLY != 'true'
@@ -315,29 +320,31 @@ jobs:
             output_arg="--push"
           fi
 
-          docker buildx build \
-            --file docker/Dockerfile \
-            --target vllm-openai \
-            --platform linux/arm64 \
-            --tag "$GB10_IMAGE_NAME:$GB10_IMAGE_TAG" \
-            --tag "$GB10_IMAGE_NAME:latest-gb10" \
-            --cache-from type=gha,scope=gb10-vllm \
-            --cache-from type=gha,scope=gb10-vllm-wheel \
-            --cache-from type=gha,scope=gb10-vllm-runtime \
-            --cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF" \
-            --cache-from type=registry,ref="$GB10_RUNTIME_CACHE_REF" \
-            --cache-to type=gha,scope=gb10-vllm-runtime,mode=max \
-            --cache-to type=registry,ref="$GB10_RUNTIME_CACHE_REF",mode=max \
-            --build-arg max_jobs="$GB10_MAX_JOBS" \
-            --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
-            --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
-            --build-arg gb10_require_flashinfer_wheels=true \
-            --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
-            --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
-            --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
-            --metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
-            $output_arg \
-            .
+          bash scripts/gb10-run-with-heartbeat.sh "runtime image" \
+            docker buildx build \
+              --progress=plain \
+              --file docker/Dockerfile \
+              --target vllm-openai \
+              --platform linux/arm64 \
+              --tag "$GB10_IMAGE_NAME:$GB10_IMAGE_TAG" \
+              --tag "$GB10_IMAGE_NAME:latest-gb10" \
+              --cache-from type=gha,scope=gb10-vllm \
+              --cache-from type=gha,scope=gb10-vllm-wheel \
+              --cache-from type=gha,scope=gb10-vllm-runtime \
+              --cache-from type=registry,ref="$GB10_WHEEL_CACHE_REF" \
+              --cache-from type=registry,ref="$GB10_RUNTIME_CACHE_REF" \
+              --cache-to type=gha,scope=gb10-vllm-runtime,mode=max \
+              --cache-to type=registry,ref="$GB10_RUNTIME_CACHE_REF",mode=max \
+              --build-arg max_jobs="$GB10_MAX_JOBS" \
+              --build-arg nvcc_threads="$GB10_NVCC_THREADS" \
+              --build-arg gb10_prebuilt_wheel_urls="$GB10_PREBUILT_WHEEL_URLS" \
+              --build-arg gb10_require_flashinfer_wheels=true \
+              --build-arg vllm_version_override="$GB10_VLLM_VERSION" \
+              --build-arg vllm_flash_attn_git_repository="$GB10_FLASH_ATTN_REPO" \
+              --build-arg vllm_flash_attn_git_tag="$GB10_FLASH_ATTN_REF" \
+              --metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
+              "$output_arg" \
+              .
           cat "$GB10_RUNTIME_IMAGE_METADATA_JSON"
 
       - name: Write GB10 runtime image refs
