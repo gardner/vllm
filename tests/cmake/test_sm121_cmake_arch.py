@@ -1047,6 +1047,20 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10 runtime image digest artifact is missing" in smoke_workflow
     assert "GB10 runtime image ref file is empty" in smoke_workflow
     assert "GB10 runtime image digest file is empty" in smoke_workflow
+    assert "Require release publication provenance" in smoke_workflow
+    assert "GB10 release evidence publication requires release-workflow-run-id" in (
+        smoke_workflow
+    )
+    assert "GB10 release evidence publication requires release-tag" in smoke_workflow
+    missing_run_id_guard = (
+        "inputs['publish-to-release'] && "
+        "inputs['release-workflow-run-id'] == ''"
+    )
+    assert missing_run_id_guard in smoke_workflow
+    assert "inputs['publish-to-release'] && inputs['release-tag'] == ''" in (
+        smoke_workflow
+    )
+    assert "inputs['release-workflow-run-id'] != ''" in smoke_workflow
     assert "Bundle available evidence after failure" in smoke_workflow
     assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
     assert "--gb10-allow-partial" in smoke_workflow

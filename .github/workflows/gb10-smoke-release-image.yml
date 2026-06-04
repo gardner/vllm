@@ -151,6 +151,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Require release publication provenance
+        if: inputs['publish-to-release'] && inputs['release-workflow-run-id'] == ''
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          provenance_check_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-provenance-check.json"
+          python3 - "$provenance_check_report" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = sys.argv[1]
+          report = {
+              "schema_version": 1,
+              "status": "failed",
+              "phase": "publication",
+              "message": "GB10 release evidence publication requires release-workflow-run-id",
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "provenance_dir": os.environ.get("GB10_RELEASE_PROVENANCE_DIR"),
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+          echo "GB10 release evidence publication requires release-workflow-run-id." >&2
+          exit 1
+
+      - name: Require release publication tag
+        if: inputs['publish-to-release'] && inputs['release-tag'] == ''
+        run: |
+          mkdir -p "$GB10_RELEASE_SMOKE_REPORT_DIR"
+          provenance_check_report="$GB10_RELEASE_SMOKE_REPORT_DIR/gb10-provenance-check.json"
+          python3 - "$provenance_check_report" <<'PY'
+          import json
+          import os
+          import sys
+
+          path = sys.argv[1]
+          report = {
+              "schema_version": 1,
+              "status": "failed",
+              "phase": "publication",
+              "message": "GB10 release evidence publication requires release-tag",
+              "release_workflow_run_id": os.environ.get("GB10_RELEASE_WORKFLOW_RUN_ID"),
+              "release_tag": os.environ.get("GB10_RELEASE_TAG"),
+              "input_image_ref": os.environ.get("GB10_IMAGE_REF"),
+              "provenance_dir": os.environ.get("GB10_RELEASE_PROVENANCE_DIR"),
+          }
+          with open(path, "w", encoding="utf-8") as stream:
+              json.dump(report, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          PY
+          echo "GB10 release evidence publication requires release-tag." >&2
+          exit 1
+
       - name: Download release provenance artifact
         if: inputs['release-workflow-run-id'] != ''
         env:
@@ -471,7 +527,7 @@ jobs:
             dist/gb10-release-evidence/**
 
       - name: Attach evidence to GitHub Release
-        if: always() && inputs['publish-to-release'] && inputs['release-tag'] != ''
+        if: always() && inputs['publish-to-release'] && inputs['release-tag'] != '' && inputs['release-workflow-run-id'] != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
