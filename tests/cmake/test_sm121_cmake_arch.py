@@ -70,6 +70,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
+    "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
@@ -1873,6 +1874,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["compressed_tensors_w4a16_nvfp4_loading"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["trtllm_gen_attention"]["status"] == (
         "not_supported"
     )
@@ -2989,6 +2993,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "modelopt.py"
     ).read_text()
+    compressed_tensors_w4a16 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "schemes" /
+        "compressed_tensors_w4a16_nvfp4.py"
+    ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
     assert "record_nvfp4_backend_selection" in linear_selector
@@ -3017,6 +3026,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "weight-only fallback path" in modelopt_quant
     assert "not the native GB10 W4A4 FP4 Tensor " in modelopt_quant
     assert "Core path; verify this fallback is intentional " in modelopt_quant
+
+    assert "_gb10_w4a16_nvfp4_marlin_unsupported_reason" in (
+        compressed_tensors_w4a16
+    )
+    assert "CompressedTensors W4A16 NVFP4 loading would select" in (
+        compressed_tensors_w4a16
+    )
+    assert "not supported on GB10/SM12x" in compressed_tensors_w4a16
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
 
@@ -4649,6 +4666,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Quark NVFP4 checkpoint loading is not validated",
                 },
+                "compressed_tensors_w4a16_nvfp4_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "CompressedTensors W4A16 NVFP4 selects Marlin",
+                },
             },
             "deferred_paths": {
                 "flashinfer_b12x_ep_all2all_eplb": {
@@ -4839,6 +4861,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
+                "compressed_tensors_w4a16_nvfp4_loading": {
+                    "status": "not_supported"
+                },
                 "flashinfer_b12x_ep_all2all_eplb": {"status": "deferred"},
                 "flashinfer_cudnn_nvfp4_dense": {"status": "deferred"},
                 "multi_spark_ep_all2all_eplb": {"status": "deferred"},
@@ -4910,6 +4935,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert checks_by_name["unsupported_paths_reported"]["details"][
         "reported_not_supported_entries"
     ] == [
+        "compressed_tensors_w4a16_nvfp4_loading",
         "flashinfer_trtllm_nvfp4_dense",
         "marlin_nvfp4_fallback",
         "public_flashattention_runtime",

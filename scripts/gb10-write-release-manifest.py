@@ -357,6 +357,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "until dense and MoE correctness evidence exists."
                 ),
             },
+            "compressed_tensors_w4a16_nvfp4_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W4A16 NVFP4 loading selects FP4 "
+                    "Marlin today and must reject on GB10/SM12x until native "
+                    "dense or routed support is validated."
+                ),
+            },
             "flashinfer_b12x_ep_all2all_eplb": {
                 "status": "deferred",
                 "release_contract": (

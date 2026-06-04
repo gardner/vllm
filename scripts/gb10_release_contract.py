@@ -44,6 +44,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
+    "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
@@ -92,6 +93,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Quark NVFP4 checkpoint loading is not validated on GB10/SM12x; reject "
         "it until dense and MoE correctness evidence exists for native GB10 "
         "backends."
+    ),
+    "compressed_tensors_w4a16_nvfp4_loading": (
+        "CompressedTensors W4A16 NVFP4 loading selects FP4 Marlin today; reject "
+        "it on GB10/SM12x until a native dense backend or routed support path "
+        "is validated."
     ),
 }
 

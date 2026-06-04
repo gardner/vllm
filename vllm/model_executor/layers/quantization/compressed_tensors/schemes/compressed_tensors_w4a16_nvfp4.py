@@ -17,12 +17,28 @@ from vllm.model_executor.parameter import (
     ModelWeightParameter,
     PerTensorScaleParameter,
 )
+from vllm.platforms import current_platform
 
 __all__ = ["CompressedTensorsW4A16Fp4"]
 
 
+def _gb10_w4a16_nvfp4_marlin_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "CompressedTensors W4A16 NVFP4 loading would select the FP4 Marlin "
+        "dense fallback, which is not supported on GB10/SM12x; use W4A4 "
+        "NVFP4 with FlashInfer b12x, FlashInfer CUTLASS, or CUTLASS native "
+        "NVFP4 dense backends instead."
+    )
+
+
 class CompressedTensorsW4A16Fp4(CompressedTensorsScheme):
     def __init__(self):
+        unsupported_reason = _gb10_w4a16_nvfp4_marlin_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.group_size = 16
 
     @classmethod
