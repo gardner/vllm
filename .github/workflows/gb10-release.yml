@@ -76,6 +76,7 @@ jobs:
       BUILDKIT_PROGRESS: plain
       GB10_RELEASE_MANIFEST_DIR: gb10-release-manifest
       GB10_RUNTIME_IMAGE_METADATA_JSON: gb10-release-manifest/buildx-runtime-image-metadata.json
+      GB10_RELEASE_MANIFEST_ARTIFACT_NAME: gb10-release-manifest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -370,8 +371,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gb10-release-manifest
-          path: gb10-release-manifest/**
+          name: ${{ env.GB10_RELEASE_MANIFEST_ARTIFACT_NAME }}
+          path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/**
 
       - name: Publish GB10 release assets
         if: env.GB10_PREFLIGHT_ONLY != 'true' && env.GB10_RELEASE_TAG != ''

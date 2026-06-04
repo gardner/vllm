@@ -125,6 +125,8 @@ jobs:
       GB10_RELEASE_SMOKE_REPORT_DIR: ${{ github.workspace }}/gb10-smoke-reports
       GB10_RELEASE_EVIDENCE_OUTPUT_DIR: ${{ github.workspace }}/dist/gb10-release-evidence
       GB10_RELEASE_PROVENANCE_DIR: ${{ github.workspace }}/gb10-release-provenance
+      GB10_RELEASE_MANIFEST_ARTIFACT_NAME: gb10-release-manifest
+      GB10_RELEASE_EVIDENCE_ARTIFACT_NAME: gb10-release-evidence
       GB10_SMOKE_CACHE_DIR: ${{ runner.temp }}/gb10-hf-cache
       GB10_OPENAI_IMAGE_CACHE_DIR: ${{ runner.temp }}/gb10-hf-cache
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -245,7 +247,7 @@ jobs:
           }
 
           if ! gh run download "$GB10_RELEASE_WORKFLOW_RUN_ID" \
-            --name gb10-release-manifest \
+            --name "$GB10_RELEASE_MANIFEST_ARTIFACT_NAME" \
             --dir "$GB10_RELEASE_PROVENANCE_DIR"; then
             write_provenance_check_report failed download "GB10 release provenance download failed"
             exit 1
@@ -531,12 +533,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gb10-release-evidence
+          name: ${{ env.GB10_RELEASE_EVIDENCE_ARTIFACT_NAME }}
           if-no-files-found: warn
           path: |
-            gb10-smoke-reports/**
-            gb10-release-provenance/**
-            dist/gb10-release-evidence/**
+            ${{ env.GB10_RELEASE_SMOKE_REPORT_DIR }}/**
+            ${{ env.GB10_RELEASE_PROVENANCE_DIR }}/**
+            ${{ env.GB10_RELEASE_EVIDENCE_OUTPUT_DIR }}/**
 
       - name: Validate GB10 evidence release assets
         id: validate_evidence_release_assets

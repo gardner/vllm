@@ -627,7 +627,14 @@ def test_gb10_release_workflow_publishes_release_manifest():
     assert "Write GB10 release checksums" in gb10_workflow
     assert "Validate GB10 release assets" in gb10_workflow
     assert "Upload GB10 release manifest" in gb10_workflow
-    assert f"name: {contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}" in gb10_workflow
+    assert (
+        "GB10_RELEASE_MANIFEST_ARTIFACT_NAME: "
+        f"{contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
+        in gb10_workflow
+    )
+    assert "name: ${{ env.GB10_RELEASE_MANIFEST_ARTIFACT_NAME }}" in gb10_workflow
+    assert "path: ${{ env.GB10_RELEASE_MANIFEST_DIR }}/**" in gb10_workflow
+    assert "path: gb10-release-manifest/**" not in gb10_workflow
     assert "if: always()" in gb10_workflow
     assert "Publish GB10 release assets" in gb10_workflow
     assert "Publish wheel to GitHub Release" not in gb10_workflow
@@ -1101,12 +1108,27 @@ def test_gb10_github_artifact_names_share_contract():
         contract.DEFAULT_RELEASE_PROVENANCE_DIR.as_posix()
         == "gb10-release-provenance"
     )
-    assert f"name: {contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}" in gb10_workflow
     assert (
-        f"--name {contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
+        "GB10_RELEASE_MANIFEST_ARTIFACT_NAME: "
+        f"{contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
+        in gb10_workflow
+    )
+    assert "name: ${{ env.GB10_RELEASE_MANIFEST_ARTIFACT_NAME }}" in gb10_workflow
+    assert (
+        "GB10_RELEASE_MANIFEST_ARTIFACT_NAME: "
+        f"{contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
         in smoke_workflow
     )
-    assert f"name: {contract.GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME}" in (
+    assert (
+        "GB10_RELEASE_EVIDENCE_ARTIFACT_NAME: "
+        f"{contract.GITHUB_RELEASE_EVIDENCE_ARTIFACT_NAME}"
+        in smoke_workflow
+    )
+    assert (
+        '--name "$GB10_RELEASE_MANIFEST_ARTIFACT_NAME"'
+        in smoke_workflow
+    )
+    assert "name: ${{ env.GB10_RELEASE_EVIDENCE_ARTIFACT_NAME }}" in (
         smoke_workflow
     )
     assert (
@@ -1988,7 +2010,7 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "GB10_RELEASE_PROVENANCE_DIR" in smoke_workflow
     assert "Download release provenance artifact" in smoke_workflow
     assert "gh run download \"$GB10_RELEASE_WORKFLOW_RUN_ID\"" in smoke_workflow
-    assert "--name gb10-release-manifest" in smoke_workflow
+    assert '--name "$GB10_RELEASE_MANIFEST_ARTIFACT_NAME"' in smoke_workflow
     assert "--dir \"$GB10_RELEASE_PROVENANCE_DIR\"" in smoke_workflow
     provenance_lister_script = (
         REPO_ROOT / "scripts" / "gb10-list-release-provenance-artifact-files.py"
@@ -2038,9 +2060,13 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert metadata_arg in smoke_workflow
     assert '"${bundle_args[@]}" || true' in smoke_workflow
     assert "actions/upload-artifact@v4" in smoke_workflow
-    assert "gb10-smoke-reports/**" in smoke_workflow
-    assert "gb10-release-provenance/**" in smoke_workflow
-    assert "dist/gb10-release-evidence/**" in smoke_workflow
+    assert "name: ${{ env.GB10_RELEASE_EVIDENCE_ARTIFACT_NAME }}" in smoke_workflow
+    assert "${{ env.GB10_RELEASE_SMOKE_REPORT_DIR }}/**" in smoke_workflow
+    assert "${{ env.GB10_RELEASE_PROVENANCE_DIR }}/**" in smoke_workflow
+    assert "${{ env.GB10_RELEASE_EVIDENCE_OUTPUT_DIR }}/**" in smoke_workflow
+    assert "gb10-smoke-reports/**" not in smoke_workflow
+    assert "gb10-release-provenance/**" not in smoke_workflow
+    assert "dist/gb10-release-evidence/**" not in smoke_workflow
     assert "Validate GB10 evidence release assets" in smoke_workflow
     assert "id: validate_evidence_release_assets" in smoke_workflow
     validator_script = (
