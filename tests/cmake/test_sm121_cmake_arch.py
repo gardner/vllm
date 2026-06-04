@@ -1042,6 +1042,11 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "gb10-runtime-image-ref.txt" in smoke_workflow
     assert "gb10-runtime-image-digest.txt" in smoke_workflow
     assert "GB10 release manifest artifact is missing" in smoke_workflow
+    assert "GB10 runtime image metadata artifact is missing" in smoke_workflow
+    assert "GB10 runtime image ref artifact is missing" in smoke_workflow
+    assert "GB10 runtime image digest artifact is missing" in smoke_workflow
+    assert "GB10 runtime image ref file is empty" in smoke_workflow
+    assert "GB10 runtime image digest file is empty" in smoke_workflow
     assert "Bundle available evidence after failure" in smoke_workflow
     assert "scripts/gb10-bundle-release-evidence.py" in smoke_workflow
     assert "--gb10-allow-partial" in smoke_workflow

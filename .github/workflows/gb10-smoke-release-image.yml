@@ -205,6 +205,24 @@ jobs:
             write_provenance_check_report failed download "GB10 release manifest artifact is missing"
             exit 1
           fi
+          if [ ! -f "$runtime_metadata" ]; then
+            echo "GB10 runtime image metadata artifact is missing $runtime_metadata" >&2
+            find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
+            write_provenance_check_report failed download "GB10 runtime image metadata artifact is missing"
+            exit 1
+          fi
+          if [ ! -f "$runtime_image_ref" ]; then
+            echo "GB10 runtime image ref artifact is missing $runtime_image_ref" >&2
+            find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
+            write_provenance_check_report failed download "GB10 runtime image ref artifact is missing"
+            exit 1
+          fi
+          if [ ! -f "$runtime_image_digest" ]; then
+            echo "GB10 runtime image digest artifact is missing $runtime_image_digest" >&2
+            find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print >&2
+            write_provenance_check_report failed download "GB10 runtime image digest artifact is missing"
+            exit 1
+          fi
 
           if ! manifest_image_ref="$(
             python3 - "$manifest" <<'PY'
@@ -239,40 +257,40 @@ jobs:
           fi
 
           echo "GB10_RELEASE_MANIFEST_JSON=$manifest" >> "$GITHUB_ENV"
-          if [ -f "$runtime_metadata" ]; then
-            echo "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" >> "$GITHUB_ENV"
-          fi
+          echo "GB10_RUNTIME_IMAGE_METADATA_JSON=$runtime_metadata" >> "$GITHUB_ENV"
 
-          if [ -f "$runtime_image_ref" ]; then
-            expected_ref="$(sed -n '1p' "$runtime_image_ref")"
-            if [ -n "$expected_ref" ] && [ "$expected_ref" != "$GB10_IMAGE_REF" ]; then
-              echo "GB10 runtime image ref file does not match input image-ref." >&2
-              echo "  ref file: $expected_ref" >&2
-              echo "  input:    $GB10_IMAGE_REF" >&2
-              export GB10_EXPECTED_IMAGE_REF="$expected_ref"
-              write_provenance_check_report failed image_ref "GB10 runtime image ref file does not match input image-ref"
-              exit 1
-            fi
-            if [ -n "$expected_ref" ]; then
-              export GB10_EXPECTED_IMAGE_REF="$expected_ref"
-              echo "GB10_EXPECTED_IMAGE_REF=$expected_ref" >> "$GITHUB_ENV"
-            fi
+          expected_ref="$(sed -n '1p' "$runtime_image_ref")"
+          if [ -z "$expected_ref" ]; then
+            echo "GB10 runtime image ref file is empty." >&2
+            write_provenance_check_report failed image_ref "GB10 runtime image ref file is empty"
+            exit 1
           fi
+          if [ "$expected_ref" != "$GB10_IMAGE_REF" ]; then
+            echo "GB10 runtime image ref file does not match input image-ref." >&2
+            echo "  ref file: $expected_ref" >&2
+            echo "  input:    $GB10_IMAGE_REF" >&2
+            export GB10_EXPECTED_IMAGE_REF="$expected_ref"
+            write_provenance_check_report failed image_ref "GB10 runtime image ref file does not match input image-ref"
+            exit 1
+          fi
+          export GB10_EXPECTED_IMAGE_REF="$expected_ref"
+          echo "GB10_EXPECTED_IMAGE_REF=$expected_ref" >> "$GITHUB_ENV"
 
-          if [ -f "$runtime_image_digest" ]; then
-            expected_digest="$(sed -n '1p' "$runtime_image_digest")"
-            if [ -n "$expected_digest" ]; then
-              if [[ ! "${expected_digest##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-                echo "GB10 runtime image digest file is not a valid sha256 digest." >&2
-                echo "  digest file: $expected_digest" >&2
-                export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
-                write_provenance_check_report failed digest "GB10 runtime image digest file is not a valid sha256 digest"
-                exit 1
-              fi
-              export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
-              echo "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" >> "$GITHUB_ENV"
-            fi
+          expected_digest="$(sed -n '1p' "$runtime_image_digest")"
+          if [ -z "$expected_digest" ]; then
+            echo "GB10 runtime image digest file is empty." >&2
+            write_provenance_check_report failed digest "GB10 runtime image digest file is empty"
+            exit 1
           fi
+          if [[ ! "${expected_digest##*@}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "GB10 runtime image digest file is not a valid sha256 digest." >&2
+            echo "  digest file: $expected_digest" >&2
+            export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
+            write_provenance_check_report failed digest "GB10 runtime image digest file is not a valid sha256 digest"
+            exit 1
+          fi
+          export GB10_EXPECTED_IMAGE_DIGEST="$expected_digest"
+          echo "GB10_EXPECTED_IMAGE_DIGEST=$expected_digest" >> "$GITHUB_ENV"
 
           write_provenance_check_report passed provenance "release provenance matches input image ref"
           find "$GB10_RELEASE_PROVENANCE_DIR" -maxdepth 2 -type f -print
