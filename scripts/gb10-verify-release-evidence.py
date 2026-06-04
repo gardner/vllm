@@ -22,6 +22,7 @@ from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
     GB10_DEFERRED_PATH_REASONS,
     GB10_NOT_SUPPORTED_PATH_REASONS,
+    GB10_SUPPORTED_ROUTED_PATH_REASONS,
     RELEASE_NVFP4_SMOKE_REPORT_FILE,
     RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE,
     REQUIRED_GB10_SUPPORT_MATRIX,
@@ -905,6 +906,7 @@ def _check_path_statuses_reported(
     expected_handling: str,
     details_prefix: str,
     message_status: str,
+    required_non_empty_fields: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     paths = _nested_get(
         report,
@@ -946,6 +948,10 @@ def _check_path_statuses_reported(
             or entry.get("expected_handling") != expected_handling
             or not isinstance(reason, str)
             or not reason.strip()
+            or any(
+                not isinstance(entry.get(field), str) or not entry.get(field).strip()
+                for field in required_non_empty_fields
+            )
         ):
             malformed_entries.append(entry_name)
 
@@ -962,6 +968,9 @@ def _check_path_statuses_reported(
                 f"reported_{details_prefix}_entries": reported_entries,
                 f"missing_{details_prefix}_entries": missing_entries,
                 f"malformed_{details_prefix}_entries": malformed_entries,
+                f"required_{details_prefix}_fields": (
+                    list(required_non_empty_fields)
+                ),
             },
         )
     ]
@@ -979,6 +988,22 @@ def _check_unsupported_paths_reported(
         expected_handling="route_or_reject_before_release_evidence",
         details_prefix="not_supported",
         message_status="Not Supported",
+    )
+
+
+def _check_supported_routed_paths_reported(
+    report: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    return _check_path_statuses_reported(
+        report,
+        report_key="routed_paths",
+        check_name="supported_routed_paths_reported",
+        reasons=GB10_SUPPORTED_ROUTED_PATH_REASONS,
+        expected_status="supported_routed",
+        expected_handling="route_to_validated_gb10_backend",
+        details_prefix="supported_routed",
+        message_status="Supported Routed",
+        required_non_empty_fields=("target",),
     )
 
 
@@ -1433,6 +1458,7 @@ def _build_summary(
             release_manifest,
             required=require_release_manifest,
         ),
+        *_check_supported_routed_paths_reported(nvfp4_report),
         *_check_unsupported_paths_reported(nvfp4_report),
         *_check_deferred_paths_reported(nvfp4_report),
         *_check_backend_selections_against_support_matrix(

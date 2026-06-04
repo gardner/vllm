@@ -25,10 +25,20 @@ from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
     GB10_DEFERRED_PATH_REASONS,
     GB10_NOT_SUPPORTED_PATH_REASONS,
+    GB10_SUPPORTED_ROUTED_PATH_REASONS,
 )
 
 DEFAULT_PROMPT = "NVIDIA DGX Spark native NVFP4 support means"
 DEFAULT_REQUIRED_PATHS = ("linear",)
+GB10_SUPPORTED_ROUTED_PATH_TARGETS = {
+    "gb10_attention_trtllm_gen_to_flashinfer_fa2": "flashinfer_attention_fa2",
+    "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
+        "flashinfer_attention_fa2 or flashmla_attention"
+    ),
+    "gb10_moe_trtllm_gen_to_flashinfer_non_ep": (
+        "flashinfer_b12x_non_ep_moe or flashinfer_cutlass_non_ep_moe"
+    ),
+}
 
 
 def _parse_backend_expectation(value: str) -> tuple[str, str]:
@@ -823,6 +833,15 @@ def _build_gb10_release_summary(
         }
         for name, reason in sorted(GB10_NOT_SUPPORTED_PATH_REASONS.items())
     }
+    routed_paths = {
+        name: {
+            "status": "supported_routed",
+            "expected_handling": "route_to_validated_gb10_backend",
+            "target": GB10_SUPPORTED_ROUTED_PATH_TARGETS[name],
+            "reason": reason,
+        }
+        for name, reason in sorted(GB10_SUPPORTED_ROUTED_PATH_REASONS.items())
+    }
     deferred_paths = {
         name: {
             "status": "deferred",
@@ -836,6 +855,7 @@ def _build_gb10_release_summary(
         "first_path_smoke_passed": not smoke_blockers,
         "smoke_blockers": smoke_blockers,
         "checks": smoke_checks,
+        "routed_paths": routed_paths,
         "unsupported_paths": unsupported_paths,
         "deferred_paths": deferred_paths,
         "release_ready": False,

@@ -32,12 +32,35 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
+    "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
+    "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
+        "supported_routed"
+    ),
+    "gb10_moe_trtllm_gen_to_flashinfer_non_ep": "supported_routed",
     "public_flashattention_runtime": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
+}
+
+GB10_SUPPORTED_ROUTED_PATH_REASONS = {
+    "gb10_attention_trtllm_gen_to_flashinfer_fa2": (
+        "TRTLLM Gen attention is unavailable on SM121; route GB10 attention "
+        "through validated FlashInfer FA2 until SM121 TRTLLM Gen artifacts "
+        "exist."
+    ),
+    "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
+        "Public FlashAttention runtime is not supported for the first GB10 "
+        "runtime path; route GB10 attention through validated FlashInfer or "
+        "FlashMLA backends."
+    ),
+    "gb10_moe_trtllm_gen_to_flashinfer_non_ep": (
+        "TRTLLM Gen MoE is unavailable on SM121; route first-path non-EP "
+        "NVFP4 MoE through validated FlashInfer b12x or FlashInfer CUTLASS "
+        "backends."
+    ),
 }
 
 GB10_NOT_SUPPORTED_PATH_REASONS = {

@@ -281,6 +281,30 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "to native SM121A FlashMLA kernels where selected."
                 ),
             },
+            "gb10_attention_trtllm_gen_to_flashinfer_fa2": {
+                "status": "supported_routed",
+                "release_contract": (
+                    "TRTLLM Gen attention is unavailable on SM121; GB10 "
+                    "attention must route through validated FlashInfer FA2 "
+                    "evidence until SM121 TRTLLM Gen artifacts exist."
+                ),
+            },
+            "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": {
+                "status": "supported_routed",
+                "release_contract": (
+                    "Public FlashAttention runtime is Not Supported for the "
+                    "first GB10 runtime path; GB10 attention must route "
+                    "through validated FlashInfer or FlashMLA evidence."
+                ),
+            },
+            "gb10_moe_trtllm_gen_to_flashinfer_non_ep": {
+                "status": "supported_routed",
+                "release_contract": (
+                    "TRTLLM Gen MoE is unavailable on SM121; first-path "
+                    "non-EP NVFP4 MoE must route through validated FlashInfer "
+                    "b12x or FlashInfer CUTLASS evidence."
+                ),
+            },
             "public_flashattention_runtime": {
                 "status": "not_supported",
                 "release_contract": (

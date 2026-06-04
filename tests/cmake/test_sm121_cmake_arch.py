@@ -58,6 +58,11 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
+    "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
+    "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
+        "supported_routed"
+    ),
+    "gb10_moe_trtllm_gen_to_flashinfer_non_ep": "supported_routed",
     "public_flashattention_runtime": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
@@ -1910,13 +1915,25 @@ def test_gb10_required_support_matrix_contract_is_shared():
         for name, status in GB10_REQUIRED_SUPPORT_MATRIX.items()
         if status == "deferred"
     }
+    required_supported_routed_entries = {
+        name
+        for name, status in GB10_REQUIRED_SUPPORT_MATRIX.items()
+        if status == "supported_routed"
+    }
     assert set(smoke.GB10_NOT_SUPPORTED_PATH_REASONS) == required_not_supported_entries
     assert set(smoke.GB10_DEFERRED_PATH_REASONS) == required_deferred_entries
+    assert set(smoke.GB10_SUPPORTED_ROUTED_PATH_REASONS) == (
+        required_supported_routed_entries
+    )
     assert (
         verifier.GB10_NOT_SUPPORTED_PATH_REASONS
         == smoke.GB10_NOT_SUPPORTED_PATH_REASONS
     )
     assert verifier.GB10_DEFERRED_PATH_REASONS == smoke.GB10_DEFERRED_PATH_REASONS
+    assert (
+        verifier.GB10_SUPPORTED_ROUTED_PATH_REASONS
+        == smoke.GB10_SUPPORTED_ROUTED_PATH_REASONS
+    )
 
 
 def test_gb10_release_evidence_classifies_flashinfer_cutlass_moe_selection():
@@ -4579,6 +4596,29 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "reason": "multi-Spark communication hardware is not available",
                 },
             },
+            "routed_paths": {
+                "gb10_attention_trtllm_gen_to_flashinfer_fa2": {
+                    "status": "supported_routed",
+                    "expected_handling": "route_to_validated_gb10_backend",
+                    "target": "flashinfer_attention_fa2",
+                    "reason": "TRTLLM Gen attention is unavailable on SM121",
+                },
+                "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": {
+                    "status": "supported_routed",
+                    "expected_handling": "route_to_validated_gb10_backend",
+                    "target": "flashinfer_attention_fa2 or flashmla_attention",
+                    "reason": "public FlashAttention is not selected on SM12x",
+                },
+                "gb10_moe_trtllm_gen_to_flashinfer_non_ep": {
+                    "status": "supported_routed",
+                    "expected_handling": "route_to_validated_gb10_backend",
+                    "target": (
+                        "flashinfer_b12x_non_ep_moe or "
+                        "flashinfer_cutlass_non_ep_moe"
+                    ),
+                    "reason": "TRTLLM Gen MoE is unavailable on SM121",
+                },
+            },
             "checks": {
                 "model_shape": {
                     "status": "observed",
@@ -4712,6 +4752,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
                 "flashinfer_cutlass_non_ep_moe": {"status": "supported_native"},
                 "flashmla_attention": {"status": "supported_native"},
+                "gb10_attention_trtllm_gen_to_flashinfer_fa2": {
+                    "status": "supported_routed"
+                },
+                "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": {
+                    "status": "supported_routed"
+                },
+                "gb10_moe_trtllm_gen_to_flashinfer_non_ep": {
+                    "status": "supported_routed"
+                },
                 "public_flashattention_runtime": {"status": "not_supported"},
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
@@ -4777,6 +4826,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["attention_backend_allowed_by_support_matrix"] == "passed"
     assert check_statuses["quantization_modelopt_fp4"] == "passed"
     assert check_statuses["quantization_allowed_by_support_matrix"] == "passed"
+    assert check_statuses["supported_routed_paths_reported"] == "passed"
     assert check_statuses["unsupported_paths_reported"] == "passed"
     assert check_statuses["deferred_paths_reported"] == "passed"
     assert checks_by_name["quantization_allowed_by_support_matrix"]["details"][
@@ -4789,6 +4839,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "public_flashattention_runtime",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
+    ]
+    assert checks_by_name["supported_routed_paths_reported"]["details"][
+        "reported_supported_routed_entries"
+    ] == [
+        "gb10_attention_public_flashattention_to_flashinfer_or_flashmla",
+        "gb10_attention_trtllm_gen_to_flashinfer_fa2",
+        "gb10_moe_trtllm_gen_to_flashinfer_non_ep",
     ]
     assert checks_by_name["deferred_paths_reported"]["details"][
         "reported_deferred_entries"
@@ -4846,6 +4903,30 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     }
     assert "nvfp4_backend_selections_allowed_by_support_matrix" in (
         unsupported_selection_failures
+    )
+
+    missing_routed_target_report = copy.deepcopy(nvfp4_report)
+    del missing_routed_target_report["gb10_release_summary"]["routed_paths"][
+        "gb10_attention_trtllm_gen_to_flashinfer_fa2"
+    ]["target"]
+    missing_routed_target_summary = verifier._build_summary(
+        nvfp4_report=missing_routed_target_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+    assert missing_routed_target_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "supported_routed_paths_reported"
+        for failure in missing_routed_target_summary["failures"]
     )
 
     missing_unsupported_paths_report = copy.deepcopy(nvfp4_report)
