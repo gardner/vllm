@@ -67,6 +67,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_fp8_loading": "not_supported",
     "compressed_tensors_w8a8_fp8_moe_loading": "not_supported",
     "compressed_tensors_w8a8_int_dense_loading": "not_supported",
+    "compressed_tensors_w8a8_int_moe_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
@@ -221,6 +222,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CompressedTensors W8A8 Int dense loading can select Cutlass/Triton "
         "W8A8 Int8 scaled-mm kernels today; reject it until native GB10 W8A8 "
         "Int8 dense correctness evidence exists."
+    ),
+    "compressed_tensors_w8a8_int_moe_loading": (
+        "CompressedTensors W8A8 Int8 MoE loading can select generic Int8 W8A8 "
+        "MoE backends today; reject it until native GB10 W8A8 Int8 MoE "
+        "correctness evidence exists."
     ),
     "compressed_tensors_w4a4_mxfp4_dense_loading": (
         "CompressedTensors W4A4 MXFP4 dense loading is not validated on "
