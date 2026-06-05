@@ -345,6 +345,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "unselected until native SM121A MXFP4 MoE evidence exists."
                 ),
             },
+            "flashinfer_cutedsl_nvfp4_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Generic FlashInfer CuteDSL and batched CuteDSL NVFP4 MoE "
+                    "variants are not validated native GB10 evidence; use "
+                    "FlashInfer b12x or FlashInfer CUTLASS NVFP4 MoE instead."
+                ),
+            },
             "trtllm_gen_attention": {
                 "status": "not_supported",
                 "release_contract": (

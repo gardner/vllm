@@ -59,6 +59,23 @@ def _make_nvfp4_moe_config(
     )
 
 
+def _make_batched_activation_config(
+    *,
+    moe_backend: str = "auto",
+    swiglu_limit: float | None = None,
+) -> FusedMoEConfig:
+    config = _make_nvfp4_moe_config(
+        moe_backend=moe_backend,
+        swiglu_limit=swiglu_limit,
+    )
+    moe_parallel_config = config.moe_parallel_config
+    moe_parallel_config.dp_size = 2
+    moe_parallel_config.ep_size = 2
+    moe_parallel_config.use_ep = True
+    moe_parallel_config.all2all_backend = "deepep_low_latency"
+    return config
+
+
 def _mock_sm12x_platform(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         nvfp4_oracle.current_platform,
@@ -133,6 +150,46 @@ def test_gb10_swiglu_limit_nvfp4_moe_skips_trtllm_gen_for_cutlass(monkeypatch):
     assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_auto_nvfp4_moe_skips_cutedsl_for_cutlass(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    kernel_by_backend = _mock_backend_support(
+        monkeypatch,
+        {
+            NvFp4MoeBackend.FLASHINFER_CUTEDSL,
+            NvFp4MoeBackend.FLASHINFER_CUTLASS,
+        },
+    )
+
+    backend, experts_cls = select_nvfp4_moe_backend(
+        _make_nvfp4_moe_config(),
+        weight_key=kNvfp4Static,
+        activation_key=kNvfp4Dynamic,
+    )
+
+    assert backend == NvFp4MoeBackend.FLASHINFER_CUTLASS
+    assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
+
+
+def test_gb10_auto_nvfp4_moe_skips_batched_cutedsl_for_cutlass(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    kernel_by_backend = _mock_backend_support(
+        monkeypatch,
+        {
+            NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED,
+            NvFp4MoeBackend.FLASHINFER_CUTLASS,
+        },
+    )
+
+    backend, experts_cls = select_nvfp4_moe_backend(
+        _make_batched_activation_config(),
+        weight_key=kNvfp4Static,
+        activation_key=kNvfp4Dynamic,
+    )
+
+    assert backend == NvFp4MoeBackend.FLASHINFER_CUTLASS
+    assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
+
+
 def test_gb10_explicit_b12x_with_swiglu_limit_recommends_cutlass_only(
     monkeypatch,
 ):
@@ -156,6 +213,34 @@ def test_gb10_explicit_b12x_with_swiglu_limit_recommends_cutlass_only(
     assert "does not apply the SwiGLU clamp" in message
     assert "flashinfer_cutlass" in message
     assert "flashinfer_trtllm" not in message
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(_make_nvfp4_moe_config, id="standard"),
+        pytest.param(_make_batched_activation_config, id="batched"),
+    ],
+)
+def test_gb10_explicit_cutedsl_nvfp4_moe_rejected(monkeypatch, config):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {
+            NvFp4MoeBackend.FLASHINFER_CUTEDSL,
+            NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED,
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="FlashInfer CuteDSL NVFP4 MoE is not supported",
+    ):
+        select_nvfp4_moe_backend(
+            config(moe_backend="flashinfer_cutedsl"),
+            weight_key=kNvfp4Static,
+            activation_key=kNvfp4Dynamic,
+        )
 
 
 def test_gb10_explicit_trtllm_nvfp4_moe_rejected(monkeypatch):
@@ -227,6 +312,27 @@ def test_gb10_flashinfer_env_auto_nvfp4_moe_skips_trtllm_gen(monkeypatch):
     assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_flashinfer_env_auto_nvfp4_moe_skips_cutedsl(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP4", "1")
+    kernel_by_backend = _mock_backend_support(
+        monkeypatch,
+        {
+            NvFp4MoeBackend.FLASHINFER_CUTEDSL,
+            NvFp4MoeBackend.FLASHINFER_CUTLASS,
+        },
+    )
+
+    backend, experts_cls = select_nvfp4_moe_backend(
+        _make_nvfp4_moe_config(),
+        weight_key=kNvfp4Static,
+        activation_key=kNvfp4Dynamic,
+    )
+
+    assert backend == NvFp4MoeBackend.FLASHINFER_CUTLASS
+    assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
+
+
 def test_gb10_flashinfer_env_auto_nvfp4_moe_prefers_b12x(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP4", "1")
@@ -263,6 +369,31 @@ def test_gb10_flashinfer_env_explicit_trtllm_nvfp4_moe_rejected(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="TRTLLM Gen MoE is not supported"):
+        select_nvfp4_moe_backend(
+            _make_nvfp4_moe_config(),
+            weight_key=kNvfp4Static,
+            activation_key=kNvfp4Dynamic,
+        )
+
+
+def test_gb10_flashinfer_env_explicit_cutedsl_nvfp4_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP4", "1")
+    monkeypatch.setenv("VLLM_FLASHINFER_MOE_BACKEND", "throughput")
+    monkeypatch.setattr(
+        nvfp4_oracle,
+        "get_flashinfer_moe_backend",
+        lambda: FlashinferMoeBackend.CUTEDSL,
+    )
+    _mock_backend_support(
+        monkeypatch,
+        {NvFp4MoeBackend.FLASHINFER_CUTEDSL},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="FlashInfer CuteDSL NVFP4 MoE is not supported",
+    ):
         select_nvfp4_moe_backend(
             _make_nvfp4_moe_config(),
             weight_key=kNvfp4Static,

@@ -67,6 +67,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "public_flashattention_runtime": "not_supported",
     "flashinfer_trtllm_nvfp4_dense": "not_supported",
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
+    "flashinfer_cutedsl_nvfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
@@ -2351,6 +2352,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["flashinfer_trtllm_mxfp4_moe"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["flashinfer_cutedsl_nvfp4_moe"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["public_fp8_quantization"]["status"] == (
@@ -7547,9 +7551,13 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "_NVFP4_MOE_FALLBACK_BACKENDS" in nvfp4_oracle
     assert "NvFp4MoeBackend.MARLIN" in nvfp4_oracle
     assert "NvFp4MoeBackend.EMULATION" in nvfp4_oracle
+    assert "NvFp4MoeBackend.FLASHINFER_CUTEDSL" in nvfp4_oracle
+    assert "NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED" in nvfp4_oracle
     assert "_gb10_unsupported_backend_reason" in nvfp4_oracle
+    assert "_gb10_flashinfer_cutedsl_moe_unsupported_reason" in nvfp4_oracle
     assert "_gb10_nvfp4_moe_fallback_unsupported_reason" in nvfp4_oracle
     assert "not supported on GB10/SM12x" in nvfp4_oracle
+    assert "FlashInfer CuteDSL NVFP4 MoE" in nvfp4_oracle
     assert "cannot satisfy native GB10 NVFP4 Tensor Core evidence" in nvfp4_oracle
     assert "if b not in gb10_unsupported_reasons_by_backend" in nvfp4_oracle
     assert "unavailable_native_backend_reasons" in nvfp4_oracle
@@ -9241,6 +9249,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "TRTLLM MXFP4 MoE is not validated on SM121",
                 },
+                "flashinfer_cutedsl_nvfp4_moe": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "generic FlashInfer CuteDSL NVFP4 MoE is not validated "
+                        "on SM12x"
+                    ),
+                },
                 "trtllm_gen_attention": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9830,6 +9846,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "public_flashattention_runtime": {"status": "not_supported"},
                 "flashinfer_trtllm_nvfp4_dense": {"status": "not_supported"},
                 "flashinfer_trtllm_mxfp4_moe": {"status": "not_supported"},
+                "flashinfer_cutedsl_nvfp4_moe": {"status": "not_supported"},
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
@@ -10007,6 +10024,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",
         "fbgemm_nvfp4_dense",
+        "flashinfer_cutedsl_nvfp4_moe",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "fp8_w8a16_marlin_fallback",

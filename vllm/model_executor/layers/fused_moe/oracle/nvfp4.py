@@ -67,6 +67,11 @@ _NVFP4_MOE_FALLBACK_BACKENDS = {
     NvFp4MoeBackend.EMULATION,
 }
 
+_GB10_FLASHINFER_CUTEDSL_MOE_BACKENDS = {
+    NvFp4MoeBackend.FLASHINFER_CUTEDSL,
+    NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED,
+}
+
 
 def _is_sm12x_device() -> bool:
     capability = current_platform.get_device_capability()
@@ -78,6 +83,15 @@ def _gb10_trtllm_gen_moe_unsupported_reason() -> str:
         "TRTLLM Gen MoE is not supported on GB10/SM12x. Use a validated "
         "FlashInfer SM12x backend such as flashinfer_b12x or "
         "flashinfer_cutlass."
+    )
+
+
+def _gb10_flashinfer_cutedsl_moe_unsupported_reason() -> str:
+    return (
+        "FlashInfer CuteDSL NVFP4 MoE is not supported on GB10/SM12x. "
+        "Generic CuteDSL and batched CuteDSL variants are not validated "
+        "native GB10 evidence. Use a validated FlashInfer SM12x backend "
+        "such as flashinfer_b12x or flashinfer_cutlass."
     )
 
 
@@ -98,6 +112,8 @@ def _gb10_unsupported_backend_reason(backend: NvFp4MoeBackend) -> str | None:
         return None
     if backend == NvFp4MoeBackend.FLASHINFER_TRTLLM:
         return _gb10_trtllm_gen_moe_unsupported_reason()
+    if backend in _GB10_FLASHINFER_CUTEDSL_MOE_BACKENDS:
+        return _gb10_flashinfer_cutedsl_moe_unsupported_reason()
     if backend in _NVFP4_MOE_FALLBACK_BACKENDS:
         return _gb10_nvfp4_moe_fallback_unsupported_reason(backend)
     return None

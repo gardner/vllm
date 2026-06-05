@@ -41,6 +41,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "public_flashattention_runtime": "not_supported",
     "flashinfer_trtllm_nvfp4_dense": "not_supported",
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
+    "flashinfer_cutedsl_nvfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
@@ -131,6 +132,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "FlashInfer TRTLLM MXFP4 MoE is an SM100-family path today and is not "
         "validated on GB10/SM12x; keep it unselected until native SM121A MXFP4 "
         "MoE evidence exists."
+    ),
+    "flashinfer_cutedsl_nvfp4_moe": (
+        "Generic FlashInfer CuteDSL and batched CuteDSL NVFP4 MoE variants are "
+        "not validated native GB10 evidence; use FlashInfer b12x or FlashInfer "
+        "CUTLASS NVFP4 MoE instead."
     ),
     "trtllm_gen_attention": (
         "TRTLLM Gen attention artifacts and metadata do not support SM121; "
