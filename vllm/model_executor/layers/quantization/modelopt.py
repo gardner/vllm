@@ -141,6 +141,38 @@ def _gb10_w4a16_nvfp4_moe_unsupported_reason() -> str | None:
     )
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_modelopt_mxfp8_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "ModelOpt MXFP8 quantization is not supported on GB10/SM12x. The "
+        "serialized checkpoint path can reach MXFP8 dense kernel selection "
+        "and MXFP8 MoE backend selection today, but this is not native GB10 "
+        "ModelOpt MXFP8 correctness evidence. Use a validated GB10 ModelOpt "
+        "MXFP8 path after native SM12x correctness evidence exists, or keep "
+        "--quantization modelopt_mxfp8 unselected."
+    )
+
+
 class ModelOptKVCacheMethod(BaseKVCacheMethod):
     """
     Supports loading kv-cache scaling factors from FP8 or NVFP4 checkpoints.
@@ -1731,6 +1763,9 @@ class ModelOptMxFp8Config(ModelOptQuantConfigBase):
         exclude_modules: list[str],
     ) -> None:
         super().__init__(exclude_modules)
+        if reason := _gb10_modelopt_mxfp8_quantization_unsupported_reason():
+            raise ValueError(reason)
+
         self.is_checkpoint_mxfp8_serialized = is_checkpoint_mxfp8_serialized
 
         if not is_checkpoint_mxfp8_serialized:

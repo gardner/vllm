@@ -485,6 +485,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP8 MoE release evidence."
                 ),
             },
+            "modelopt_mxfp8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "ModelOpt MXFP8 quantization can reach MXFP8 dense kernel "
+                    "selection and MXFP8 MoE backend selection today and must "
+                    "reject on GB10/SM12x until native GB10 ModelOpt MXFP8 "
+                    "correctness evidence exists."
+                ),
+            },
             "fbgemm_fp8_quantization": {
                 "status": "not_supported",
                 "release_contract": (
