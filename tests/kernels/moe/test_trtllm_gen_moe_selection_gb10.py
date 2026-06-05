@@ -4,12 +4,17 @@
 import pytest
 
 import vllm.model_executor.layers.fused_moe.oracle.fp8 as fp8_oracle
+import vllm.model_executor.layers.fused_moe.oracle.int_wna16 as int_wna16_oracle
 import vllm.model_executor.layers.fused_moe.oracle.mxfp8 as mxfp8_oracle
 import vllm.model_executor.layers.fused_moe.oracle.unquantized as unquantized_oracle
 from tests.kernels.moe.utils import make_dummy_moe_config
 from vllm.model_executor.layers.fused_moe.oracle.fp8 import (
     Fp8MoeBackend,
     select_fp8_moe_backend,
+)
+from vllm.model_executor.layers.fused_moe.oracle.int_wna16 import (
+    WNA16MoEBackend,
+    select_wna16_moe_backend,
 )
 from vllm.model_executor.layers.fused_moe.oracle.mxfp8 import (
     select_mxfp8_moe_backend,
@@ -24,6 +29,7 @@ from vllm.model_executor.layers.quantization.utils.flashinfer_utils import (
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     kFp8Dynamic128Sym,
     kFp8Static128BlockSym,
+    kInt4Static32,
 )
 
 
@@ -75,6 +81,7 @@ class _Sm12xPlatform:
 
 def _mock_sm12x_platform(monkeypatch: pytest.MonkeyPatch) -> None:
     platform = _Sm12xPlatform()
+    monkeypatch.setattr(int_wna16_oracle, "current_platform", platform)
     monkeypatch.setattr(unquantized_oracle, "current_platform", platform)
     monkeypatch.setattr(fp8_oracle, "current_platform", platform)
     monkeypatch.setattr(mxfp8_oracle, "current_platform", platform, raising=False)
@@ -136,6 +143,32 @@ def _mock_fp8_backend_support(
 
     monkeypatch.setattr(fp8_oracle, "backend_to_kernel_cls", _backend_to_kernel_cls)
     monkeypatch.setattr(mxfp8_oracle, "backend_to_kernel_cls", _backend_to_kernel_cls)
+    return kernel_by_backend
+
+
+def _mock_wna16_backend_support(
+    monkeypatch: pytest.MonkeyPatch,
+    supported_backends: set[WNA16MoEBackend],
+) -> dict[WNA16MoEBackend, type]:
+    def _experts_base(backend: WNA16MoEBackend) -> type:
+        if backend in supported_backends:
+            return _SupportedExperts
+        return _UnsupportedExperts
+
+    kernel_by_backend = {
+        backend: type(
+            f"{backend.name}Experts",
+            (_experts_base(backend),),
+            {},
+        )
+        for backend in WNA16MoEBackend
+    }
+
+    monkeypatch.setattr(
+        int_wna16_oracle,
+        "backend_to_kernel_cls",
+        lambda backend: [kernel_by_backend[backend]],
+    )
     return kernel_by_backend
 
 
@@ -255,3 +288,36 @@ def test_gb10_auto_mxfp8_moe_reports_trtllm_rejection(monkeypatch):
 
     with pytest.raises(ValueError, match="TRTLLM Gen MoE.*not supported"):
         select_mxfp8_moe_backend(make_dummy_moe_config())
+
+
+def test_gb10_auto_wna16_moe_skips_trtllm_for_marlin(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    kernel_by_backend = _mock_wna16_backend_support(
+        monkeypatch,
+        {
+            WNA16MoEBackend.FLASHINFER_TRTLLM,
+            WNA16MoEBackend.MARLIN,
+        },
+    )
+
+    backend, experts_cls = select_wna16_moe_backend(
+        make_dummy_moe_config(),
+        weight_key=kInt4Static32,
+    )
+
+    assert backend == WNA16MoEBackend.MARLIN
+    assert experts_cls is kernel_by_backend[WNA16MoEBackend.MARLIN]
+
+
+def test_gb10_auto_wna16_moe_reports_trtllm_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_wna16_backend_support(
+        monkeypatch,
+        {WNA16MoEBackend.FLASHINFER_TRTLLM},
+    )
+
+    with pytest.raises(NotImplementedError, match="TRTLLM Gen MoE.*not supported"):
+        select_wna16_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kInt4Static32,
+        )

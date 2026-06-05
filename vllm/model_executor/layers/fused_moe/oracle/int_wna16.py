@@ -48,6 +48,37 @@ class WNA16MoEBackend(Enum):
     XPU = "XPU"
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_trtllm_gen_moe_unsupported_reason(
+    backend: WNA16MoEBackend,
+) -> str | None:
+    if backend != WNA16MoEBackend.FLASHINFER_TRTLLM or not _is_sm12x_device():
+        return None
+    return (
+        f"TRTLLM Gen MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x. TRTLLM Gen MoE kernels are SM100-family paths today; "
+        "use a validated GB10-safe MoE backend."
+    )
+
+
 def backend_to_kernel_cls(
     backend: WNA16MoEBackend,
 ) -> list[type[mk.FusedMoEExperts]]:
@@ -118,6 +149,15 @@ def select_wna16_moe_backend(
             "deployment configuration."
         )
 
+    def _append_unique_reason(reasons: list[str], reason: str) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+
+    def _unsupported_suffix(reasons: list[str]) -> str:
+        if not reasons:
+            return ""
+        return " " + " ".join(reasons)
+
     def _return_or_raise(
         backend: WNA16MoEBackend,
         config: FusedMoEConfig,
@@ -137,6 +177,11 @@ def select_wna16_moe_backend(
 
     # Select kernels in order of backend.
     AVAILABLE_BACKENDS = _get_priority_backends()
+    unavailable_gb10_reasons: list[str] = []
+    for backend in list(AVAILABLE_BACKENDS):
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            AVAILABLE_BACKENDS.remove(backend)
+            _append_unique_reason(unavailable_gb10_reasons, reason)
 
     for backend in AVAILABLE_BACKENDS:
         activation_key = None  # always BF16 activation for WNA16 MoE
@@ -152,6 +197,7 @@ def select_wna16_moe_backend(
 
     raise NotImplementedError(
         "No WNA16 MoE backend supports the deployment configuration."
+        + _unsupported_suffix(unavailable_gb10_reasons)
     )
 
 
