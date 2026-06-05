@@ -337,6 +337,24 @@ _POSSIBLE_WFP8A16_KERNELS: dict[PlatformEnum, list[type[FP8ScaledMMLinearKernel]
     ],
 }
 
+
+def _gb10_wfp8a16_linear_fallback_unsupported_reason(
+    kernel_cls: type[object],
+    possible_kernels: object,
+) -> str | None:
+    if possible_kernels is not _POSSIBLE_WFP8A16_KERNELS:
+        return None
+    if kernel_cls is not MarlinFP8ScaledMMLinearKernel:
+        return None
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        f"{kernel_cls.__name__} is the FP8 W8A16 Marlin fallback and is "
+        "not supported on GB10/SM12x; keep FP8 W8A16 checkpoint loading "
+        "unselected until native GB10 dense correctness evidence exists."
+    )
+
+
 # in priority/performance order (when available)
 _POSSIBLE_KERNELS: dict[PlatformEnum, list[type[MPLinearKernel]]] = {
     PlatformEnum.CUDA: [
@@ -510,6 +528,15 @@ def choose_scaled_mm_linear_kernel(
     failure_reason_list = []
 
     if force_kernel is not None:
+        fallback_reason = _gb10_wfp8a16_linear_fallback_unsupported_reason(
+            force_kernel, possible_kernels
+        )
+        if fallback_reason is not None:
+            raise ValueError(
+                f"Forced ScaledMM kernel {force_kernel.__name__} is not "
+                f"supported: {fallback_reason}"
+            )
+
         can_implement, failure_reason = is_supported_and_can_implement_kernel(
             force_kernel, config, compute_capability
         )
@@ -536,6 +563,13 @@ def choose_scaled_mm_linear_kernel(
         platform_kernels = filtered
 
     for kernel in platform_kernels:
+        fallback_reason = _gb10_wfp8a16_linear_fallback_unsupported_reason(
+            kernel, possible_kernels
+        )
+        if fallback_reason is not None:
+            failure_reason_list.append(f"{kernel.__name__}: {fallback_reason}")
+            continue
+
         is_supported_and_can_implement, failure_reason = (
             is_supported_and_can_implement_kernel(kernel, config, compute_capability)
         )

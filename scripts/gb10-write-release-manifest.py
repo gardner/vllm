@@ -383,6 +383,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP4 release evidence."
                 ),
             },
+            "fp8_w8a16_marlin_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FP8 W8A16 Marlin fallback can prove reachability, but it "
+                    "cannot satisfy native GB10 FP8 W8A16 release evidence."
+                ),
+            },
             "mxfp8_dense_fallback": {
                 "status": "not_supported",
                 "release_contract": (

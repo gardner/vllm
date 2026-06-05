@@ -47,6 +47,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
+    "fp8_w8a16_marlin_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -117,6 +118,10 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "MXFP4 MoE Marlin, batched Marlin, emulation, and CPU fallbacks can "
         "prove reachability, but they are not native GB10 MXFP4 Tensor Core "
         "evidence."
+    ),
+    "fp8_w8a16_marlin_fallback": (
+        "FP8 W8A16 Marlin fallback can prove reachability, but it is not "
+        "native GB10 FP8 W8A16 dense evidence."
     ),
     "mxfp8_dense_fallback": (
         "MXFP8 dense Marlin and emulation fallbacks can prove reachability, "
