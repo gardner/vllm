@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
+import json
 import re
 import sys
 from pathlib import Path
@@ -21,6 +23,27 @@ from gb10_release_contract import (
 )
 
 SHA256_HEX_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def _load_manifest_validator():
+    script_path = Path(__file__).with_name("gb10-write-release-manifest.py")
+    spec = importlib.util.spec_from_file_location(
+        "gb10_write_release_manifest_for_asset_validation",
+        script_path,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load GB10 manifest validator: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    script_dir = str(script_path.parent)
+    added_script_dir = script_dir not in sys.path
+    if added_script_dir:
+        sys.path.insert(0, script_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if added_script_dir:
+            sys.path.remove(script_dir)
+    return module.validate_manifest
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -127,6 +150,21 @@ def _validate_checksums(
     return errors
 
 
+def _validate_release_manifest(manifest_path: Path) -> list[str]:
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return [f"GB10 release manifest cannot be read: {manifest_path}: {exc}"]
+    except json.JSONDecodeError as exc:
+        return [f"GB10 release manifest is invalid JSON: {manifest_path}: {exc}"]
+
+    validate_manifest = _load_manifest_validator()
+    return [
+        f"GB10 release manifest validation failed: {error}"
+        for error in validate_manifest(manifest)
+    ]
+
+
 def validate_release_assets(
     *,
     dist_dir: Path,
@@ -151,6 +189,10 @@ def validate_release_assets(
     for asset in required_assets:
         if not asset.is_file() or asset.stat().st_size <= 0:
             errors.append(f"GB10 release asset is missing or empty: {asset}")
+
+    manifest_path = release_manifest_dir / "gb10-release-manifest.json"
+    if manifest_path.is_file() and manifest_path.stat().st_size > 0:
+        errors.extend(_validate_release_manifest(manifest_path))
 
     checksum_file = release_manifest_dir / VLLM_RELEASE_ASSET_FILES["checksums"]
     if checksum_file.is_file() and checksum_file.stat().st_size > 0:

@@ -1920,10 +1920,46 @@ def _write_gb10_vllm_release_assets(tmp_path: Path) -> tuple[Path, Path, Path]:
     image_ref = manifest_dir / "gb10-runtime-image-ref.txt"
     image_digest = manifest_dir / "gb10-runtime-image-digest.txt"
     checksum_file = manifest_dir / "gb10-vllm-release-SHA256SUMS"
+    manifest_data = _load_gb10_release_manifest_module().build_manifest(
+        {
+            "GITHUB_WORKFLOW": "GB10 vLLM wheel and image",
+            "GITHUB_REPOSITORY": "gardner/vllm",
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_REF": "refs/tags/gb10-vllm-v0.22.1rc0-abcdef123",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+            "GITHUB_RUN_ID": "12345",
+            "GB10_RELEASE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+            "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+            "GB10_IMAGE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+            "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
+            "GB10_PREBUILT_WHEEL_URLS": " ".join(
+                f"https://github.com/gardner/flashinfer/releases/download/"
+                f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+                for wheel in FLASHINFER_RELEASE_WHEELS
+            ),
+            "GB10_FLASH_ATTN_REPO": (
+                "https://github.com/gardner/vllm-flash-attention.git"
+            ),
+            "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+            "GB10_PUSH_IMAGE": "true",
+            "GB10_PREFLIGHT_ONLY": "false",
+            "GB10_MAX_JOBS": "1",
+            "GB10_NVCC_THREADS": "1",
+            "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
+            "GB10_RUNNER_LABELS": json.dumps(
+                ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
+            ),
+            **GB10_RELEASE_CACHE_REF_ENV,
+            "VLLM_USE_LOCAL_GB10_DEPS": "0",
+        }
+    )
 
     for path, content in (
         (wheel, b"wheel"),
-        (manifest, b'{"schema_version":1}\n'),
+        (
+            manifest,
+            json.dumps(manifest_data, indent=2, sort_keys=True).encode() + b"\n",
+        ),
         (metadata, b'{"containerimage.digest":"sha256:' + b"a" * 64 + b'"}\n'),
         (image_ref, b"ghcr.io/gardner/vllm-gb10:gb10-test\n"),
         (image_digest, b"sha256:" + b"a" * 64 + b"\n"),
@@ -1949,6 +1985,31 @@ def test_gb10_vllm_release_asset_validator_accepts_complete_assets(tmp_path):
         runtime_image_metadata_json=metadata,
         repo_root=tmp_path,
     ) == []
+
+
+def test_gb10_vllm_release_asset_validator_rejects_invalid_manifest(tmp_path):
+    validator = _load_gb10_vllm_release_asset_validator_module()
+    dist_dir, manifest_dir, metadata = _write_gb10_vllm_release_assets(tmp_path)
+    manifest_path = manifest_dir / "gb10-release-manifest.json"
+    manifest_path.write_text('{"schema_version":1}\n', encoding="utf-8")
+    checksum_file = manifest_dir / "gb10-vllm-release-SHA256SUMS"
+    checksum_lines = []
+    for raw_line in checksum_file.read_text(encoding="utf-8").splitlines():
+        _digest, raw_path = raw_line.split(maxsplit=1)
+        asset = tmp_path / raw_path
+        digest = hashlib.sha256(asset.read_bytes()).hexdigest()
+        checksum_lines.append(f"{digest}  {raw_path}")
+    checksum_file.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
+
+    errors = validator.validate_release_assets(
+        dist_dir=dist_dir,
+        release_manifest_dir=manifest_dir,
+        runtime_image_metadata_json=metadata,
+        repo_root=tmp_path,
+    )
+
+    assert any("release manifest validation failed" in error for error in errors)
+    assert any("git.commit must be a full Git SHA" in error for error in errors)
 
 
 def test_gb10_vllm_release_asset_validator_rejects_bad_assets(tmp_path):
