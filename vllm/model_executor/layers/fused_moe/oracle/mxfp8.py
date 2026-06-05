@@ -28,6 +28,8 @@ _BACKEND_NAME_MAP: dict[str, Fp8MoeBackend] = {
     "xpu": Fp8MoeBackend.XPU,
 }
 
+_MXFP8_MOE_FALLBACK_BACKENDS = (Fp8MoeBackend.MARLIN,)
+
 
 def _is_sm12x_device() -> bool:
     is_family = getattr(current_platform, "is_device_capability_family", None)
@@ -57,6 +59,18 @@ def _gb10_trtllm_gen_moe_unsupported_reason(
         f"TRTLLM Gen MoE backend '{backend.value}' is not supported on "
         "GB10/SM12x. TRTLLM Gen MoE kernels are SM100-family paths today; "
         "use a validated GB10-safe MoE backend."
+    )
+
+
+def _gb10_mxfp8_moe_fallback_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend not in _MXFP8_MOE_FALLBACK_BACKENDS or not _is_sm12x_device():
+        return None
+    return (
+        f"MXFP8 MoE fallback backend '{backend.value}' "
+        "is not supported on GB10/SM12x. This fallback can prove "
+        "reachability, but it is not native GB10 MXFP8 MoE evidence."
     )
 
 
@@ -118,6 +132,8 @@ def select_mxfp8_moe_backend(
             )
         if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
             raise ValueError(reason)
+        if reason := _gb10_mxfp8_moe_fallback_unsupported_reason(backend):
+            raise ValueError(reason)
         logger.info_once(
             "Using '%s' MxFp8 MoE backend (user-requested).",
             backend.value,
@@ -128,6 +144,9 @@ def select_mxfp8_moe_backend(
     unavailable_gb10_reasons: list[str] = []
     for backend in _SUPPORTED_BACKENDS:
         if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            _append_unique_reason(unavailable_gb10_reasons, reason)
+            continue
+        if reason := _gb10_mxfp8_moe_fallback_unsupported_reason(backend):
             _append_unique_reason(unavailable_gb10_reasons, reason)
             continue
         try:

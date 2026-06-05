@@ -282,11 +282,35 @@ def test_gb10_explicit_mxfp8_trtllm_moe_rejected(monkeypatch):
         select_mxfp8_moe_backend(config)
 
 
+def test_gb10_explicit_mxfp8_marlin_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.MARLIN})
+    config = make_dummy_moe_config()
+    config.moe_backend = "marlin"
+
+    with pytest.raises(ValueError, match="MXFP8 MoE fallback.*GB10/SM12x"):
+        select_mxfp8_moe_backend(config)
+
+
 def test_gb10_auto_mxfp8_moe_reports_trtllm_rejection(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.FLASHINFER_TRTLLM})
 
     with pytest.raises(ValueError, match="TRTLLM Gen MoE.*not supported"):
+        select_mxfp8_moe_backend(make_dummy_moe_config())
+
+
+def test_gb10_auto_mxfp8_moe_reports_trtllm_and_marlin_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(
+        monkeypatch,
+        {
+            Fp8MoeBackend.FLASHINFER_TRTLLM,
+            Fp8MoeBackend.MARLIN,
+        },
+    )
+
+    with pytest.raises(ValueError, match="MXFP8 MoE fallback.*not supported"):
         select_mxfp8_moe_backend(make_dummy_moe_config())
 
 
