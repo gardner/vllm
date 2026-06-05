@@ -129,6 +129,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "compressed_tensors_w4a4_nvfp4_moe_loading": "supported_native",
     "compressed_tensors_qutlass_nvfp4_transform_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
+    "compressed_tensors_w4a4_mxfp4_moe_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_moe_loading": "not_supported",
     "deepseek_v4_deep_gemm_mega_moe": "deferred",
@@ -2539,6 +2540,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_w4a4_mxfp4_dense_loading"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["compressed_tensors_w4a4_mxfp4_moe_loading"][
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_w4a16_nvfp4_loading"][
@@ -8127,6 +8131,45 @@ def test_gb10_compressed_tensors_w4a8_int_moe_rejects_sm12x(monkeypatch):
     )
 
 
+def test_gb10_compressed_tensors_w4a4_mxfp4_moe_rejects_marlin_sm12x(
+    monkeypatch,
+):
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa: E501
+        compressed_tensors_moe_w4a4_mxfp4,
+    )
+
+    monkeypatch.setattr(
+        compressed_tensors_moe_w4a4_mxfp4.CutlassExpertsMxfp4,
+        "_supports_current_device",
+        staticmethod(lambda: False),
+    )
+    monkeypatch.setattr(
+        compressed_tensors_moe_w4a4_mxfp4.current_platform,
+        "is_device_capability_family",
+        lambda capability: capability == 120,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        compressed_tensors_moe_w4a4_mxfp4.CompressedTensorsW4A4Mxfp4MoEMethod(
+            SimpleNamespace()
+        )
+
+    reason = str(exc_info.value)
+    assert "CompressedTensors W4A4 MXFP4 MoE would select" in reason
+    assert "FP4 Marlin fallback" in reason
+    assert "native SM12x MXFP4 MoE backend" in reason
+
+    monkeypatch.setattr(
+        compressed_tensors_moe_w4a4_mxfp4.current_platform,
+        "is_device_capability_family",
+        lambda capability: False,
+    )
+    assert (
+        compressed_tensors_moe_w4a4_mxfp4._gb10_mxfp4_moe_marlin_unsupported_reason()
+        is None
+    )
+
+
 def test_gb10_compressed_tensors_w4a16_nvfp4_moe_rejects_sm12x(monkeypatch):
     from compressed_tensors import CompressionFormat
     from compressed_tensors.quantization import (
@@ -10438,6 +10481,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "CompressedTensors W4A4 MXFP4 dense loading is not validated"
                     ),
                 },
+                "compressed_tensors_w4a4_mxfp4_moe_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors W4A4 MXFP4 MoE loading can fall back "
+                        "to Marlin without native SM12x evidence"
+                    ),
+                },
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10759,6 +10810,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "compressed_tensors_w4a4_mxfp4_dense_loading": {
                     "status": "not_supported"
                 },
+                "compressed_tensors_w4a4_mxfp4_moe_loading": {
+                    "status": "not_supported"
+                },
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
                 },
@@ -10843,6 +10897,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w4a16_nvfp4_loading",
         "compressed_tensors_w4a16_nvfp4_moe_loading",
         "compressed_tensors_w4a4_mxfp4_dense_loading",
+        "compressed_tensors_w4a4_mxfp4_moe_loading",
         "compressed_tensors_w4a8_fp8_loading",
         "compressed_tensors_w4a8_int_dense_loading",
         "compressed_tensors_w4a8_int_moe_loading",

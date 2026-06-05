@@ -880,6 +880,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "compressed_tensors_w4a4_mxfp4_moe_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W4A4 MXFP4 MoE loading can select "
+                    "CUTLASS on supported devices but falls back to Marlin "
+                    "when CUTLASS does not advertise support, so it must "
+                    "reject on GB10/SM12x until native SM12x MXFP4 MoE "
+                    "checkpoint-loading correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w4a16_nvfp4_loading": {
                 "status": "not_supported",
                 "release_contract": (

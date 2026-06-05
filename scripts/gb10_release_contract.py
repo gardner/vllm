@@ -103,6 +103,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "compressed_tensors_w4a4_nvfp4_moe_loading": "supported_native",
     "compressed_tensors_qutlass_nvfp4_transform_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
+    "compressed_tensors_w4a4_mxfp4_moe_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_moe_loading": "not_supported",
     "deepseek_v4_deep_gemm_mega_moe": "deferred",
@@ -426,6 +427,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CompressedTensors W4A4 MXFP4 dense loading is not validated on "
         "GB10/SM12x; reject it until native GB10 MXFP4 dense correctness "
         "evidence exists."
+    ),
+    "compressed_tensors_w4a4_mxfp4_moe_loading": (
+        "CompressedTensors W4A4 MXFP4 MoE loading can select CUTLASS on "
+        "supported devices but falls back to Marlin when CUTLASS does not "
+        "advertise support. Reject it on GB10/SM12x until native SM12x "
+        "MXFP4 MoE checkpoint-loading correctness evidence exists."
     ),
     "compressed_tensors_qutlass_nvfp4_transform_loading": (
         "CompressedTensors Qutlass NVFP4 transform loading can select "
