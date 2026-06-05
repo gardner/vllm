@@ -11,6 +11,9 @@ import torch.nn.functional as F
 
 from vllm._aiter_ops import rocm_aiter_ops
 from vllm.logger import init_logger
+from vllm.model_executor.layers.quantization.quark.utils import (
+    gb10_quark_ocp_mx_unsupported_reason,
+)
 from vllm.model_executor.layers.quantization.utils.mxfp4_utils import (
     dequant_mxfp4,
     quant_dequant_mxfp4,
@@ -153,6 +156,10 @@ class QuarkOCP_MX(QuarkScheme):
         input_quant_spec: dict[str, Any] | None,
         dynamic_mxfp4_quant: bool = False,
     ):
+        unsupported_reason = gb10_quark_ocp_mx_unsupported_reason()
+        if unsupported_reason:
+            raise ValueError(unsupported_reason)
+
         self.out_dtype = torch.get_default_dtype()
         self.qscheme = "per_group"
         self.weight_quant_spec = weight_quant_spec

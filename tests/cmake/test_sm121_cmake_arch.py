@@ -73,6 +73,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
+    "quark_ocp_mx_checkpoint_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
@@ -1884,6 +1885,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["quark_ocp_mx_checkpoint_loading"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["compressed_tensors_w4a16_nvfp4_loading"][
@@ -4719,6 +4723,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Quark NVFP4 checkpoint loading is not validated",
                 },
+                "quark_ocp_mx_checkpoint_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Quark OCP-MX checkpoint loading is not validated",
+                },
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4917,6 +4926,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
+                "quark_ocp_mx_checkpoint_loading": {"status": "not_supported"},
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
                 },
@@ -4999,6 +5009,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "mxfp4_moe_fallback",
         "public_flashattention_runtime",
         "quark_nvfp4_checkpoint_loading",
+        "quark_ocp_mx_checkpoint_loading",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
     ]

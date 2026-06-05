@@ -382,6 +382,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "until dense and MoE correctness evidence exists."
                 ),
             },
+            "quark_ocp_mx_checkpoint_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark OCP-MX/MXFP4 checkpoint loading is not validated "
+                    "on GB10/SM12x and must reject before dense or MoE "
+                    "backend selection until native GB10 MXFP4 correctness "
+                    "evidence exists."
+                ),
+            },
             "compressed_tensors_w4a16_nvfp4_loading": {
                 "status": "not_supported",
                 "release_contract": (
