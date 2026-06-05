@@ -747,6 +747,23 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "quark_w8a8_fp8_moe_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark W8A8 FP8 MoE checkpoint loading can select generic "
+                    "FP8 W8A8 MoE backend selection today; reject it until "
+                    "native GB10 W8A8 FP8 MoE correctness evidence exists."
+                ),
+            },
+            "quark_w8a8_int8_moe_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark W8A8 Int8 MoE checkpoint loading can select "
+                    "generic Int8 W8A8 MoE backend selection today; reject it "
+                    "until native GB10 W8A8 Int8 MoE correctness evidence "
+                    "exists."
+                ),
+            },
             "compressed_tensors_w4a8_fp8_loading": {
                 "status": "not_supported",
                 "release_contract": (

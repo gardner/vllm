@@ -72,6 +72,32 @@ def gb10_quark_w8a8_int8_unsupported_reason() -> str | None:
     )
 
 
+def gb10_quark_w8a8_fp8_moe_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "Quark W8A8 FP8 MoE checkpoint loading is not supported on GB10/SM12x. "
+        "The current Quark W8A8 FP8 MoE path can reach generic FP8 W8A8 MoE "
+        "backend selection today, but it is not native GB10 W8A8 FP8 MoE "
+        "correctness evidence. Use a native SM12x W8A8 FP8 MoE backend after "
+        "correctness evidence exists, or keep Quark W8A8 FP8 MoE checkpoint "
+        "loading unselected."
+    )
+
+
+def gb10_quark_w8a8_int8_moe_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "Quark W8A8 Int8 MoE checkpoint loading is not supported on GB10/SM12x. "
+        "The current Quark W8A8 Int8 MoE path can reach generic Int8 W8A8 MoE "
+        "backend selection today, but it is not native GB10 W8A8 Int8 MoE "
+        "correctness evidence. Use a native SM12x W8A8 Int8 MoE backend after "
+        "correctness evidence exists, or keep Quark W8A8 Int8 MoE checkpoint "
+        "loading unselected."
+    )
+
+
 def deep_compare(dict1: Any, dict2: Any) -> bool:
     if type(dict1) is not type(dict2):
         return False

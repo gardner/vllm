@@ -48,6 +48,8 @@ from vllm.model_executor.layers.fused_moe.oracle.nvfp4 import (
 from vllm.model_executor.layers.quantization.quark.utils import (
     gb10_quark_nvfp4_unsupported_reason,
     gb10_quark_ocp_mx_unsupported_reason,
+    gb10_quark_w8a8_fp8_moe_unsupported_reason,
+    gb10_quark_w8a8_int8_moe_unsupported_reason,
 )
 from vllm.model_executor.layers.quantization.utils.marlin_utils_fp8 import (
     prepare_fp8_moe_layer_for_marlin,
@@ -134,6 +136,10 @@ class QuarkW8A8Fp8MoEMethod(QuarkMoEMethod):
         input_config: dict[str, Any],
         moe: FusedMoEConfig,
     ):
+        unsupported_reason = gb10_quark_w8a8_fp8_moe_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         super().__init__(moe)
         self.weight_quant = weight_config
         self.input_quant = input_config
@@ -528,6 +534,10 @@ class QuarkW8A8Int8MoEMethod(QuarkMoEMethod):
         input_config: dict[str, Any],
         moe: FusedMoEConfig,
     ):
+        unsupported_reason = gb10_quark_w8a8_int8_moe_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         super().__init__(moe)
         self.weight_quant = weight_config
         self.input_quant = input_config

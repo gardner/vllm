@@ -114,6 +114,8 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
     "quark_w8a8_fp8_checkpoint_loading": "not_supported",
     "quark_w8a8_int8_checkpoint_loading": "not_supported",
+    "quark_w8a8_fp8_moe_loading": "not_supported",
+    "quark_w8a8_int8_moe_loading": "not_supported",
     "compressed_tensors_w4a8_fp8_loading": "not_supported",
     "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a8_int_moe_loading": "not_supported",
@@ -2489,6 +2491,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["quark_w8a8_int8_checkpoint_loading"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["quark_w8a8_fp8_moe_loading"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["quark_w8a8_int8_moe_loading"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["compressed_tensors_w4a8_fp8_loading"][
         "status"
     ] == "not_supported"
@@ -5195,6 +5203,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "quark" / "utils.py"
     ).read_text()
+    quark_moe = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "quark" / "quark_moe.py"
+    ).read_text()
     mxfp4_moe_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "mxfp4.py"
@@ -5452,6 +5464,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "gb10_quark_w8a8_int8_unsupported_reason" in quark_utils
     assert "Quark W8A8 FP8 checkpoint loading" in quark_utils
     assert "Quark W8A8 Int8 checkpoint loading" in quark_utils
+    assert "gb10_quark_w8a8_fp8_moe_unsupported_reason" in quark_moe
+    assert "gb10_quark_w8a8_fp8_moe_unsupported_reason" in quark_utils
+    assert "gb10_quark_w8a8_int8_moe_unsupported_reason" in quark_moe
+    assert "gb10_quark_w8a8_int8_moe_unsupported_reason" in quark_utils
+    assert "Quark W8A8 FP8 MoE checkpoint loading" in quark_utils
+    assert "Quark W8A8 Int8 MoE checkpoint loading" in quark_utils
     assert "not supported on GB10/SM12x" in quark_utils
     assert "gb10_compressed_tensors_w4a8_fp8_unsupported_reason" in (
         compressed_tensors
@@ -6900,6 +6918,94 @@ def test_gb10_quark_w8a8_checkpoint_loading_rejects_sm12x(monkeypatch):
     )
     assert utils.gb10_quark_w8a8_fp8_unsupported_reason() is None
     assert utils.gb10_quark_w8a8_int8_unsupported_reason() is None
+
+
+def test_gb10_quark_w8a8_moe_loading_rejects_sm12x(monkeypatch):
+    import torch
+
+    from vllm.model_executor.layers.fused_moe.activation import MoEActivation
+    from vllm.model_executor.layers.fused_moe.config import (
+        FusedMoEConfig,
+        FusedMoEParallelConfig,
+        RoutingMethodType,
+    )
+    from vllm.model_executor.layers.quantization.quark import quark_moe, utils
+
+    monkeypatch.setattr(
+        utils.current_platform,
+        "is_device_capability_family",
+        lambda family: family == 120,
+        raising=False,
+    )
+
+    moe_config = FusedMoEConfig(
+        num_experts=4,
+        experts_per_token=2,
+        hidden_dim=128,
+        intermediate_size_per_partition=256,
+        num_local_experts=4,
+        num_logical_experts=4,
+        activation=MoEActivation.SILU,
+        device="cpu",
+        routing_method=RoutingMethodType.Default,
+        moe_parallel_config=FusedMoEParallelConfig.make_no_parallel(),
+        in_dtype=torch.float16,
+    )
+
+    fp8_weight_config = {
+        "dtype": "fp8_e4m3",
+        "qscheme": "per_tensor",
+        "is_dynamic": False,
+    }
+    fp8_input_config = {
+        "dtype": "fp8_e4m3",
+        "qscheme": "per_tensor",
+        "is_dynamic": False,
+    }
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+        exc_info
+    ):
+        quark_moe.QuarkW8A8Fp8MoEMethod(
+            fp8_weight_config, fp8_input_config, moe_config
+        )
+
+    reason = str(exc_info.value)
+    assert "Quark W8A8 FP8 MoE checkpoint loading" in reason
+    assert "generic FP8 W8A8 MoE backend selection" in reason
+    assert "native GB10 W8A8 FP8 MoE correctness evidence" in reason
+
+    int8_weight_config = {
+        "dtype": "int8",
+        "qscheme": "per_channel",
+        "is_dynamic": False,
+        "symmetric": True,
+    }
+    int8_input_config = {
+        "dtype": "int8",
+        "qscheme": "per_tensor",
+        "is_dynamic": False,
+        "symmetric": True,
+    }
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+        exc_info
+    ):
+        quark_moe.QuarkW8A8Int8MoEMethod(
+            int8_weight_config, int8_input_config, moe_config
+        )
+
+    reason = str(exc_info.value)
+    assert "Quark W8A8 Int8 MoE checkpoint loading" in reason
+    assert "generic Int8 W8A8 MoE backend selection" in reason
+    assert "native GB10 W8A8 Int8 MoE correctness evidence" in reason
+
+    monkeypatch.setattr(
+        utils.current_platform,
+        "is_device_capability_family",
+        lambda family: False,
+        raising=False,
+    )
+    assert utils.gb10_quark_w8a8_fp8_moe_unsupported_reason() is None
+    assert utils.gb10_quark_w8a8_int8_moe_unsupported_reason() is None
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -9943,6 +10049,24 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "evidence"
                     ),
                 },
+                "quark_w8a8_fp8_moe_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Quark W8A8 FP8 MoE checkpoint loading can select "
+                        "generic FP8 W8A8 MoE backend selection without native "
+                        "GB10 evidence"
+                    ),
+                },
+                "quark_w8a8_int8_moe_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Quark W8A8 Int8 MoE checkpoint loading can select "
+                        "generic Int8 W8A8 MoE backend selection without native "
+                        "GB10 evidence"
+                    ),
+                },
                 "compressed_tensors_w4a8_fp8_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10274,6 +10398,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "quark_w8a8_int8_checkpoint_loading": {
                     "status": "not_supported"
                 },
+                "quark_w8a8_fp8_moe_loading": {
+                    "status": "not_supported"
+                },
+                "quark_w8a8_int8_moe_loading": {
+                    "status": "not_supported"
+                },
                 "compressed_tensors_w4a8_fp8_loading": {
                     "status": "not_supported"
                 },
@@ -10428,7 +10558,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "quark_ocp_mx_checkpoint_loading",
         "quark_w4a8_mxfp4_fp8_checkpoint_loading",
         "quark_w8a8_fp8_checkpoint_loading",
+        "quark_w8a8_fp8_moe_loading",
         "quark_w8a8_int8_checkpoint_loading",
+        "quark_w8a8_int8_moe_loading",
         "rocm_aiter_fp8_moe",
         "rocm_aiter_unquantized_moe",
         "torchao_fp8_activation_quantization",
