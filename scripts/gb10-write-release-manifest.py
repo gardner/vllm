@@ -30,7 +30,16 @@ def _env(env: Mapping[str, str], name: str, default: str = "") -> str:
 
 
 def _env_bool(env: Mapping[str, str], name: str) -> bool:
-    return _env(env, name).lower() in {"1", "true", "yes", "on"}
+    value = _env(env, name)
+    normalized_value = value.strip().lower()
+    if normalized_value in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_value in {"", "0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"Unsupported GB10 boolean setting {name}={value}. "
+        "Use 1, 0, true, false, yes, no, on, or off."
+    )
 
 
 def _env_json_string_list(env: Mapping[str, str], name: str) -> list[str]:
@@ -905,7 +914,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    manifest = write_manifest(args.gb10_output_json)
+    try:
+        manifest = write_manifest(args.gb10_output_json)
+    except ValueError as exc:
+        print(f"GB10 release manifest input error: {exc}")
+        raise SystemExit(1) from exc
     print(f"GB10 release manifest written to {args.gb10_output_json}")
     if args.gb10_validate_release_inputs:
         errors = validate_manifest(manifest)

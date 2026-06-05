@@ -2265,6 +2265,89 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     }
 
 
+def test_gb10_release_manifest_rejects_invalid_boolean_inputs_before_write(
+    tmp_path,
+):
+    manifest = _load_gb10_release_manifest_module()
+    env = {
+        "GITHUB_WORKFLOW": "GB10 vLLM wheel and image",
+        "GITHUB_REPOSITORY": "gardner/vllm",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_REF": "refs/tags/gb10-vllm-v0.22.1rc0-abcdef123",
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GITHUB_RUN_ID": "12345",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GB10_RELEASE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_IMAGE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+        "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
+        "GB10_PREBUILT_WHEEL_URLS": " ".join(
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+            for wheel in FLASHINFER_RELEASE_WHEELS
+        ),
+        "GB10_FLASH_ATTN_REPO": "https://github.com/gardner/vllm-flash-attention.git",
+        "GB10_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_PUSH_IMAGE": "true",
+        "GB10_PREFLIGHT_ONLY": "true",
+        "GB10_MAX_JOBS": "1",
+        "GB10_NVCC_THREADS": "1",
+        "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
+        "GB10_RUNNER_LABELS": json.dumps(
+            ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
+        ),
+        **GB10_RELEASE_CACHE_REF_ENV,
+        "VLLM_USE_LOCAL_GB10_DEPS": "0",
+    }
+
+    for name, bad_value in (
+        ("GB10_PREFLIGHT_ONLY", "ture"),
+        ("GB10_PUSH_IMAGE", "maybe"),
+        ("GB10_NATIVE_CUDA_ARCHS_ONLY", "enabled"),
+        ("VLLM_USE_LOCAL_GB10_DEPS", "flase"),
+    ):
+        output_path = tmp_path / f"{name}.json"
+        invalid_env = {**env, name: bad_value}
+
+        with pytest.raises(ValueError, match=f"{name}={bad_value}"):
+            manifest.write_manifest(output_path, env=invalid_env)
+
+        assert not output_path.exists()
+
+
+def test_gb10_release_manifest_cli_rejects_invalid_boolean_without_traceback(
+    tmp_path,
+):
+    manifest_script = REPO_ROOT / "scripts" / "gb10-write-release-manifest.py"
+    output_path = tmp_path / "gb10-release-manifest.json"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(manifest_script),
+            "--gb10-output-json",
+            str(output_path),
+            "--gb10-validate-release-inputs",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_PUSH_IMAGE": "maybe",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "Unsupported GB10 boolean setting GB10_PUSH_IMAGE=maybe" in proc.stdout
+    assert "Traceback" not in proc.stdout
+    assert not output_path.exists()
+
+
 def test_gb10_required_support_matrix_contract_is_shared():
     smoke = _load_gb10_smoke_module()
     manifest = _load_gb10_release_manifest_module()
