@@ -20,8 +20,16 @@ from gb10_release_contract import (
 )
 
 
-def _parse_bool(value: str) -> bool:
-    return value.lower() in {"1", "true", "yes", "on"}
+def _parse_bool(name: str, value: str) -> bool:
+    normalized_value = value.strip().lower()
+    if normalized_value in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_value in {"", "0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"Unsupported GB10 boolean setting {name}={value}. "
+        "Use 1, 0, true, false, yes, no, on, or off."
+    )
 
 
 def _mapping_value(mapping: Any, key: str) -> Any:
@@ -60,7 +68,7 @@ def write_runtime_image_provenance(
     image_digest_path = (
         release_manifest_dir / VLLM_RELEASE_ASSET_FILES["runtime_image_digest"]
     )
-    image_ref_path.write_text(f"{image_ref}\n", encoding="utf-8")
+    image_ref_path.unlink(missing_ok=True)
     image_digest_path.unlink(missing_ok=True)
 
     try:
@@ -84,6 +92,8 @@ def write_runtime_image_provenance(
             errors.append(
                 "GB10 pushed runtime image metadata did not include a digest."
             )
+        else:
+            image_ref_path.write_text(f"{image_ref}\n", encoding="utf-8")
         return errors
 
     if not SHA256_DIGEST_RE.fullmatch(image_digest):
@@ -93,6 +103,7 @@ def write_runtime_image_provenance(
         )
         return errors
 
+    image_ref_path.write_text(f"{image_ref}\n", encoding="utf-8")
     image_digest_path.write_text(f"{image_digest}\n", encoding="utf-8")
     return errors
 
@@ -136,12 +147,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    try:
+        push_image = _parse_bool("--gb10-push-image", args.gb10_push_image)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 1
     errors = write_runtime_image_provenance(
         runtime_image_metadata_json=args.gb10_runtime_image_metadata_json,
         release_manifest_dir=args.gb10_release_manifest_dir,
         image_name=args.gb10_image_name,
         image_tag=args.gb10_image_tag,
-        push_image=_parse_bool(args.gb10_push_image),
+        push_image=push_image,
     )
     if errors:
         for error in errors:

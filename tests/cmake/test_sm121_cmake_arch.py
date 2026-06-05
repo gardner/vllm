@@ -1393,8 +1393,10 @@ def test_gb10_runtime_image_provenance_writer_rejects_missing_pushed_digest(
     metadata_json = tmp_path / "buildx-runtime-image-metadata.json"
     manifest_dir = tmp_path / "gb10-release-manifest"
     metadata_json.write_text(json.dumps({"image": {}}) + "\n", encoding="utf-8")
+    stale_ref = manifest_dir / "gb10-runtime-image-ref.txt"
     stale_digest = manifest_dir / "gb10-runtime-image-digest.txt"
     manifest_dir.mkdir()
+    stale_ref.write_text("ghcr.io/gardner/vllm-gb10:stale\n", encoding="utf-8")
     stale_digest.write_text("sha256:" + "b" * 64 + "\n", encoding="utf-8")
 
     errors = writer.write_runtime_image_provenance(
@@ -1406,10 +1408,69 @@ def test_gb10_runtime_image_provenance_writer_rejects_missing_pushed_digest(
     )
 
     assert errors == ["GB10 pushed runtime image metadata did not include a digest."]
+    assert not stale_ref.exists()
+    assert not stale_digest.exists()
+
+
+def test_gb10_runtime_image_provenance_writer_allows_loaded_image_without_digest(
+    tmp_path,
+):
+    writer = _load_gb10_runtime_image_provenance_module()
+    metadata_json = tmp_path / "buildx-runtime-image-metadata.json"
+    manifest_dir = tmp_path / "gb10-release-manifest"
+    metadata_json.write_text(json.dumps({"image": {}}) + "\n", encoding="utf-8")
+
+    errors = writer.write_runtime_image_provenance(
+        runtime_image_metadata_json=metadata_json,
+        release_manifest_dir=manifest_dir,
+        image_name="vllm-gb10",
+        image_tag="gb10-test",
+        push_image=False,
+    )
+
+    assert errors == []
     assert (
         manifest_dir / "gb10-runtime-image-ref.txt"
-    ).read_text() == "ghcr.io/gardner/vllm-gb10:gb10-test\n"
-    assert not stale_digest.exists()
+    ).read_text() == "vllm-gb10:gb10-test\n"
+    assert not (manifest_dir / "gb10-runtime-image-digest.txt").exists()
+
+
+def test_gb10_runtime_image_provenance_cli_rejects_invalid_push_flag(
+    tmp_path,
+):
+    provenance_script = REPO_ROOT / "scripts" / "gb10-write-runtime-image-provenance.py"
+    metadata_json = tmp_path / "buildx-runtime-image-metadata.json"
+    manifest_dir = tmp_path / "gb10-release-manifest"
+    metadata_json.write_text(json.dumps({"image": {}}) + "\n", encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(provenance_script),
+            "--gb10-runtime-image-metadata-json",
+            str(metadata_json),
+            "--gb10-release-manifest-dir",
+            str(manifest_dir),
+            "--gb10-image-name",
+            "ghcr.io/gardner/vllm-gb10",
+            "--gb10-image-tag",
+            "gb10-test",
+            "--gb10-push-image",
+            "maybe",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "Unsupported GB10 boolean setting --gb10-push-image=maybe" in proc.stdout
+    assert "Traceback" not in proc.stdout
+    assert not (manifest_dir / "gb10-runtime-image-ref.txt").exists()
+    assert not (manifest_dir / "gb10-runtime-image-digest.txt").exists()
 
 
 def test_gb10_runtime_image_provenance_writer_rejects_malformed_digest(
@@ -1436,9 +1497,7 @@ def test_gb10_runtime_image_provenance_writer_rejects_malformed_digest(
         "GB10 runtime image metadata digest is not a valid sha256 digest: "
         "sha256:not-a-digest"
     ]
-    assert (
-        manifest_dir / "gb10-runtime-image-ref.txt"
-    ).read_text() == "ghcr.io/gardner/vllm-gb10:gb10-test\n"
+    assert not (manifest_dir / "gb10-runtime-image-ref.txt").exists()
     assert not (manifest_dir / "gb10-runtime-image-digest.txt").exists()
 
 
