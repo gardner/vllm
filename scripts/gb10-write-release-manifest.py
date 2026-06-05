@@ -831,6 +831,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "processor correctness evidence exists."
                 ),
             },
+            "prompt_embeds_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Prompt embeds input handling changes request input "
+                    "batching and embedding handling outside the validated "
+                    "GB10 first release serving path. It must reject until "
+                    "native SM12x prompt-embeds correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

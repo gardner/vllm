@@ -130,6 +130,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
+    "prompt_embeds_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2581,6 +2582,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["prompt_embeds_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8926,6 +8930,16 @@ def test_gb10_custom_logits_processors_runtime_is_reported():
     assert "native SM12x custom logits processor correctness" in vllm_config
 
 
+def test_gb10_prompt_embeds_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE" in vllm_config
+    assert "prompt embeds runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--enable-prompt-embeds" in vllm_config
+    assert "model_config.enable_prompt_embeds" in vllm_config
+    assert "native SM12x prompt-embeds correctness" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10994,6 +11008,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "prompt_embeds_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "prompt embeds input handling lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11762,6 +11784,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
+                "prompt_embeds_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -12008,6 +12031,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "online_int8_moe_quantization",
         "online_mxfp4_quantization",
         "online_mxfp8_quantization",
+        "prompt_embeds_runtime",
         "public_flashattention_mla_runtime",
         "public_flashattention_runtime",
         "public_fp8_quantization",

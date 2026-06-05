@@ -176,6 +176,14 @@ _GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE = (
     "native SM12x custom logits processor correctness and runtime evidence "
     "exists."
 )
+_GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE = (
+    "prompt embeds runtime is not supported on GB10/SM12x in this fork: "
+    "--enable-prompt-embeds and direct model_config.enable_prompt_embeds "
+    "enable a prompt_embeds input path that changes request input batching "
+    "and embedding handling outside the validated native first-path NVFP4 "
+    "serving release. Disable prompt embeds on GB10 until "
+    "native SM12x prompt-embeds correctness and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -1029,6 +1037,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.enable_prompt_embeds
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 
