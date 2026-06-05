@@ -22,6 +22,7 @@ from vllm.model_executor.layers.quantization.base_config import (
 )
 from vllm.model_executor.layers.quantization.utils.quant_utils import is_layer_skipped
 from vllm.model_executor.parameter import GroupQuantScaleParameter, PackedvLLMParameter
+from vllm.platforms import current_platform
 from vllm.transformers_utils.config import get_safetensors_params_metadata
 
 if TYPE_CHECKING:
@@ -29,6 +30,39 @@ if TYPE_CHECKING:
     from vllm.model_executor.models.utils import WeightsMapper
 
 logger = init_logger(__name__)
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_awq_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "AWQ quantization is not supported on GB10/SM12x. The "
+        "awq and awq_marlin quantization methods can select AWQLinearMethod, "
+        "AWQMarlinLinearMethod, AWQMarlinMoEMethod, or MoeWNA16Config "
+        "fallback handling today, but this is not native GB10 AWQ correctness "
+        "evidence. Use a validated GB10 AWQ path after native SM12x "
+        "correctness evidence exists, or keep --quantization awq and "
+        "--quantization awq_marlin unselected."
+    )
 
 
 class AWQConfig(QuantizationConfig):
@@ -45,6 +79,8 @@ class AWQConfig(QuantizationConfig):
         modules_to_not_convert: list[str] | None = None,
     ) -> None:
         super().__init__()
+        if reason := _gb10_awq_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.weight_bits = weight_bits
         self.group_size = group_size
         self.zero_point = zero_point

@@ -73,6 +73,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "deepseek_v4_fp8_quantization": "not_supported",
     "torchao_fp8_activation_quantization": "not_supported",
     "bitsandbytes_quantization": "not_supported",
+    "awq_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2354,6 +2355,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["bitsandbytes_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["awq_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
@@ -5083,6 +5087,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "bitsandbytes.py"
     ).read_text()
+    awq_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "awq.py"
+    ).read_text()
+    awq_marlin_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "awq_marlin.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5233,6 +5245,16 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "bitsandbytes 8-bit matmul kernels" in bitsandbytes_quant
     assert "BitsAndBytesMoEMethod" in bitsandbytes_quant
     assert "not supported on GB10/SM12x" in bitsandbytes_quant
+    assert "_gb10_awq_quantization_unsupported_reason" in awq_quant
+    assert "AWQ quantization" in awq_quant
+    assert "awq and awq_marlin quantization methods" in awq_quant
+    assert "AWQLinearMethod" in awq_quant
+    assert "AWQMarlinLinearMethod" in awq_quant
+    assert "AWQMarlinMoEMethod" in awq_quant
+    assert "MoeWNA16Config" in awq_quant
+    assert "not supported on GB10/SM12x" in awq_quant
+    assert "_gb10_awq_quantization_unsupported_reason" in awq_marlin_quant
+    assert "AWQMarlinConfig" in awq_marlin_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -6152,6 +6174,67 @@ def test_gb10_bitsandbytes_quantization_rejects_sm12x(monkeypatch):
     assert isinstance(
         bitsandbytes.BitsAndBytesConfig(load_in_8bit=True, load_in_4bit=False),
         bitsandbytes.BitsAndBytesConfig,
+    )
+
+
+def test_gb10_awq_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import awq, awq_marlin
+
+    monkeypatch.setattr(
+        awq,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for construct_config in (
+        lambda: awq.AWQConfig(weight_bits=4, group_size=128, zero_point=True),
+        lambda: awq.AWQConfig.from_config(
+            {
+                "quant_method": "awq",
+                "bits": 4,
+                "group_size": 128,
+                "zero_point": True,
+            }
+        ),
+        lambda: awq_marlin.AWQMarlinConfig(
+            weight_bits=4,
+            group_size=128,
+            zero_point=True,
+            lm_head_quantized=False,
+            modules_to_not_convert=[],
+            full_config={
+                "quant_method": "awq",
+                "bits": 4,
+                "group_size": 128,
+                "zero_point": True,
+            },
+        ),
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            construct_config()
+
+        reason = str(exc_info.value)
+        assert "AWQ quantization" in reason
+        assert "awq and awq_marlin quantization methods" in reason
+        assert "AWQLinearMethod" in reason
+        assert "AWQMarlinLinearMethod" in reason
+        assert "AWQMarlinMoEMethod" in reason
+        assert "MoeWNA16Config" in reason
+        assert "native GB10 AWQ correctness evidence" in reason
+
+    monkeypatch.setattr(
+        awq,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert awq._gb10_awq_quantization_unsupported_reason() is None
+    assert isinstance(
+        awq.AWQConfig(weight_bits=4, group_size=128, zero_point=True),
+        awq.AWQConfig,
     )
 
 
@@ -8809,6 +8892,16 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "handling without native GB10 BitsAndBytes evidence"
                     ),
                 },
+                "awq_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "AWQ quantization can select AWQ dense kernels, "
+                        "AWQ-Marlin dense kernels, AWQ-Marlin MoE, or Moe "
+                        "WNA16 fallback handling without native GB10 AWQ "
+                        "evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9262,6 +9355,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "deepseek_v4_fp8_quantization": {"status": "not_supported"},
                 "torchao_fp8_activation_quantization": {"status": "not_supported"},
                 "bitsandbytes_quantization": {"status": "not_supported"},
+                "awq_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9395,6 +9489,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert checks_by_name["unsupported_paths_reported"]["details"][
         "reported_not_supported_entries"
     ] == [
+        "awq_quantization",
         "bitsandbytes_quantization",
         "compressed_tensors_w4a16_nvfp4_loading",
         "compressed_tensors_w4a4_mxfp4_dense_loading",

@@ -454,6 +454,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "awq_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "AWQ quantization can select AWQ dense kernels, "
+                    "AWQ-Marlin dense kernels, AWQ-Marlin MoE, and Moe WNA16 "
+                    "fallback handling today and must reject on GB10/SM12x "
+                    "until native GB10 AWQ correctness evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

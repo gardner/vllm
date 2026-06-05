@@ -38,7 +38,10 @@ from vllm.model_executor.layers.linear import (
     UnquantizedLinearMethod,
     set_weight_attrs,
 )
-from vllm.model_executor.layers.quantization.awq import AWQConfig
+from vllm.model_executor.layers.quantization.awq import (
+    AWQConfig,
+    _gb10_awq_quantization_unsupported_reason,
+)
 from vllm.model_executor.layers.quantization.base_config import (
     QuantizationConfig,
     QuantizeMethodBase,
@@ -184,6 +187,8 @@ class AWQMarlinConfig(QuantizationConfig):
         full_config: dict[str, Any],
     ) -> None:
         super().__init__()
+        if reason := _gb10_awq_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.pack_factor = 32 // weight_bits  # packed into int32
         self.group_size = group_size
         self.zero_point = zero_point
