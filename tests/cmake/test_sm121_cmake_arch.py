@@ -3994,6 +3994,40 @@ def test_gb10_local_cached_build_rejects_output_outside_manifest_dir(
     assert not cache_dir.exists()
 
 
+def test_gb10_local_cached_build_rejects_duplicate_release_output_paths(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    manifest_json = manifest_dir / "gb10-release-manifest.json"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_RUNTIME_IMAGE_METADATA_JSON": str(manifest_json),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10 generated release output paths must be unique" in proc.stdout
+    assert "GB10_RELEASE_MANIFEST_JSON" in proc.stdout
+    assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not manifest_json.exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_pushed_non_ghcr_image_before_manifest(
     tmp_path,
 ):
