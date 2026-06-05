@@ -676,6 +676,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "MXFP8 dense and MoE correctness evidence exists."
                 ),
             },
+            "online_int8_moe_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Online Int8 MoE quantization can reach online Int8 MoE "
+                    "backend selection through int8_per_channel_weight_only "
+                    "today and must reject on GB10/SM12x until native GB10 "
+                    "online Int8 MoE correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w8a8_mxfp8_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (

@@ -96,6 +96,10 @@ def _spec_uses_mxfp8_weight(spec: QuantSpec | None) -> bool:
     return spec is not None and spec.weight == kMxfp8Dynamic
 
 
+def _spec_uses_int8_moe_weight(spec: QuantSpec | None) -> bool:
+    return spec is not None and spec.weight == kInt8StaticChannelSym
+
+
 def _gb10_online_fp8_quantization_unsupported_reason(
     args: QuantizationConfigArgs,
 ) -> str | None:
@@ -132,6 +136,23 @@ def _gb10_online_mxfp8_quantization_unsupported_reason(
     )
 
 
+def _gb10_online_int8_moe_quantization_unsupported_reason(
+    args: QuantizationConfigArgs,
+) -> str | None:
+    if not _is_sm12x_device():
+        return None
+    if not _spec_uses_int8_moe_weight(args.moe):
+        return None
+    return (
+        "Online Int8 MoE quantization is not supported on GB10/SM12x. The "
+        "int8_per_channel_weight_only shorthand can reach online Int8 MoE "
+        "backend selection today, but this is not native GB10 online Int8 MoE "
+        "correctness evidence. Use a native SM12x online Int8 MoE path after "
+        "correctness evidence exists, or keep --quantization "
+        "int8_per_channel_weight_only unselected."
+    )
+
+
 class OnlineQuantizationConfig(QuantizationConfig):
     """Model-level config for online quantization (quantize fp16/bf16 weights
     during model loading, without requiring a pre-quantized checkpoint)."""
@@ -150,6 +171,8 @@ class OnlineQuantizationConfig(QuantizationConfig):
         if reason := _gb10_online_fp8_quantization_unsupported_reason(args):
             raise ValueError(reason)
         if reason := _gb10_online_mxfp8_quantization_unsupported_reason(args):
+            raise ValueError(reason)
+        if reason := _gb10_online_int8_moe_quantization_unsupported_reason(args):
             raise ValueError(reason)
         self.args = args
         self.ignored_layers: list[str] = args.ignore

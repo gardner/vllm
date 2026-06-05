@@ -106,6 +106,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "fp_quant_fp4_quantization": "not_supported",
     "online_fp8_quantization": "not_supported",
     "online_mxfp8_quantization": "not_supported",
+    "online_int8_moe_quantization": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
     "compressed_tensors_w8a8_mxfp8_moe_loading": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -2460,6 +2461,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["online_mxfp8_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["online_int8_moe_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["compressed_tensors_w8a8_mxfp8_dense_loading"][
@@ -5243,6 +5247,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "FlashInfer CUTLASS MXFP8 dense" in online_quant_base
     assert "generic MXFP8 MoE backend selection" in online_quant_base
     assert "not supported on GB10/SM12x" in online_quant_base
+    assert "_gb10_online_int8_moe_quantization_unsupported_reason" in (
+        online_quant_base
+    )
+    assert "Online Int8 MoE quantization" in online_quant_base
+    assert "backend selection today" in online_quant_base
+    assert "not supported on GB10/SM12x" in online_quant_base
     assert "_gb10_fbgemm_fp8_quantization_unsupported_reason" in fbgemm_fp8_quant
     assert "FBGEMM FP8 quantization" in fbgemm_fp8_quant
     assert "deprecated public quantization method" in fbgemm_fp8_quant
@@ -6064,6 +6074,49 @@ def test_gb10_online_fp8_quantization_rejects_sm12x(monkeypatch):
     assert isinstance(
         online_base.OnlineQuantizationConfig(
             QuantizationConfigArgs(moe=QuantSpec(weight=kInt8StaticChannelSym))
+        ),
+        online_base.OnlineQuantizationConfig,
+    )
+
+
+def test_gb10_online_int8_moe_quantization_rejects_sm12x(monkeypatch):
+    from vllm.config.quantization import QuantizationConfigArgs, QuantSpec
+    from vllm.model_executor.layers.quantization.online import base as online_base
+    from vllm.model_executor.layers.quantization.utils.quant_utils import (
+        kInt8StaticChannelSym,
+        kMxfp8Dynamic,
+    )
+
+    monkeypatch.setattr(
+        online_base,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    args = QuantizationConfigArgs(moe=QuantSpec(weight=kInt8StaticChannelSym))
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        online_base.OnlineQuantizationConfig(args)
+
+    reason = str(exc_info.value)
+    assert "Online Int8 MoE quantization" in reason
+    assert "int8_per_channel_weight_only" in reason
+    assert "Int8 MoE backend selection" in reason
+    assert "native GB10 online Int8 MoE correctness evidence" in reason
+
+    monkeypatch.setattr(
+        online_base,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert (
+        online_base._gb10_online_int8_moe_quantization_unsupported_reason(args)
+        is None
+    )
+    assert isinstance(
+        online_base.OnlineQuantizationConfig(
+            QuantizationConfigArgs(moe=QuantSpec(weight=kMxfp8Dynamic))
         ),
         online_base.OnlineQuantizationConfig,
     )
@@ -9712,6 +9765,16 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "without native GB10 evidence"
                     ),
                 },
+                "online_int8_moe_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Online Int8 MoE quantization can select online Int8 "
+                        "MoE backend selection through "
+                        "int8_per_channel_weight_only without native GB10 "
+                        "evidence"
+                    ),
+                },
                 "compressed_tensors_w8a8_mxfp8_dense_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10059,6 +10122,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "fp_quant_fp4_quantization": {"status": "not_supported"},
                 "online_fp8_quantization": {"status": "not_supported"},
                 "online_mxfp8_quantization": {"status": "not_supported"},
+                "online_int8_moe_quantization": {"status": "not_supported"},
                 "compressed_tensors_w8a8_mxfp8_dense_loading": {
                     "status": "not_supported"
                 },
@@ -10215,6 +10279,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "mxfp8_dense_fallback",
         "mxfp8_moe_fallback",
         "online_fp8_quantization",
+        "online_int8_moe_quantization",
         "online_mxfp8_quantization",
         "public_flashattention_runtime",
         "public_fp8_quantization",
