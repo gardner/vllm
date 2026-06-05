@@ -34,6 +34,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
     "flashmla_sparse_attention": "supported_native",
+    "flashinfer_mamba_ssu": "supported_native",
     "flashinfer_gdn_prefill": "supported_native",
     "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
     "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
@@ -54,6 +55,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "public_flashattention_mla_runtime": "not_supported",
     "cutlass_mla_sm100_fallback": "not_supported",
     "tokenspeed_mla_cutedsl_fallback": "not_supported",
+    "triton_mamba_ssu_fallback": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -222,6 +224,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "tokenspeed_mla_cutedsl_fallback": (
         "TokenSpeed CuTe DSL MLA can prove SM100-family MLA reachability, but "
         "it is not native GB10 MLA correctness, artifact, or runtime evidence."
+    ),
+    "triton_mamba_ssu_fallback": (
+        "Triton Mamba selective-state-update can prove fallback reachability, "
+        "but it is not native GB10 Mamba SSU correctness, artifact, or runtime "
+        "evidence; use the native FlashInfer SM12x Mamba SSU backend."
     ),
     "gdn_prefill_triton_fallback": (
         "GDN prefill Triton/FLA fallback can prove reachability, but it is not "

@@ -14,6 +14,7 @@ import torch
 
 from vllm.config.mamba import MambaBackendEnum, MambaConfig
 from vllm.logger import init_logger
+from vllm.platforms import current_platform
 from vllm.v1.attention.backends.registry import MambaAttentionBackendEnum
 from vllm.v1.attention.backends.utils import NULL_BLOCK_ID
 from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec
@@ -190,6 +191,42 @@ _BACKEND_REGISTRY: dict[MambaBackendEnum, type[MambaSSUBackend]] = {
 _mamba_ssu_backend: MambaSSUBackend | None = None
 
 
+_MAMBA_SSU_TYPES = (
+    MambaAttentionBackendEnum.MAMBA1,
+    MambaAttentionBackendEnum.MAMBA2,
+)
+
+
+def _kv_cache_requires_mamba_ssu(kv_cache_config: KVCacheConfig) -> bool:
+    return any(
+        isinstance(g.kv_cache_spec, MambaSpec)
+        and g.kv_cache_spec.mamba_type in _MAMBA_SSU_TYPES
+        for g in kv_cache_config.kv_cache_groups
+    )
+
+
+def _is_sm12x_cuda_platform() -> bool:
+    return (
+        current_platform.is_cuda()
+        and current_platform.is_device_capability_family(120)
+    )
+
+
+def _gb10_mamba_ssu_unsupported_reason(
+    backend: MambaBackendEnum,
+) -> str | None:
+    if not _is_sm12x_cuda_platform():
+        return None
+    if backend == MambaBackendEnum.TRITON:
+        return (
+            "Triton Mamba SSU backend is not supported on GB10/SM12x because "
+            "it is not native GB10 Mamba selective-state-update correctness, "
+            "artifact, or runtime evidence. Set --mamba-backend flashinfer "
+            "to use validated FlashInfer SM12x Mamba SSU."
+        )
+    return None
+
+
 def initialize_mamba_ssu_backend(
     mamba_config: MambaConfig,
     kv_cache_config: KVCacheConfig,
@@ -199,12 +236,7 @@ def initialize_mamba_ssu_backend(
     No-op if `kv_cache_config` contains no specs that call
     selective_state_update.
     """
-    if not any(
-        isinstance(g.kv_cache_spec, MambaSpec)
-        and g.kv_cache_spec.mamba_type
-        in (MambaAttentionBackendEnum.MAMBA1, MambaAttentionBackendEnum.MAMBA2)
-        for g in kv_cache_config.kv_cache_groups
-    ):
+    if not _kv_cache_requires_mamba_ssu(kv_cache_config):
         return
 
     global _mamba_ssu_backend
@@ -215,6 +247,9 @@ def initialize_mamba_ssu_backend(
             f"Unknown Mamba SSU backend: {backend}. "
             f"Valid options: {list(_BACKEND_REGISTRY.keys())}"
         )
+
+    if reason := _gb10_mamba_ssu_unsupported_reason(backend):
+        raise ValueError(reason)
 
     backend_cls = _BACKEND_REGISTRY[backend]
     if isinstance(_mamba_ssu_backend, backend_cls):

@@ -60,6 +60,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
     "flashmla_sparse_attention": "supported_native",
+    "flashinfer_mamba_ssu": "supported_native",
     "flashinfer_gdn_prefill": "supported_native",
     "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
     "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
@@ -80,6 +81,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "public_flashattention_mla_runtime": "not_supported",
     "cutlass_mla_sm100_fallback": "not_supported",
     "tokenspeed_mla_cutedsl_fallback": "not_supported",
+    "triton_mamba_ssu_fallback": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -2393,6 +2395,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["flashmla_sparse_attention"]["status"] == (
         "supported_native"
     )
+    assert support_matrix["entries"]["flashinfer_mamba_ssu"]["status"] == (
+        "supported_native"
+    )
     assert support_matrix["entries"]["flashinfer_gdn_prefill"]["status"] == (
         "supported_native"
     )
@@ -2426,6 +2431,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["tokenspeed_mla_cutedsl_fallback"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["triton_mamba_ssu_fallback"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["gdn_prefill_triton_fallback"]["status"] == (
         "not_supported"
     )
@@ -8652,6 +8660,24 @@ def test_gb10_gdn_prefill_fallbacks_are_reported():
     assert "not native GB10 GDN prefill correctness evidence" in gdn_prefill
 
 
+def test_gb10_mamba_ssu_backend_selection_is_reported():
+    mamba_ssu = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "ops"
+        / "ssu_dispatch.py"
+    ).read_text()
+
+    assert "_gb10_mamba_ssu_unsupported_reason" in mamba_ssu
+    assert "Triton Mamba SSU backend is not supported on GB10/SM12x" in mamba_ssu
+    assert "validated FlashInfer SM12x Mamba SSU" in mamba_ssu
+    assert "MambaAttentionBackendEnum.MAMBA1" in mamba_ssu
+    assert "MambaAttentionBackendEnum.MAMBA2" in mamba_ssu
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10516,6 +10542,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "TokenSpeed CuTe DSL MLA lacks native GB10 evidence",
                 },
+                "triton_mamba_ssu_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Triton Mamba SSU lacks native GB10 evidence",
+                },
                 "gdn_prefill_triton_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11271,6 +11302,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "flashinfer_cutlass_non_ep_moe": {"status": "supported_native"},
                 "flashmla_attention": {"status": "supported_native"},
                 "flashmla_sparse_attention": {"status": "supported_native"},
+                "flashinfer_mamba_ssu": {"status": "supported_native"},
                 "flashinfer_gdn_prefill": {"status": "supported_native"},
                 "gb10_attention_trtllm_gen_to_flashinfer_fa2": {
                     "status": "supported_routed"
@@ -11297,6 +11329,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "public_flashattention_mla_runtime": {"status": "not_supported"},
                 "cutlass_mla_sm100_fallback": {"status": "not_supported"},
                 "tokenspeed_mla_cutedsl_fallback": {"status": "not_supported"},
+                "triton_mamba_ssu_fallback": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
                 "mm_encoder_fp8_attention": {"status": "not_supported"},
@@ -11577,6 +11610,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "torchao_weight_quantization",
         "triton_attention_fallback",
         "triton_fp8_moe",
+        "triton_mamba_ssu_fallback",
         "triton_mla_fallback",
         "trtllm_gen_attention",
         "trtllm_gen_moe",

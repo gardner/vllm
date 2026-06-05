@@ -332,6 +332,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "to native SM121A FlashMLA sparse kernels where selected."
                 ),
             },
+            "flashinfer_mamba_ssu": {
+                "status": "supported_native",
+                "release_contract": (
+                    "GB10 Mamba selective-state-update must use native "
+                    "FlashInfer SM12x kernels when Mamba1 or Mamba2 SSU "
+                    "models are selected; Triton fallback is a separate Not "
+                    "Supported entry."
+                ),
+            },
             "flashinfer_gdn_prefill": {
                 "status": "supported_native",
                 "release_contract": (
@@ -480,6 +489,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "reachability, but it cannot satisfy native GB10 MLA "
                     "release evidence until native SM121A correctness, "
                     "artifact, and runtime evidence exists."
+                ),
+            },
+            "triton_mamba_ssu_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Triton Mamba selective-state-update can prove fallback "
+                    "reachability, but it cannot satisfy native GB10 Mamba "
+                    "SSU release evidence. GB10 Mamba1 and Mamba2 SSU must "
+                    "use native FlashInfer SM12x kernels."
                 ),
             },
             "gdn_prefill_triton_fallback": {
