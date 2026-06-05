@@ -5838,6 +5838,70 @@ def test_gb10_compressed_tensors_w4a8_fp8_rejects_sm12x(monkeypatch):
     )
 
 
+def test_gb10_compressed_tensors_w4a8_fp8_sm90_dense_rejects_first(monkeypatch):
+    from compressed_tensors import CompressionFormat
+    from compressed_tensors.quantization import (
+        QuantizationArgs,
+        QuantizationStrategy,
+        QuantizationType,
+    )
+
+    from vllm.model_executor.layers.quantization.compressed_tensors import (
+        compressed_tensors,
+        utils,
+    )
+
+    weight_quant = QuantizationArgs(
+        num_bits=4,
+        type=QuantizationType.FLOAT,
+        strategy=QuantizationStrategy.GROUP,
+        symmetric=True,
+        dynamic=False,
+        group_size=128,
+    )
+    input_quant = QuantizationArgs(
+        num_bits=8,
+        type=QuantizationType.FLOAT,
+        strategy=QuantizationStrategy.TOKEN,
+        symmetric=True,
+        dynamic=True,
+    )
+    config = compressed_tensors.CompressedTensorsConfig(
+        target_scheme_map={},
+        ignore=[],
+        quant_format=CompressionFormat.float_quantized.value,
+    )
+
+    constructed = []
+
+    class ConstructedW4A8Fp8Scheme:
+        def __init__(self, **kwargs):
+            constructed.append(kwargs)
+
+    monkeypatch.setattr(utils, "_is_sm12x_device", lambda: True, raising=False)
+    monkeypatch.setattr(
+        compressed_tensors.CompressedTensorsConfig,
+        "_is_fp8_w4a8_sm90",
+        staticmethod(lambda weight_quant, input_quant: True),
+    )
+    monkeypatch.setattr(
+        compressed_tensors,
+        "CompressedTensorsW4A8Fp8",
+        ConstructedW4A8Fp8Scheme,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        config._get_scheme_from_parts(
+            weight_quant,
+            input_quant,
+            format=CompressionFormat.float_quantized.value,
+        )
+
+    assert not constructed
+    assert "CompressedTensors W4A8 FP8 checkpoint loading" in str(exc_info.value)
+    assert "exact-SM90 CUTLASS W4A8" in str(exc_info.value)
+
+
 def test_gb10_compressed_tensors_w4a8_int_rejects_dense_sm12x(monkeypatch):
     from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
         compressed_tensors_w4a8_int,
