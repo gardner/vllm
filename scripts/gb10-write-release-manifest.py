@@ -883,9 +883,16 @@ def write_manifest(
     output_path: str | Path,
     env: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
+    remove_stale_manifest_file(output_path)
     manifest = build_manifest(env)
     write_manifest_file(output_path, manifest)
     return manifest
+
+
+def remove_stale_manifest_file(output_path: str | Path) -> None:
+    path = Path(output_path)
+    if path.is_file() or path.is_symlink():
+        path.unlink()
 
 
 def write_manifest_file(
@@ -921,6 +928,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    remove_stale_manifest_file(args.gb10_output_json)
     try:
         manifest = build_manifest()
     except ValueError as exc:
