@@ -96,6 +96,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "unvalidated_kv_cache_runtime": "not_supported",
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
+    "ubatching_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -382,6 +383,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Distributed KV transfer, disaggregated prefill/decode, and external "
         "KV connector request paths are not validated on GB10/SM12x; reject "
         "them until native SM12x KV transfer correctness evidence exists."
+    ),
+    "ubatching_runtime": (
+        "Dual batch overlap and manual ubatching change scheduler "
+        "microbatching, cascade-attention handling, and DeepEP all-to-all "
+        "assumptions outside the validated GB10 first release path; reject "
+        "them until native SM12x ubatching correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "

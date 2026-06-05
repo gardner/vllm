@@ -755,6 +755,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x KV transfer correctness evidence exists."
                 ),
             },
+            "ubatching_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Dual batch overlap and manual ubatching change scheduler "
+                    "microbatching, cascade-attention handling, and DeepEP "
+                    "all-to-all assumptions outside the validated GB10 first "
+                    "release path. They must reject until native SM12x "
+                    "ubatching correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

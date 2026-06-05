@@ -288,6 +288,28 @@ def test_vllm_config_allows_kv_offload_off_gb10(monkeypatch):
     assert config.kv_transfer_config.kv_role == "kv_both"
 
 
+@pytest.mark.parametrize(
+    "parallel_config",
+    [
+        ParallelConfig(enable_dbo=True, all2all_backend="deepep_low_latency"),
+        ParallelConfig(ubatch_size=2, all2all_backend="deepep_low_latency"),
+    ],
+)
+def test_gb10_vllm_config_rejects_ubatching_runtime(
+    monkeypatch,
+    parallel_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="ubatching runtime.*GB10/SM12x"):
+        VllmConfig(parallel_config=parallel_config)
+
+
 def test_compile_config_repr_succeeds():
     # setup: VllmBackend mutates the config object
     config = VllmConfig()

@@ -116,6 +116,14 @@ _GB10_KV_OFFLOAD_RUNTIME_MESSAGE = (
     "first-path NVFP4 release. Disable --kv-offloading-size on GB10 until "
     "native SM12x KV offload correctness and runtime evidence exists."
 )
+_GB10_UBATCHING_RUNTIME_MESSAGE = (
+    "ubatching runtime is not supported on GB10/SM12x in this fork: "
+    "dual batch overlap and manual ubatching change scheduler microbatching, "
+    "cascade-attention handling, and DeepEP all-to-all assumptions outside the "
+    "validated native first-path NVFP4 release. Disable --enable-dbo and keep "
+    "--ubatch-size at 0 or 1 on GB10 until native SM12x ubatching correctness "
+    "and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -907,6 +915,9 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_KV_TRANSFER_RUNTIME_MESSAGE)
+
+        if self.parallel_config.use_ubatching and _is_gb10_sm12x_cuda_platform():
+            raise ValueError(_GB10_UBATCHING_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 
