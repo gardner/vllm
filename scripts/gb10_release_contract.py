@@ -102,6 +102,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "ec_transfer_runtime": "not_supported",
     "weight_transfer_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
+    "logprobs_logits_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -422,6 +423,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "bookkeeping outside the validated GB10 first release serving path; "
         "reject it until native SM12x routed-expert capture correctness "
         "evidence exists."
+    ),
+    "logprobs_logits_runtime": (
+        "logprobs_mode raw_logits and processed_logits return full logits "
+        "through sampler and model-runner output paths outside the validated "
+        "GB10 first release serving path; reject them until native SM12x "
+        "logits-return correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "

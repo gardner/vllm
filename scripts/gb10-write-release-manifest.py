@@ -812,6 +812,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x routed-expert capture correctness evidence exists."
                 ),
             },
+            "logprobs_logits_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "logprobs_mode raw_logits and processed_logits return "
+                    "full logits through sampler and model-runner output "
+                    "paths outside the validated GB10 first release serving "
+                    "path. They must reject until native SM12x logits-return "
+                    "correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

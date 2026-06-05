@@ -160,6 +160,14 @@ _GB10_RETURN_ROUTED_EXPERTS_RUNTIME_MESSAGE = (
     "release. Disable --enable-return-routed-experts on GB10 until native "
     "SM12x routed-expert capture correctness and runtime evidence exists."
 )
+_GB10_LOGPROBS_LOGITS_RUNTIME_MESSAGE = (
+    "logprobs logits runtime is not supported on GB10/SM12x in this fork: "
+    "logprobs_mode={logprobs_mode!r} returns raw or processed logits through "
+    "sampler and model-runner output paths that are outside the validated "
+    "native first-path NVFP4 serving release. Use raw_logprobs or "
+    "processed_logprobs on GB10 until native SM12x logits-return correctness "
+    "and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -994,6 +1002,18 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_RETURN_ROUTED_EXPERTS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.runner_type == "generate"
+            and self.model_config.logprobs_mode in ("raw_logits", "processed_logits")
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(
+                _GB10_LOGPROBS_LOGITS_RUNTIME_MESSAGE.format(
+                    logprobs_mode=self.model_config.logprobs_mode
+                )
+            )
 
         self.try_verify_and_update_config()
 
