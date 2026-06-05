@@ -4204,6 +4204,52 @@ def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
     assert manifest["vllm"]["version"] == "0.22.1rc0+gb10.abcdef123456"
 
 
+def test_gb10_local_cached_release_dry_run_prints_release_tag(tmp_path):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    github_sha = "abcdef1234567890abcdef1234567890abcdef12"
+    release_tag = "gb10-vllm-v0.22.1rc0-abcdef123"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_OUTPUT": "push",
+            "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+            "GB10_RELEASE_TAG": release_tag,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": github_sha,
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    assert "GB10 local cached build dry run" in proc.stdout
+    assert f"GB10_RELEASE_TAG={release_tag}" in proc.stdout
+    assert "GB10_PUSH_IMAGE=true" in proc.stdout
+    assert f"GB10_IMAGE_TAG={release_tag}" in proc.stdout
+    assert "GB10_VLLM_VERSION=0.22.1rc0+gb10.abcdef123456" in proc.stdout
+    assert not cache_dir.exists()
+
+    manifest = json.loads((manifest_dir / "gb10-release-manifest.json").read_text())
+    assert manifest["release"]["tag"] == release_tag
+    assert manifest["image"] == {
+        "name": "ghcr.io/gardner/vllm-gb10",
+        "tag": release_tag,
+        "push": True,
+    }
+
+
 def test_gb10_local_cached_release_dry_run_rejects_unpushed_tagged_image(
     tmp_path,
 ):

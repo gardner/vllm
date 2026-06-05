@@ -282,6 +282,7 @@ PY
     echo "registry_cache_refs=$registry_cache_refs_string"
     echo "registry_cache_enabled=$GB10_USE_REGISTRY_CACHE_ENABLED"
     echo "output_mode=$output_mode"
+    echo "GB10_RELEASE_TAG=$GB10_RELEASE_TAG"
     echo "GB10_PREFLIGHT_ONLY=$GB10_PREFLIGHT_ONLY"
     echo "GB10_PUSH_IMAGE=$GB10_PUSH_IMAGE"
     echo "GB10_IMAGE_NAME=$GB10_IMAGE_NAME"
