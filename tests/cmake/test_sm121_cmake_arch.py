@@ -88,6 +88,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "linear_attention_triton_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
+    "reasoning_runtime": "not_supported",
     "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
@@ -2473,6 +2474,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["pooling_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["reasoning_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["gdn_prefill_triton_fallback"]["status"] == (
@@ -8806,6 +8810,16 @@ def test_gb10_pooling_runtime_is_reported():
     assert "native SM12x pooling correctness" in vllm_config
 
 
+def test_gb10_reasoning_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_REASONING_RUNTIME_MESSAGE" in vllm_config
+    assert "reasoning runtime is not supported on GB10/SM12x" in vllm_config
+    assert "self.reasoning_config is not None" in vllm_config
+    assert "reasoning token parsing and output extraction" in vllm_config
+    assert "native SM12x reasoning correctness" in vllm_config
+
+
 def test_gb10_lora_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     punica_gpu = (
@@ -10886,6 +10900,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Pooling runtime lacks native GB10 evidence",
                 },
+                "reasoning_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Reasoning runtime lacks native GB10 evidence",
+                },
                 "lora_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11811,6 +11830,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "linear_attention_triton_runtime": {"status": "not_supported"},
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
+                "reasoning_runtime": {"status": "not_supported"},
                 "lora_runtime": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
@@ -12115,6 +12135,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "quark_w8a8_fp8_moe_loading",
         "quark_w8a8_int8_checkpoint_loading",
         "quark_w8a8_int8_moe_loading",
+        "reasoning_runtime",
         "return_routed_experts_runtime",
         "rocm_aiter_fp8_moe",
         "rocm_aiter_mxfp4_moe",

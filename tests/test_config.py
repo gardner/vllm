@@ -27,6 +27,7 @@ from vllm.config import (
     ModelConfig,
     ParallelConfig,
     PoolerConfig,
+    ReasoningConfig,
     SchedulerConfig,
     SpeculativeConfig,
     VllmConfig,
@@ -176,6 +177,44 @@ def test_vllm_config_allows_pooling_runtime_off_gb10(monkeypatch, runner):
 
     assert config.model_config is model_config
     assert config.model_config.runner_type == "pooling"
+
+
+def test_gb10_vllm_config_rejects_reasoning_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    reasoning_config = ReasoningConfig(
+        reasoning_start_str="<think>",
+        reasoning_end_str="</think>",
+    )
+
+    with pytest.raises(ValueError, match="reasoning runtime.*GB10/SM12x"):
+        VllmConfig(model_config=model_config, reasoning_config=reasoning_config)
+
+
+def test_vllm_config_allows_reasoning_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    reasoning_config = ReasoningConfig(
+        reasoning_start_str="<think>",
+        reasoning_end_str="</think>",
+    )
+
+    config = VllmConfig(model_config=model_config, reasoning_config=reasoning_config)
+
+    assert config.reasoning_config is reasoning_config
+    assert config.reasoning_config.enabled
 
 
 def test_gb10_vllm_config_rejects_lora_runtime(monkeypatch):

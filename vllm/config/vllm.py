@@ -81,6 +81,13 @@ _GB10_POOLING_RUNTIME_MESSAGE = (
     "models on GB10 until native SM12x pooling correctness and runtime "
     "evidence exists."
 )
+_GB10_REASONING_RUNTIME_MESSAGE = (
+    "reasoning runtime is not supported on GB10/SM12x in this fork: "
+    "ReasoningConfig enables reasoning token parsing and output extraction "
+    "outside the validated native first-path NVFP4 serving release. Disable "
+    "reasoning config on GB10 until native SM12x reasoning correctness and "
+    "runtime evidence exists."
+)
 _GB10_LORA_RUNTIME_MESSAGE = (
     "LoRA runtime is not supported on GB10/SM12x in this fork: CUDA Punica "
     "and Triton LoRA adapter runtime paths are not validated for the native "
@@ -1094,6 +1101,9 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_POOLING_RUNTIME_MESSAGE)
+
+        if self.reasoning_config is not None and _is_gb10_sm12x_cuda_platform():
+            raise ValueError(_GB10_REASONING_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

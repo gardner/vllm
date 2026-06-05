@@ -62,6 +62,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "linear_attention_triton_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
+    "reasoning_runtime": "not_supported",
     "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
@@ -287,6 +288,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "embedding, classification, reward, and scoring APIs outside the "
         "validated GB10 first release serving path; reject it on GB10/SM12x "
         "until native SM12x pooling correctness and runtime evidence exists."
+    ),
+    "reasoning_runtime": (
+        "Reasoning runtime changes token parsing and output extraction outside "
+        "the validated GB10 first release serving path; reject it on GB10/SM12x "
+        "until native SM12x reasoning correctness and runtime evidence exists."
     ),
     "lora_runtime": (
         "LoRA runtime uses CUDA Punica and Triton LoRA adapter kernels, "

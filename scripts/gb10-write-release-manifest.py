@@ -557,6 +557,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "pooling correctness and runtime evidence exists."
                 ),
             },
+            "reasoning_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Reasoning runtime changes token parsing and output "
+                    "extraction outside the validated GB10 first release "
+                    "serving path. It must reject on GB10/SM12x until native "
+                    "SM12x reasoning correctness and runtime evidence exists."
+                ),
+            },
             "lora_runtime": {
                 "status": "not_supported",
                 "release_contract": (
