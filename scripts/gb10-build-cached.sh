@@ -136,6 +136,19 @@ if [ "$docker_target" = "vllm-openai" ]; then
     image_tags=(--tag "${GB10_IMAGE_NAME}:${GB10_IMAGE_TAG}")
 fi
 
+VLLM_BUILD_COMMIT="${VLLM_BUILD_COMMIT:-$GITHUB_SHA}"
+VLLM_BUILD_PIPELINE="${VLLM_BUILD_PIPELINE:-${GITHUB_WORKFLOW:-GB10 local cached build}}"
+if [ -z "${VLLM_BUILD_URL:-}" ]; then
+    if [ -n "${GITHUB_RUN_ID:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+        GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
+        VLLM_BUILD_URL="${GITHUB_SERVER_URL%/}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+    else
+        VLLM_BUILD_URL=""
+    fi
+fi
+VLLM_IMAGE_TAG="${VLLM_IMAGE_TAG:-$GB10_IMAGE_TAG}"
+export VLLM_BUILD_COMMIT VLLM_BUILD_PIPELINE VLLM_BUILD_URL VLLM_IMAGE_TAG
+
 mkdir -p "$GB10_LOCAL_RELEASE_MANIFEST_DIR"
 scripts/gb10-write-release-manifest.py \
     --gb10-validate-release-inputs \
@@ -152,6 +165,10 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     echo "GB10_IMAGE_NAME=$GB10_IMAGE_NAME"
     echo "GB10_IMAGE_TAG=$GB10_IMAGE_TAG"
     echo "GB10_VLLM_VERSION=$GB10_VLLM_VERSION"
+    echo "VLLM_BUILD_COMMIT=$VLLM_BUILD_COMMIT"
+    echo "VLLM_BUILD_PIPELINE=$VLLM_BUILD_PIPELINE"
+    echo "VLLM_BUILD_URL=$VLLM_BUILD_URL"
+    echo "VLLM_IMAGE_TAG=$VLLM_IMAGE_TAG"
     echo "GB10_MAX_JOBS=$GB10_MAX_JOBS"
     echo "GB10_NVCC_THREADS=$GB10_NVCC_THREADS"
     echo "GB10_NATIVE_CUDA_ARCHS_ONLY=$GB10_NATIVE_CUDA_ARCHS_ONLY"
@@ -210,6 +227,10 @@ scripts/gb10-run-with-heartbeat.sh "local ${cache_key} build" \
     --build-arg "vllm_version_override=$GB10_VLLM_VERSION" \
     --build-arg "vllm_flash_attn_git_repository=$GB10_FLASH_ATTN_REPO" \
     --build-arg "vllm_flash_attn_git_tag=$GB10_FLASH_ATTN_REF" \
+    --build-arg "VLLM_BUILD_COMMIT=$VLLM_BUILD_COMMIT" \
+    --build-arg "VLLM_BUILD_PIPELINE=$VLLM_BUILD_PIPELINE" \
+    --build-arg "VLLM_BUILD_URL=$VLLM_BUILD_URL" \
+    --build-arg "VLLM_IMAGE_TAG=$VLLM_IMAGE_TAG" \
     .
 build_status=$?
 set -e

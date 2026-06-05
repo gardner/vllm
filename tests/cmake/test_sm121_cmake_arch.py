@@ -3201,6 +3201,21 @@ def test_gb10_local_cached_build_script_validates_manifest_before_buildx():
     assert FLASHINFER_RELEASE_TAG not in script
 
 
+def test_gb10_local_cached_build_script_sets_image_metadata_args():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert 'VLLM_BUILD_COMMIT="${VLLM_BUILD_COMMIT:-$GITHUB_SHA}"' in script
+    assert (
+        'VLLM_BUILD_PIPELINE="${VLLM_BUILD_PIPELINE:-${GITHUB_WORKFLOW:-'
+        "GB10 local cached build}}"
+    ) in script
+    assert 'VLLM_IMAGE_TAG="${VLLM_IMAGE_TAG:-$GB10_IMAGE_TAG}"' in script
+    assert '--build-arg "VLLM_BUILD_COMMIT=$VLLM_BUILD_COMMIT"' in script
+    assert '--build-arg "VLLM_BUILD_PIPELINE=$VLLM_BUILD_PIPELINE"' in script
+    assert '--build-arg "VLLM_BUILD_URL=$VLLM_BUILD_URL"' in script
+    assert '--build-arg "VLLM_IMAGE_TAG=$VLLM_IMAGE_TAG"' in script
+
+
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
     tmp_path,
 ):
