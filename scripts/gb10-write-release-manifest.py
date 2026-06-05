@@ -269,6 +269,24 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "quantization for NVFP4 checkpoints."
                 ),
             },
+            "compressed_tensors_w4a4_nvfp4_dense_loading": {
+                "status": "supported_native",
+                "release_contract": (
+                    "CompressedTensors W4A4 NVFP4 dense checkpoints are "
+                    "allowed on GB10 when runtime backend selection records "
+                    "native FlashInfer b12x or FlashInfer CUTLASS dense "
+                    "NVFP4 evidence."
+                ),
+            },
+            "compressed_tensors_w4a4_nvfp4_moe_loading": {
+                "status": "supported_native",
+                "release_contract": (
+                    "CompressedTensors W4A4 NVFP4 MoE checkpoints are "
+                    "allowed on GB10 when runtime backend selection records "
+                    "native FlashInfer b12x or FlashInfer CUTLASS non-EP "
+                    "NVFP4 MoE evidence."
+                ),
+            },
             "flashinfer_attention_fa2": {
                 "status": "supported_native",
                 "release_contract": (
@@ -858,6 +876,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "CompressedTensors W4A16 NVFP4 loading selects FP4 "
                     "Marlin today and must reject on GB10/SM12x until native "
                     "dense or routed support is validated."
+                ),
+            },
+            "compressed_tensors_w4a16_nvfp4_moe_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W4A16 NVFP4 MoE loading can reach "
+                    "weight-only NVFP4 MoE handling today and must reject on "
+                    "GB10/SM12x until native GB10 W4A16 NVFP4 MoE correctness "
+                    "evidence exists."
                 ),
             },
             "deepseek_v4_deep_gemm_mega_moe": {

@@ -99,8 +99,11 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_fp8_moe_loading": "not_supported",
     "compressed_tensors_w8a8_int_dense_loading": "not_supported",
     "compressed_tensors_w8a8_int_moe_loading": "not_supported",
+    "compressed_tensors_w4a4_nvfp4_dense_loading": "supported_native",
+    "compressed_tensors_w4a4_nvfp4_moe_loading": "supported_native",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
+    "compressed_tensors_w4a16_nvfp4_moe_loading": "not_supported",
     "deepseek_v4_deep_gemm_mega_moe": "deferred",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
@@ -427,6 +430,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CompressedTensors W4A16 NVFP4 loading selects FP4 Marlin today; reject "
         "it on GB10/SM12x until a native dense backend or routed support path "
         "is validated."
+    ),
+    "compressed_tensors_w4a16_nvfp4_moe_loading": (
+        "CompressedTensors W4A16 NVFP4 MoE loading can reach weight-only NVFP4 "
+        "MoE handling today; reject it until native GB10 W4A16 NVFP4 MoE "
+        "correctness evidence exists."
     ),
 }
 

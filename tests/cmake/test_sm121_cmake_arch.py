@@ -125,8 +125,11 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_fp8_moe_loading": "not_supported",
     "compressed_tensors_w8a8_int_dense_loading": "not_supported",
     "compressed_tensors_w8a8_int_moe_loading": "not_supported",
+    "compressed_tensors_w4a4_nvfp4_dense_loading": "supported_native",
+    "compressed_tensors_w4a4_nvfp4_moe_loading": "supported_native",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
+    "compressed_tensors_w4a16_nvfp4_moe_loading": "not_supported",
     "deepseek_v4_deep_gemm_mega_moe": "deferred",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
@@ -2348,6 +2351,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["modelopt_fp4_quantization"]["status"] == (
         "supported_native"
     )
+    assert support_matrix["entries"]["compressed_tensors_w4a4_nvfp4_dense_loading"][
+        "status"
+    ] == "supported_native"
+    assert support_matrix["entries"]["compressed_tensors_w4a4_nvfp4_moe_loading"][
+        "status"
+    ] == "supported_native"
     assert support_matrix["entries"]["flashmla_attention"]["status"] == (
         "supported_native"
     )
@@ -2529,6 +2538,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_w4a16_nvfp4_loading"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["compressed_tensors_w4a16_nvfp4_moe_loading"][
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["trtllm_gen_attention"]["status"] == (
@@ -5075,10 +5087,20 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "schemes" /
         "compressed_tensors_w4a16_nvfp4.py"
     ).read_text()
+    compressed_tensors_w4a4_nvfp4 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "schemes" /
+        "compressed_tensors_w4a4_nvfp4.py"
+    ).read_text()
     compressed_tensors_w4a4_mxfp4 = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "compressed_tensors" / "schemes" /
         "compressed_tensors_w4a4_mxfp4.py"
+    ).read_text()
+    compressed_tensors_w4a4_nvfp4_moe = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
+        "compressed_tensors_moe_w4a4_nvfp4.py"
     ).read_text()
     compressed_tensors_w4a8_int = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
@@ -5434,6 +5456,18 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_w4a16
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_w4a16
+    assert "init_nvfp4_linear_kernel" in compressed_tensors_w4a4_nvfp4
+    assert "self.kernel = init_nvfp4_linear_kernel()" in (
+        compressed_tensors_w4a4_nvfp4
+    )
+    assert "select_nvfp4_moe_backend" in compressed_tensors_w4a4_nvfp4_moe
+    assert "make_nvfp4_moe_kernel" in compressed_tensors_w4a4_nvfp4_moe
+    assert "_gb10_w4a16_nvfp4_moe_loading_unsupported_reason" in (
+        compressed_tensors_moe
+    )
+    assert "CompressedTensors W4A16 NVFP4 MoE loading" in compressed_tensors_moe
+    assert "weight-only NVFP4 MoE handling" in compressed_tensors_moe
+    assert "not supported on GB10/SM12x" in compressed_tensors_moe
     assert "_gb10_w4a4_mxfp4_dense_unsupported_reason" in (
         compressed_tensors_w4a4_mxfp4
     )
@@ -8070,6 +8104,97 @@ def test_gb10_compressed_tensors_w4a8_int_moe_rejects_sm12x(monkeypatch):
     )
 
 
+def test_gb10_compressed_tensors_w4a16_nvfp4_moe_rejects_sm12x(monkeypatch):
+    from compressed_tensors import CompressionFormat
+    from compressed_tensors.quantization import (
+        QuantizationArgs,
+        QuantizationStrategy,
+        QuantizationType,
+    )
+
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa: E501
+        compressed_tensors_moe,
+        compressed_tensors_moe_w4a4_nvfp4,
+    )
+
+    class FakeCompressedTensorsConfig:
+        def _add_fused_moe_to_target_scheme_map(self):
+            return None
+
+        @staticmethod
+        def _is_mxfp4(weight_quant):
+            return False
+
+        @staticmethod
+        def _is_mxfp8(weight_quant):
+            return False
+
+        @staticmethod
+        def _is_wNa16_group_channel(weight_quant, input_quant):
+            return False
+
+        @staticmethod
+        def _is_nvfp4_format(quant):
+            return quant is not None
+
+        def get_scheme_dict(self, layer, name):
+            return {
+                "weights": QuantizationArgs(
+                    num_bits=4,
+                    type=QuantizationType.FLOAT,
+                    strategy=QuantizationStrategy.TENSOR_GROUP,
+                    symmetric=True,
+                    dynamic=False,
+                    group_size=16,
+                ),
+                "input_activations": None,
+                "format": CompressionFormat.float_quantized.value,
+            }
+
+    constructed = []
+
+    class ConstructedW4A4Nvfp4MoEMethod:
+        def __init__(self, *args, **kwargs):
+            constructed.append((args, kwargs))
+
+    monkeypatch.setattr(
+        compressed_tensors_moe,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        compressed_tensors_moe_w4a4_nvfp4,
+        "CompressedTensorsW4A4Nvfp4MoEMethod",
+        ConstructedW4A4Nvfp4MoEMethod,
+    )
+    layer = SimpleNamespace(moe_config=SimpleNamespace())
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        compressed_tensors_moe.CompressedTensorsMoEMethod.get_moe_method(
+            FakeCompressedTensorsConfig(),
+            layer,
+            "model.layers.0.mlp.experts",
+        )
+
+    reason = str(exc_info.value)
+    assert not constructed
+    assert "CompressedTensors W4A16 NVFP4 MoE loading" in reason
+    assert "weight-only NVFP4 MoE handling" in reason
+    assert "native GB10 W4A16 NVFP4 MoE correctness evidence" in reason
+
+    monkeypatch.setattr(
+        compressed_tensors_moe,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert (
+        compressed_tensors_moe._gb10_w4a16_nvfp4_moe_loading_unsupported_reason()
+        is None
+    )
+
+
 def test_gb10_nvfp4_moe_fallbacks_are_reported():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
@@ -10237,6 +10362,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "CompressedTensors W4A16 NVFP4 selects Marlin",
                 },
+                "compressed_tensors_w4a16_nvfp4_moe_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors W4A16 NVFP4 MoE loading can reach "
+                        "weight-only NVFP4 MoE handling"
+                    ),
+                },
             },
             "deferred_paths": {
                 "deepseek_v4_deep_gemm_mega_moe": {
@@ -10413,6 +10546,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "flashinfer_cutlass_nvfp4_dense": {"status": "supported_native"},
                 "flashinfer_nvfp4_quantization": {"status": "supported_native"},
                 "modelopt_fp4_quantization": {"status": "supported_native"},
+                "compressed_tensors_w4a4_nvfp4_dense_loading": {
+                    "status": "supported_native"
+                },
+                "compressed_tensors_w4a4_nvfp4_moe_loading": {
+                    "status": "supported_native"
+                },
                 "flashinfer_attention_fa2": {"status": "supported_native"},
                 "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
                 "flashinfer_cutlass_non_ep_moe": {"status": "supported_native"},
@@ -10531,6 +10670,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
                 },
+                "compressed_tensors_w4a16_nvfp4_moe_loading": {
+                    "status": "not_supported"
+                },
                 "deepseek_v4_deep_gemm_mega_moe": {"status": "deferred"},
                 "flashinfer_b12x_ep_all2all_eplb": {"status": "deferred"},
                 "flashinfer_cudnn_nvfp4_dense": {"status": "deferred"},
@@ -10606,6 +10748,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "awq_quantization",
         "bitsandbytes_quantization",
         "compressed_tensors_w4a16_nvfp4_loading",
+        "compressed_tensors_w4a16_nvfp4_moe_loading",
         "compressed_tensors_w4a4_mxfp4_dense_loading",
         "compressed_tensors_w4a8_fp8_loading",
         "compressed_tensors_w4a8_int_dense_loading",

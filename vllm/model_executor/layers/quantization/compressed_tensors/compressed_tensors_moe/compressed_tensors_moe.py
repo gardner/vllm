@@ -95,6 +95,19 @@ def _gb10_w4a8_int_moe_loading_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_w4a16_nvfp4_moe_loading_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors W4A16 NVFP4 MoE loading is "
+        "not supported on GB10/SM12x. The weight-only NVFP4 MoE handling can "
+        "prove reachability, but it is not native GB10 W4A16 NVFP4 MoE "
+        "correctness evidence. Use W4A4 NVFP4 activations with a validated "
+        "SM12x FlashInfer MoE backend, or keep this checkpoint format "
+        "unselected."
+    )
+
+
 class CompressedTensorsMoEMethod(FusedMoEMethodBase):
     @staticmethod
     def get_moe_method(
@@ -214,6 +227,11 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
                     "For NVFP4 weights, input quantization must also be NVFP4 format ",
                     f"or None for NVFP4A16, found {input_quant}",
                 )
+            if (
+                input_quant is None
+                and (reason := _gb10_w4a16_nvfp4_moe_loading_unsupported_reason())
+            ):
+                raise ValueError(reason)
             return CompressedTensorsW4A4Nvfp4MoEMethod(
                 layer.moe_config, layer_name, use_a16=(input_quant is None)
             )
