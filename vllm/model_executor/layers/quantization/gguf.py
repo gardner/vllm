@@ -46,11 +46,47 @@ from vllm.utils.torch_utils import direct_register_custom_op
 logger = init_logger(__name__)
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_gguf_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "GGUF quantization is not supported on GB10/SM12x. The "
+        "gguf quantization method can select GGUFLinearMethod, "
+        "GGUFEmbeddingMethod, or GGUFMoEMethod handling today. GGUF dense, "
+        "embedding, and MoE paths can call ggml_mul_mat_vec_a8, "
+        "ggml_mul_mat_a8, or ggml_dequantize, but this is not native GB10 "
+        "GGUF correctness evidence. Use a validated GB10 GGUF path after "
+        "native SM12x correctness evidence exists, or keep --quantization "
+        "gguf unselected."
+    )
+
+
 class GGUFConfig(QuantizationConfig):
     """Config class for GGUF."""
 
     def __init__(self, unquantized_modules: list[str] | None = None) -> None:
         super().__init__()
+        if reason := _gb10_gguf_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.unquantized_modules = unquantized_modules or []
 
     def __repr__(self) -> str:

@@ -481,6 +481,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "native GB10 INC/AutoRound correctness evidence exists."
                 ),
             },
+            "gguf_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "GGUF quantization can select GGUF dense, embedding, and "
+                    "MoE kernels, including GGML matmul and dequantization "
+                    "fallbacks today and must reject on GB10/SM12x until "
+                    "native GB10 GGUF correctness evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

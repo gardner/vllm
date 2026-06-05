@@ -76,6 +76,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "awq_quantization": "not_supported",
     "gptq_quantization": "not_supported",
     "inc_quantization": "not_supported",
+    "gguf_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2366,6 +2367,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["inc_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["gguf_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
@@ -5111,6 +5115,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "inc.py"
     ).read_text()
+    gguf_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "gguf.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5290,6 +5298,16 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "AutoGPTQLinearMethod" in inc_quant
     assert "MoeWNA16Config" in inc_quant
     assert "not supported on GB10/SM12x" in inc_quant
+    assert "_gb10_gguf_quantization_unsupported_reason" in gguf_quant
+    assert "GGUF quantization" in gguf_quant
+    assert "gguf quantization method" in gguf_quant
+    assert "GGUFLinearMethod" in gguf_quant
+    assert "GGUFEmbeddingMethod" in gguf_quant
+    assert "GGUFMoEMethod" in gguf_quant
+    assert "ggml_mul_mat_vec_a8" in gguf_quant
+    assert "ggml_mul_mat_a8" in gguf_quant
+    assert "ggml_dequantize" in gguf_quant
+    assert "not supported on GB10/SM12x" in gguf_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -6394,6 +6412,46 @@ def test_gb10_inc_quantization_rejects_sm12x(monkeypatch):
         inc.INCConfig.from_config(configs[0]),
         inc.INCConfig,
     )
+
+
+def test_gb10_gguf_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import gguf
+
+    monkeypatch.setattr(
+        gguf,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for construct_config in (
+        lambda: gguf.GGUFConfig(),
+        lambda: gguf.GGUFConfig.from_config({}),
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            construct_config()
+
+        reason = str(exc_info.value)
+        assert "GGUF quantization" in reason
+        assert "gguf quantization method" in reason
+        assert "GGUFLinearMethod" in reason
+        assert "GGUFEmbeddingMethod" in reason
+        assert "GGUFMoEMethod" in reason
+        assert "ggml_mul_mat_vec_a8" in reason
+        assert "ggml_mul_mat_a8" in reason
+        assert "ggml_dequantize" in reason
+        assert "native GB10 GGUF correctness evidence" in reason
+
+    monkeypatch.setattr(
+        gguf,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert gguf._gb10_gguf_quantization_unsupported_reason() is None
+    assert isinstance(gguf.GGUFConfig.from_config({}), gguf.GGUFConfig)
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -9079,6 +9137,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "evidence"
                     ),
                 },
+                "gguf_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "GGUF quantization can select GGUF dense, embedding, "
+                        "or MoE kernels and dequantization fallbacks without "
+                        "native GB10 GGUF evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9535,6 +9602,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "awq_quantization": {"status": "not_supported"},
                 "gptq_quantization": {"status": "not_supported"},
                 "inc_quantization": {"status": "not_supported"},
+                "gguf_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9692,6 +9760,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "fp8_w8a16_marlin_fallback",
         "fp8_w8a16_moe_fallback",
         "fp_quant_fp4_quantization",
+        "gguf_quantization",
         "gptq_quantization",
         "inc_quantization",
         "int8_moe_triton_fallback",
