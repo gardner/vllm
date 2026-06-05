@@ -161,11 +161,22 @@ scripts/gb10-write-release-manifest.py \
     --gb10-validate-release-inputs \
     --gb10-output-json "$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
 
+cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
+cache_dir="$cache_root/$cache_key"
+cache_next="$cache_root/${cache_key}.next"
+cache_failed="$cache_root/${cache_key}.failed"
+registry_cache_refs_string="${registry_cache_refs[*]}"
+
 if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     echo "GB10 local cached build dry run"
     echo "target_arg=$target_arg"
     echo "docker_target=$docker_target"
     echo "cache_key=$cache_key"
+    echo "cache_root=$cache_root"
+    echo "cache_dir=$cache_dir"
+    echo "cache_next=$cache_next"
+    echo "cache_failed=$cache_failed"
+    echo "registry_cache_refs=$registry_cache_refs_string"
     echo "output_mode=$output_mode"
     echo "GB10_PREFLIGHT_ONLY=$GB10_PREFLIGHT_ONLY"
     echo "GB10_PUSH_IMAGE=$GB10_PUSH_IMAGE"
@@ -202,10 +213,6 @@ if [ "$docker_target" = "build" ] && [ "$output_mode" = "load" ]; then
         --gb10-allow-empty
 fi
 
-cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
-cache_dir="$cache_root/$cache_key"
-cache_next="$cache_root/${cache_key}.next"
-cache_failed="$cache_root/${cache_key}.failed"
 mkdir -p "$cache_root"
 
 cache_args=()

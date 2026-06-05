@@ -3544,6 +3544,14 @@ def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker
     assert "GB10 local cached build dry run" in proc.stdout
     assert "docker_target=gb10-flashinfer-preflight" in proc.stdout
     assert "cache_key=preflight" in proc.stdout
+    assert f"cache_root={cache_dir}" in proc.stdout
+    assert f"cache_dir={cache_dir / 'preflight'}" in proc.stdout
+    assert f"cache_next={cache_dir / 'preflight.next'}" in proc.stdout
+    assert f"cache_failed={cache_dir / 'preflight.failed'}" in proc.stdout
+    assert (
+        "registry_cache_refs="
+        "ghcr.io/gardner/vllm-gb10-buildcache:preflight"
+    ) in proc.stdout
     assert "GB10_PREFLIGHT_ONLY=true" in proc.stdout
     assert (manifest_dir / "gb10-release-manifest.json").is_file()
     assert not cache_dir.exists()
@@ -3579,6 +3587,15 @@ def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
     assert proc.returncode == 0, proc.stdout
     assert "docker_target=vllm-openai" in proc.stdout
     assert "cache_key=runtime" in proc.stdout
+    assert f"cache_root={cache_dir}" in proc.stdout
+    assert f"cache_dir={cache_dir / 'runtime'}" in proc.stdout
+    assert f"cache_next={cache_dir / 'runtime.next'}" in proc.stdout
+    assert f"cache_failed={cache_dir / 'runtime.failed'}" in proc.stdout
+    assert (
+        "registry_cache_refs="
+        "ghcr.io/gardner/vllm-gb10-buildcache:wheel "
+        "ghcr.io/gardner/vllm-gb10-buildcache:runtime"
+    ) in proc.stdout
     assert "GB10_PREFLIGHT_ONLY=false" in proc.stdout
     assert "GB10_PUSH_IMAGE=false" in proc.stdout
     assert "GB10_IMAGE_NAME=vllm-gb10" in proc.stdout
