@@ -470,6 +470,47 @@ def test_vllm_config_allows_logprobs_logits_runtime_off_gb10(
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_custom_logits_processors_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        logits_processors=[
+            "tests.v1.logits_processors.utils:DummyLogitsProcessor"
+        ],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="custom logits processors runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_vllm_config_allows_custom_logits_processors_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        logits_processors=[
+            "tests.v1.logits_processors.utils:DummyLogitsProcessor"
+        ],
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 @pytest.mark.parametrize(
     "parallel_config",
     [

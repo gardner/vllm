@@ -822,6 +822,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "custom_logits_processors_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Custom logits processor hooks mutate sampler logits "
+                    "outside the validated GB10 first release serving path. "
+                    "They must reject until native SM12x custom logits "
+                    "processor correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

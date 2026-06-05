@@ -168,6 +168,14 @@ _GB10_LOGPROBS_LOGITS_RUNTIME_MESSAGE = (
     "processed_logprobs on GB10 until native SM12x logits-return correctness "
     "and runtime evidence exists."
 )
+_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE = (
+    "custom logits processors runtime is not supported on GB10/SM12x in this "
+    "fork: --logits-processors and direct model_config.logits_processors "
+    "hooks mutate sampler logits outside the validated native first-path "
+    "NVFP4 serving release. Disable custom logits processors on GB10 until "
+    "native SM12x custom logits processor correctness and runtime evidence "
+    "exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -1014,6 +1022,13 @@ class VllmConfig:
                     logprobs_mode=self.model_config.logprobs_mode
                 )
             )
+
+        if (
+            self.model_config is not None
+            and self.model_config.logits_processors
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

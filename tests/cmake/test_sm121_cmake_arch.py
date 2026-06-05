@@ -129,6 +129,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "weight_transfer_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
+    "custom_logits_processors_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2577,6 +2578,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["logprobs_logits_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8910,6 +8914,18 @@ def test_gb10_logprobs_logits_runtime_is_reported():
     assert "native SM12x logits-return correctness" in vllm_config
 
 
+def test_gb10_custom_logits_processors_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE" in vllm_config
+    assert "custom logits processors runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--logits-processors" in vllm_config
+    assert "model_config.logits_processors" in vllm_config
+    assert "native SM12x custom logits processor correctness" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10970,6 +10986,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "native SM12x logits-return correctness evidence"
                     ),
                 },
+                "custom_logits_processors_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "custom logits processor hooks lack native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11737,6 +11761,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "weight_transfer_runtime": {"status": "not_supported"},
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
+                "custom_logits_processors_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11928,6 +11953,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w8a8_mxfp8_moe_loading",
         "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
+        "custom_logits_processors_runtime",
         "cutlass_mla_sm100_fallback",
         "deep_gemm_fp8_moe",
         "deepseek_v4_fp8_quantization",
