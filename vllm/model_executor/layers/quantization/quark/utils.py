@@ -46,6 +46,20 @@ def gb10_quark_w4a8_mxfp4_fp8_unsupported_reason() -> str | None:
     )
 
 
+def gb10_quark_w4a8_fp8_moe_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "Quark W4A8 FP8 MoE checkpoint loading is not supported on GB10/SM12x. "
+        "The current Quark W4A8 FP8 MoE path requires "
+        "ROCm AITER fused MoE support today, and it is not native GB10 W4A8 "
+        "FP8 MoE correctness "
+        "evidence. Use a native SM12x W4A8 FP8 MoE backend after correctness "
+        "evidence exists, or keep Quark W4A8 FP8 MoE checkpoint loading "
+        "unselected."
+    )
+
+
 def gb10_quark_w8a8_fp8_unsupported_reason() -> str | None:
     if not current_platform.is_device_capability_family(120):
         return None

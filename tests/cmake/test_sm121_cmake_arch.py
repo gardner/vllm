@@ -112,6 +112,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
+    "quark_w4a8_fp8_moe_loading": "not_supported",
     "quark_w8a8_fp8_checkpoint_loading": "not_supported",
     "quark_w8a8_int8_checkpoint_loading": "not_supported",
     "quark_w8a8_fp8_moe_loading": "not_supported",
@@ -2485,6 +2486,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["quark_w4a8_mxfp4_fp8_checkpoint_loading"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["quark_w4a8_fp8_moe_loading"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["quark_w8a8_fp8_checkpoint_loading"][
         "status"
     ] == "not_supported"
@@ -5458,6 +5462,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         quark_w4a8_mxfp4_fp8
     )
     assert "gb10_quark_w4a8_mxfp4_fp8_unsupported_reason" in quark_utils
+    assert "gb10_quark_w4a8_fp8_moe_unsupported_reason" in quark_moe
+    assert "gb10_quark_w4a8_fp8_moe_unsupported_reason" in quark_utils
+    assert "Quark W4A8 FP8 MoE checkpoint loading" in quark_utils
+    assert "ROCm AITER fused MoE support" in quark_utils
     assert "gb10_quark_w8a8_fp8_unsupported_reason" in quark_w8a8_fp8
     assert "gb10_quark_w8a8_fp8_unsupported_reason" in quark_utils
     assert "gb10_quark_w8a8_int8_unsupported_reason" in quark_w8a8_int8
@@ -6824,6 +6832,83 @@ def test_gb10_humming_mxfp4_moe_backend_rejects_sm12x(monkeypatch):
     )
     assert mxfp4._gb10_unsupported_backend_reason(backend) is None
     assert mxfp4.map_mxfp4_backend("humming") == [backend]
+
+
+def test_gb10_quark_w4a8_fp8_moe_loading_rejects_sm12x(monkeypatch):
+    import torch
+
+    from vllm.model_executor.layers.fused_moe.activation import MoEActivation
+    from vllm.model_executor.layers.fused_moe.config import (
+        FusedMoEConfig,
+        FusedMoEParallelConfig,
+        RoutingMethodType,
+    )
+    from vllm.model_executor.layers.quantization.quark import quark_moe, utils
+
+    monkeypatch.setattr(
+        utils.current_platform,
+        "is_device_capability_family",
+        lambda family: family == 120,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        quark_moe.rocm_aiter_ops,
+        "is_fused_moe_enabled",
+        lambda: True,
+        raising=False,
+    )
+
+    moe_config = FusedMoEConfig(
+        num_experts=4,
+        experts_per_token=2,
+        hidden_dim=128,
+        intermediate_size_per_partition=256,
+        num_local_experts=4,
+        num_logical_experts=4,
+        activation=MoEActivation.SILU,
+        device="cpu",
+        routing_method=RoutingMethodType.Default,
+        moe_parallel_config=FusedMoEParallelConfig.make_no_parallel(),
+        in_dtype=torch.float16,
+    )
+
+    weight_config = [
+        {
+            "dtype": "fp8_e4m3",
+            "qscheme": "per_tensor",
+            "is_dynamic": False,
+        },
+        {
+            "dtype": "int4",
+            "qscheme": "per_channel",
+            "is_dynamic": False,
+            "symmetric": True,
+            "ch_axis": 0,
+        },
+    ]
+    input_config = {
+        "dtype": "fp8_e4m3",
+        "qscheme": "per_tensor",
+        "is_dynamic": False,
+    }
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+        exc_info
+    ):
+        quark_moe.QuarkW4A8Fp8MoEMethod(weight_config, input_config, moe_config)
+
+    reason = str(exc_info.value)
+    assert "Quark W4A8 FP8 MoE checkpoint loading" in reason
+    assert "ROCm AITER fused MoE support" in reason
+    assert "native GB10 W4A8 FP8 MoE correctness evidence" in reason
+
+    monkeypatch.setattr(
+        utils.current_platform,
+        "is_device_capability_family",
+        lambda family: False,
+        raising=False,
+    )
+    assert utils.gb10_quark_w4a8_fp8_moe_unsupported_reason() is None
 
 
 def test_gb10_quark_w8a8_checkpoint_loading_rejects_sm12x(monkeypatch):
@@ -10031,6 +10116,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Quark W4A8 MXFP4+FP8 checkpoint loading is not validated"
                     ),
                 },
+                "quark_w4a8_fp8_moe_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Quark W4A8 FP8 MoE checkpoint loading can select "
+                        "ROCm AITER fused MoE support without native GB10 "
+                        "evidence"
+                    ),
+                },
                 "quark_w8a8_fp8_checkpoint_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10392,6 +10486,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "quark_w4a8_mxfp4_fp8_checkpoint_loading": {
                     "status": "not_supported"
                 },
+                "quark_w4a8_fp8_moe_loading": {
+                    "status": "not_supported"
+                },
                 "quark_w8a8_fp8_checkpoint_loading": {
                     "status": "not_supported"
                 },
@@ -10556,6 +10653,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "public_mxfp4_quantization",
         "quark_nvfp4_checkpoint_loading",
         "quark_ocp_mx_checkpoint_loading",
+        "quark_w4a8_fp8_moe_loading",
         "quark_w4a8_mxfp4_fp8_checkpoint_loading",
         "quark_w8a8_fp8_checkpoint_loading",
         "quark_w8a8_fp8_moe_loading",
