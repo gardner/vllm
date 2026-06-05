@@ -2,10 +2,15 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
+import vllm.platforms as platforms
 from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_serve_args
+from vllm.entrypoints.openai.gb10_runtime import (
+    gb10_openai_tool_calling_request_error,
+)
 from vllm.entrypoints.openai.models.protocol import LoRAModulePath
 from vllm.utils.argparse_utils import FlexibleArgumentParser
 
@@ -36,6 +41,25 @@ def vllm_parser():
 @pytest.fixture
 def serve_parser():
     return _build_vllm_parsers()["vllm serve"]
+
+
+@pytest.fixture(autouse=True)
+def mock_off_gb10_cuda_platform(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+
+def _mock_cuda_sm12x_platform(monkeypatch, *, is_gb10: bool) -> None:
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: is_gb10 and family == 120,
+    )
 
 
 ### Test config parsing
@@ -164,6 +188,50 @@ def test_enable_auto_choice_passes_with_tool_call_parser(serve_parser):
         ]
     )
     validate_parsed_serve_args(args)
+
+
+@pytest.mark.parametrize(
+    "cli_args",
+    [
+        ["--enable-auto-tool-choice", "--tool-call-parser", "mistral"],
+        ["--tool-call-parser", "mistral"],
+        ["--tool-parser-plugin", "/tmp/tool_parser.py"],
+        ["--tool-server", "demo"],
+    ],
+)
+def test_gb10_serve_args_reject_openai_tool_calling_runtime(
+    serve_parser,
+    monkeypatch,
+    cli_args,
+):
+    _mock_cuda_sm12x_platform(monkeypatch, is_gb10=True)
+    args = serve_parser.parse_args(args=cli_args)
+
+    with pytest.raises(ValueError, match="OpenAI tool-calling runtime.*GB10/SM12x"):
+        validate_parsed_serve_args(args)
+
+
+def test_gb10_request_tools_report_openai_tool_calling_runtime_error(monkeypatch):
+    _mock_cuda_sm12x_platform(monkeypatch, is_gb10=True)
+
+    message = gb10_openai_tool_calling_request_error(
+        SimpleNamespace(tools=[{"type": "function"}], tool_choice="auto")
+    )
+
+    assert message is not None
+    assert "OpenAI tool-calling runtime is not supported on GB10/SM12x" in message
+    assert "request-level tools/tool_choice" in message
+
+
+def test_request_tools_allowed_off_gb10(monkeypatch):
+    _mock_cuda_sm12x_platform(monkeypatch, is_gb10=False)
+
+    assert (
+        gb10_openai_tool_calling_request_error(
+            SimpleNamespace(tools=[{"type": "function"}], tool_choice="auto")
+        )
+        is None
+    )
 
 
 def test_enable_auto_choice_fails_with_enable_reasoning(serve_parser):

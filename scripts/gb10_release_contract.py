@@ -64,6 +64,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
+    "openai_tool_calling_runtime": "not_supported",
     "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
@@ -300,6 +301,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Triton grammar bitmasks to logits outside the validated GB10 first "
         "release serving path; reject it on GB10/SM12x until native SM12x "
         "structured-output correctness and runtime evidence exists."
+    ),
+    "openai_tool_calling_runtime": (
+        "OpenAI tool-calling runtime uses frontend tool parsers, request-level "
+        "tools/tool_choice handling, tool schema structured-output injection, "
+        "built-in/MCP tool sessions, and output parsing outside the validated "
+        "GB10 first release serving path; reject it on GB10/SM12x until native "
+        "SM12x tool-calling correctness and runtime evidence exists."
     ),
     "lora_runtime": (
         "LoRA runtime uses CUDA Punica and Triton LoRA adapter kernels, "

@@ -55,6 +55,9 @@ from vllm.entrypoints.openai.engine.serving import (
     OpenAIServing,
     clamp_prompt_logprobs,
 )
+from vllm.entrypoints.openai.gb10_runtime import (
+    gb10_openai_tool_calling_request_error,
+)
 from vllm.entrypoints.openai.models.serving import OpenAIServingModels
 from vllm.entrypoints.openai.parser.harmony_utils import (
     get_streamable_parser_for_assistant,
@@ -238,6 +241,16 @@ class OpenAIServingChat(OpenAIServing):
         request: ChatCompletionRequest,
         raw_request: Request | None = None,
     ) -> AsyncGenerator[str, None] | ChatCompletionResponse | ErrorResponse:
+        if (
+            error_message := gb10_openai_tool_calling_request_error(request)
+        ) is not None:
+            return self.create_error_response(
+                err_type="invalid_request_error",
+                message=error_message,
+                status_code=HTTPStatus.BAD_REQUEST,
+                param="tools",
+            )
+
         # Streaming response
         tokenizer = self.renderer.tokenizer
         assert tokenizer is not None

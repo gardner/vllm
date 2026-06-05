@@ -90,6 +90,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
+    "openai_tool_calling_runtime": "not_supported",
     "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
@@ -2481,6 +2482,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["structured_outputs_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["openai_tool_calling_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["gdn_prefill_triton_fallback"]["status"] == (
@@ -8844,6 +8848,54 @@ def test_gb10_structured_outputs_runtime_is_reported():
     assert "_apply_grammar_bitmask_kernel" in worker
 
 
+def test_gb10_openai_tool_calling_runtime_is_reported():
+    gb10_runtime = (
+        REPO_ROOT / "vllm" / "entrypoints" / "openai" / "gb10_runtime.py"
+    ).read_text()
+    cli_args = (
+        REPO_ROOT / "vllm" / "entrypoints" / "openai" / "cli_args.py"
+    ).read_text()
+    chat_serving = (
+        REPO_ROOT
+        / "vllm"
+        / "entrypoints"
+        / "openai"
+        / "chat_completion"
+        / "serving.py"
+    ).read_text()
+    responses_serving = (
+        REPO_ROOT
+        / "vllm"
+        / "entrypoints"
+        / "openai"
+        / "responses"
+        / "serving.py"
+    ).read_text()
+    tool_parser = (
+        REPO_ROOT / "vllm" / "tool_parsers" / "abstract_tool_parser.py"
+    ).read_text()
+    engine_serving = (
+        REPO_ROOT / "vllm" / "entrypoints" / "openai" / "engine" / "serving.py"
+    ).read_text()
+
+    assert "_GB10_OPENAI_TOOL_CALLING_RUNTIME_MESSAGE" in gb10_runtime
+    assert "OpenAI tool-calling runtime is not supported on GB10/SM12x" in (
+        gb10_runtime
+    )
+    assert "--enable-auto-tool-choice" in gb10_runtime
+    assert "--tool-call-parser" in gb10_runtime
+    assert "--tool-parser-plugin" in gb10_runtime
+    assert "--tool-server" in gb10_runtime
+    assert "request-level tools/tool_choice" in gb10_runtime
+    assert "native SM12x tool-calling correctness" in gb10_runtime
+    assert "reject_gb10_openai_tool_calling_server_args" in cli_args
+    assert "gb10_openai_tool_calling_request_error" in chat_serving
+    assert "gb10_openai_tool_calling_request_error" in responses_serving
+    assert "ToolParser.adjust_request" in gb10_runtime
+    assert "StructuredOutputsParams" in tool_parser
+    assert "_parse_tool_calls_from_content" in engine_serving
+
+
 def test_gb10_lora_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     punica_gpu = (
@@ -10936,6 +10988,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Structured outputs runtime lacks native GB10 evidence"
                     ),
                 },
+                "openai_tool_calling_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "OpenAI tool-calling runtime lacks native GB10 evidence"
+                    ),
+                },
                 "lora_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11863,6 +11922,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "pooling_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
                 "structured_outputs_runtime": {"status": "not_supported"},
+                "openai_tool_calling_runtime": {"status": "not_supported"},
                 "lora_runtime": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
@@ -12153,6 +12213,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "online_int8_moe_quantization",
         "online_mxfp4_quantization",
         "online_mxfp8_quantization",
+        "openai_tool_calling_runtime",
         "pooling_runtime",
         "prompt_embeds_runtime",
         "public_flashattention_mla_runtime",

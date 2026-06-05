@@ -577,6 +577,18 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "openai_tool_calling_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "OpenAI tool-calling runtime uses frontend tool parsers, "
+                    "request-level tools/tool_choice handling, tool schema "
+                    "structured-output injection, built-in/MCP tool sessions, "
+                    "and output parsing outside the validated GB10 first "
+                    "release serving path. It must reject on GB10/SM12x "
+                    "until native SM12x tool-calling correctness and runtime "
+                    "evidence exists."
+                ),
+            },
             "lora_runtime": {
                 "status": "not_supported",
                 "release_contract": (

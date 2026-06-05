@@ -43,6 +43,9 @@ from vllm.entrypoints.openai.engine.serving import (
     GenerationError,
     OpenAIServing,
 )
+from vllm.entrypoints.openai.gb10_runtime import (
+    gb10_openai_tool_calling_request_error,
+)
 from vllm.entrypoints.openai.models.serving import OpenAIServingModels
 from vllm.entrypoints.openai.parser.harmony_utils import (
     get_developer_message,
@@ -285,6 +288,15 @@ class OpenAIServingResponses(OpenAIServing):
     def _validate_create_responses_input(
         self, request: ResponsesRequest
     ) -> ErrorResponse | None:
+        if (
+            error_message := gb10_openai_tool_calling_request_error(request)
+        ) is not None:
+            return self.create_error_response(
+                err_type="invalid_request_error",
+                message=error_message,
+                status_code=HTTPStatus.BAD_REQUEST,
+                param="tools",
+            )
         if self.use_harmony and request.is_include_output_logprobs():
             return self.create_error_response(
                 err_type="invalid_request_error",

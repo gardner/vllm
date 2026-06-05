@@ -24,6 +24,9 @@ from vllm.entrypoints.constants import (
     H11_MAX_HEADER_COUNT_DEFAULT,
     H11_MAX_INCOMPLETE_EVENT_SIZE_DEFAULT,
 )
+from vllm.entrypoints.openai.gb10_runtime import (
+    reject_gb10_openai_tool_calling_server_args,
+)
 from vllm.entrypoints.openai.models.protocol import LoRAModulePath
 from vllm.logger import init_logger
 from vllm.tool_parsers import ToolParserManager
@@ -388,6 +391,8 @@ def validate_parsed_serve_args(args: argparse.Namespace):
     """Quick checks for model serve args that raise prior to loading."""
     if hasattr(args, "subparser") and args.subparser != "serve":
         return
+
+    reject_gb10_openai_tool_calling_server_args(args)
 
     # Ensure that the chat template is valid; raises if it likely isn't
     validate_chat_template(args.chat_template)
