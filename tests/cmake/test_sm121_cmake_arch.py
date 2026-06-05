@@ -132,6 +132,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "custom_logits_processors_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
+    "mamba_align_cache_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2589,6 +2590,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["stock_torch_compile_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["mamba_align_cache_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8955,6 +8959,17 @@ def test_gb10_stock_torch_compile_runtime_is_reported():
     assert "native SM12x stock torch.compile correctness" in vllm_config
 
 
+def test_gb10_mamba_align_cache_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_MAMBA_ALIGN_CACHE_RUNTIME_MESSAGE" in vllm_config
+    assert "Mamba align cache runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "mamba_cache_mode='align'" in vllm_config
+    assert "native SM12x Mamba align-cache correctness" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -11039,6 +11054,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "evidence"
                     ),
                 },
+                "mamba_align_cache_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Mamba align-cache state handling lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11809,6 +11832,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "custom_logits_processors_runtime": {"status": "not_supported"},
                 "prompt_embeds_runtime": {"status": "not_supported"},
                 "stock_torch_compile_runtime": {"status": "not_supported"},
+                "mamba_align_cache_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -12035,6 +12059,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "lora_runtime",
         "mamba1_triton_runtime",
         "mamba2_triton_ssd_runtime",
+        "mamba_align_cache_runtime",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "mm_encoder_fp8_attention",

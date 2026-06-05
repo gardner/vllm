@@ -577,6 +577,52 @@ def test_vllm_config_allows_stock_torch_compile_runtime_off_gb10(monkeypatch):
     assert config.compilation_config is compilation_config
 
 
+def test_gb10_vllm_config_rejects_mamba_align_cache_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+    monkeypatch.setattr(
+        ModelConfig,
+        "has_inner_state",
+        property(lambda self: True),
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+
+    with pytest.raises(
+        ValueError,
+        match="Mamba align cache runtime.*GB10/SM12x",
+    ):
+        VllmConfig(
+            model_config=model_config,
+            cache_config=CacheConfig(mamba_cache_mode="align"),
+        )
+
+
+def test_vllm_config_allows_mamba_align_cache_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+    monkeypatch.setattr(
+        ModelConfig,
+        "has_inner_state",
+        property(lambda self: True),
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    cache_config = CacheConfig(mamba_cache_mode="align")
+    config = VllmConfig(model_config=model_config, cache_config=cache_config)
+
+    assert config.model_config is model_config
+    assert config.cache_config is cache_config
+
+
 @pytest.mark.parametrize(
     "parallel_config",
     [

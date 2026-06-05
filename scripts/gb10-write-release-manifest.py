@@ -849,6 +849,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "torch.compile correctness evidence exists."
                 ),
             },
+            "mamba_align_cache_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Mamba align-cache mode changes Mamba state copy, "
+                    "preprocessing, and scheduler-step cache alignment "
+                    "outside the validated GB10 first release serving path. "
+                    "It must reject until native SM12x Mamba align-cache "
+                    "correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

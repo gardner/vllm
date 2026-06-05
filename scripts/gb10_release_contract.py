@@ -106,6 +106,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "custom_logits_processors_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
+    "mamba_align_cache_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -448,6 +449,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Stock torch.compile selects the generic PyTorch compile pipeline "
         "outside the validated GB10 first release serving path; reject it "
         "until native SM12x stock torch.compile correctness evidence exists."
+    ),
+    "mamba_align_cache_runtime": (
+        "Mamba align-cache mode changes Mamba state copy, preprocessing, and "
+        "scheduler-step cache alignment outside the validated GB10 first "
+        "release serving path; reject it until native SM12x Mamba align-cache "
+        "correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "
