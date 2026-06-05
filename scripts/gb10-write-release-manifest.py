@@ -528,6 +528,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "compressed_tensors_w8a8_fp8_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W8A8 FP8 loading can select "
+                    "scaled-mm W8A8 FP8 kernels today and must reject on "
+                    "GB10/SM12x until native GB10 W8A8 FP8 dense "
+                    "correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w4a4_mxfp4_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (
