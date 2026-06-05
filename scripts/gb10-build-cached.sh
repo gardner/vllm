@@ -280,4 +280,15 @@ if [ "$docker_target" = "vllm-openai" ]; then
         --gb10-image-name "$GB10_IMAGE_NAME" \
         --gb10-image-tag "$GB10_IMAGE_TAG" \
         --gb10-push-image "$GB10_PUSH_IMAGE"
+    scripts/gb10-write-vllm-release-checksums.py \
+        --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
+        --gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR" \
+        --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"
+    cat "$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+    if [ -n "$GB10_RELEASE_TAG" ]; then
+        scripts/gb10-validate-vllm-release-assets.py \
+            --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
+            --gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR" \
+            --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"
+    fi
 fi

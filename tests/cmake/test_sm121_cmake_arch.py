@@ -3254,6 +3254,26 @@ def test_gb10_local_cached_wheel_build_extracts_dist_artifact():
     )
 
 
+def test_gb10_local_cached_runtime_build_writes_release_checksums():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert "scripts/gb10-write-vllm-release-checksums.py" in script
+    assert '--gb10-dist-dir "$GB10_LOCAL_DIST_DIR"' in script
+    assert '--gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR"' in script
+    assert '--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in (
+        script
+    )
+    assert "gb10-vllm-release-SHA256SUMS" in script
+    assert "scripts/gb10-validate-vllm-release-assets.py" in script
+    assert '[ -n "$GB10_RELEASE_TAG" ]' in script
+    assert script.index("scripts/gb10-write-runtime-image-provenance.py") < (
+        script.index("scripts/gb10-write-vllm-release-checksums.py")
+    )
+    assert script.index("scripts/gb10-write-vllm-release-checksums.py") < (
+        script.index("scripts/gb10-validate-vllm-release-assets.py")
+    )
+
+
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
     tmp_path,
 ):
