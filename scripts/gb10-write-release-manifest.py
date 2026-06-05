@@ -358,6 +358,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "satisfy native GB10 CUDA MoE release evidence."
                 ),
             },
+            "rocm_aiter_unquantized_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "AITER unquantized MoE is a ROCm-specific backend and "
+                    "cannot satisfy native GB10 CUDA MoE release evidence."
+                ),
+            },
             "marlin_nvfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

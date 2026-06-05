@@ -72,6 +72,18 @@ def _gb10_trtllm_gen_moe_unsupported_reason(
     )
 
 
+def _gb10_aiter_unquantized_moe_unsupported_reason(
+    backend: UnquantizedMoeBackend,
+) -> str | None:
+    if backend != UnquantizedMoeBackend.AITER or not _is_sm12x_device():
+        return None
+    return (
+        "AITER unquantized MoE backend is not supported on GB10/SM12x. "
+        "AITER is a ROCm-specific backend, not a native GB10 CUDA path. Use "
+        "a validated GB10-safe MoE backend such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(moe_config: FusedMoEConfig) -> list[UnquantizedMoeBackend]:
     """
     Get available backends in priority order based on platform and config.
@@ -263,12 +275,19 @@ def select_unquantized_moe_backend(
             requested_backend = UnquantizedMoeBackend.BATCHED_TRITON
         if reason := _gb10_trtllm_gen_moe_unsupported_reason(requested_backend):
             raise ValueError(reason)
+        if reason := _gb10_aiter_unquantized_moe_unsupported_reason(
+            requested_backend
+        ):
+            raise ValueError(reason)
 
         return _return_or_raise(requested_backend, moe_config, activation_format)
 
     unavailable_gb10_reasons: list[str] = []
     for backend in list(AVAILABLE_BACKENDS):
-        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+        reason = _gb10_trtllm_gen_moe_unsupported_reason(
+            backend
+        ) or _gb10_aiter_unquantized_moe_unsupported_reason(backend)
+        if reason:
             AVAILABLE_BACKENDS.remove(backend)
             _append_unique_reason(unavailable_gb10_reasons, reason)
 
@@ -328,6 +347,8 @@ def select_unquantized_moe_backend(
                 AVAILABLE_BACKENDS.remove(UnquantizedMoeBackend.AITER)
         else:
             backend = UnquantizedMoeBackend.AITER
+            if reason := _gb10_aiter_unquantized_moe_unsupported_reason(backend):
+                raise ValueError(reason)
             return _return_or_raise(backend, moe_config, activation_format)
 
     for backend in AVAILABLE_BACKENDS:

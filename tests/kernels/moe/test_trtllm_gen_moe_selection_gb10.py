@@ -219,6 +219,26 @@ def test_gb10_auto_unquantized_moe_skips_trtllm_for_cutlass(monkeypatch):
     assert experts_cls is kernel_by_backend[UnquantizedMoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_explicit_unquantized_aiter_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_unquantized_backend_support(monkeypatch, {UnquantizedMoeBackend.AITER})
+    config = make_dummy_moe_config()
+    config.moe_backend = "aiter"
+
+    with pytest.raises(ValueError, match="AITER unquantized MoE.*GB10/SM12x"):
+        select_unquantized_moe_backend(config)
+
+
+def test_gb10_env_explicit_unquantized_aiter_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_ROCM_USE_AITER", "1")
+    monkeypatch.setenv("VLLM_ROCM_USE_AITER_MOE", "1")
+    _mock_unquantized_backend_support(monkeypatch, {UnquantizedMoeBackend.AITER})
+
+    with pytest.raises(ValueError, match="AITER unquantized MoE.*GB10/SM12x"):
+        select_unquantized_moe_backend(make_dummy_moe_config())
+
+
 def test_gb10_explicit_fp8_trtllm_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.FLASHINFER_TRTLLM})
