@@ -65,6 +65,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w8a16_fp8_loading": "not_supported",
     "compressed_tensors_w8a8_fp8_loading": "not_supported",
+    "compressed_tensors_w8a8_fp8_moe_loading": "not_supported",
     "compressed_tensors_w8a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
@@ -209,6 +210,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "compressed_tensors_w8a8_fp8_loading": (
         "CompressedTensors W8A8 FP8 loading can select scaled-mm W8A8 FP8 "
         "kernels today; reject it until native GB10 W8A8 FP8 dense "
+        "correctness evidence exists."
+    ),
+    "compressed_tensors_w8a8_fp8_moe_loading": (
+        "CompressedTensors W8A8 FP8 MoE loading can select generic FP8 W8A8 "
+        "MoE backends today; reject it until native GB10 W8A8 FP8 MoE "
         "correctness evidence exists."
     ),
     "compressed_tensors_w8a8_int_dense_loading": (

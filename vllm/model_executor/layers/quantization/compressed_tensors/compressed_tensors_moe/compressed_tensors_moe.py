@@ -43,6 +43,19 @@ def _gb10_compressed_tensors_wna16_moe_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_w8a8_fp8_moe_loading_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors W8A8 FP8 MoE loading is "
+        "not supported on GB10/SM12x. The "
+        "generic FP8 W8A8 MoE backend selection can prove reachability, but "
+        "it is not native GB10 W8A8 FP8 MoE correctness evidence. Use a "
+        "native SM12x W8A8 FP8 MoE backend after correctness evidence "
+        "exists, or keep this checkpoint format unselected."
+    )
+
+
 class CompressedTensorsMoEMethod(FusedMoEMethodBase):
     @staticmethod
     def get_moe_method(
@@ -167,6 +180,9 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
             or quant_config._is_fp8_w8a8_sm100(weight_quant, input_quant)
             or quant_config._is_fp8_w8a8(weight_quant, input_quant)
         ):
+            if reason := _gb10_w8a8_fp8_moe_loading_unsupported_reason():
+                raise ValueError(reason)
+
             from .compressed_tensors_moe_w8a8_fp8 import (
                 CompressedTensorsW8A8Fp8MoEMethod,
             )

@@ -537,6 +537,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "compressed_tensors_w8a8_fp8_moe_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W8A8 FP8 MoE loading can select "
+                    "generic FP8 W8A8 MoE backends today and must reject on "
+                    "GB10/SM12x until native GB10 W8A8 FP8 MoE correctness "
+                    "evidence exists."
+                ),
+            },
             "compressed_tensors_w8a8_int_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (
