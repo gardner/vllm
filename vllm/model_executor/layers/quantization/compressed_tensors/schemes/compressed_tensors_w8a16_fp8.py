@@ -16,6 +16,7 @@ from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
 from vllm.model_executor.layers.quantization.compressed_tensors.utils import (
     STRATEGY_TO_PARAMETER_TYPE,
     STRATEGY_TO_WEIGHT_QUANT_KEY,
+    _is_sm12x_device,
 )
 from vllm.model_executor.layers.quantization.utils.fp8_utils import (
     create_fp8_scale_parameter,
@@ -35,8 +36,25 @@ from vllm.model_executor.utils import replace_parameter
 __all__ = ["CompressedTensorsW8A16Fp8"]
 
 
+def _gb10_w8a16_fp8_loading_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors W8A16 FP8 loading is "
+        "not supported on GB10/SM12x. The available CUDA path selects the "
+        "FP8 W8A16 Marlin fallback, which can prove reachability but is not "
+        "native GB10 FP8 W8A16 dense evidence. Use a native SM12x FP8 W8A16 "
+        "dense backend after correctness evidence exists, or keep this "
+        "checkpoint format unselected."
+    )
+
+
 class CompressedTensorsW8A16Fp8(CompressedTensorsScheme):
     def __init__(self, weight_quant: QuantizationArgs, is_static_input_scheme: bool):
+        unsupported_reason = _gb10_w8a16_fp8_loading_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.weight_quant = weight_quant
         self.strategy = weight_quant.strategy
         self.out_dtype = torch.get_default_dtype()
