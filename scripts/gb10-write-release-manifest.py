@@ -328,6 +328,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence."
                 ),
             },
+            "flashinfer_trtllm_mxfp4_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FlashInfer TRTLLM MXFP4 MoE is an SM100-family path "
+                    "today and is not validated on GB10/SM12x; keep it "
+                    "unselected until native SM121A MXFP4 MoE evidence exists."
+                ),
+            },
             "trtllm_gen_attention": {
                 "status": "not_supported",
                 "release_contract": (

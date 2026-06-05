@@ -66,6 +66,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "gb10_moe_trtllm_gen_to_flashinfer_non_ep": "supported_routed",
     "public_flashattention_runtime": "not_supported",
     "flashinfer_trtllm_nvfp4_dense": "not_supported",
+    "flashinfer_trtllm_mxfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -1873,6 +1874,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["flashinfer_trtllm_nvfp4_dense"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["flashinfer_trtllm_mxfp4_moe"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
         "not_supported"
     )
@@ -3062,7 +3066,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_mxfp4_moe
     assert "_gb10_mxfp4_moe_fallback_unsupported_reason" in mxfp4_moe_oracle
+    assert "_gb10_mxfp4_moe_trtllm_unsupported_reason" in mxfp4_moe_oracle
     assert "_MXFP4_MOE_FALLBACK_BACKENDS" in mxfp4_moe_oracle
+    assert "_MXFP4_MOE_TRTLLM_BACKENDS" in mxfp4_moe_oracle
+    assert "FlashInfer TRTLLM MXFP4 MoE backend" in mxfp4_moe_oracle
     assert "CPU fallback" in mxfp4_moe_oracle
     assert "not supported on GB10/SM12x" in mxfp4_moe_oracle
     assert "before publishing " in modelopt_quant
@@ -4677,6 +4684,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "FlashInfer TRTLLM dense is not validated on SM12x",
                 },
+                "flashinfer_trtllm_mxfp4_moe": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "TRTLLM MXFP4 MoE is not validated on SM121",
+                },
                 "trtllm_gen_attention": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4898,6 +4910,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
                 "public_flashattention_runtime": {"status": "not_supported"},
                 "flashinfer_trtllm_nvfp4_dense": {"status": "not_supported"},
+                "flashinfer_trtllm_mxfp4_moe": {"status": "not_supported"},
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
@@ -4979,6 +4992,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "reported_not_supported_entries"
     ] == [
         "compressed_tensors_w4a16_nvfp4_loading",
+        "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",

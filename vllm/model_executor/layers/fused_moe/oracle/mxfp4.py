@@ -115,6 +115,11 @@ _MXFP4_MOE_FALLBACK_BACKENDS = {
     Mxfp4MoeBackend.CPU,
 }
 
+_MXFP4_MOE_TRTLLM_BACKENDS = {
+    Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_BF16,
+    Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
+}
+
 
 def _is_sm12x_device() -> bool:
     return (
@@ -136,11 +141,26 @@ def _gb10_mxfp4_moe_fallback_unsupported_reason(
     )
 
 
+def _gb10_mxfp4_moe_trtllm_unsupported_reason(
+    backend: Mxfp4MoeBackend,
+) -> str:
+    return (
+        "FlashInfer TRTLLM MXFP4 MoE backend "
+        f"'{backend.value}' is not supported on GB10/SM12x. "
+        "The TRTLLM MXFP4 MoE kernels are SM100-family paths today and cannot "
+        "satisfy native SM121A MXFP4 MoE evidence. Use a native SM12x MXFP4 "
+        "MoE backend after correctness evidence exists, or keep the path "
+        "unselected."
+    )
+
+
 def _gb10_unsupported_backend_reason(
     backend: Mxfp4MoeBackend,
 ) -> str | None:
     if not _is_sm12x_device():
         return None
+    if backend in _MXFP4_MOE_TRTLLM_BACKENDS:
+        return _gb10_mxfp4_moe_trtllm_unsupported_reason(backend)
     if backend in _MXFP4_MOE_FALLBACK_BACKENDS:
         return _gb10_mxfp4_moe_fallback_unsupported_reason(backend)
     return None
@@ -566,8 +586,11 @@ def select_mxfp4_moe_backend(
         envs.is_set("VLLM_USE_FLASHINFER_MOE_MXFP4_MXFP8")
         and envs.VLLM_USE_FLASHINFER_MOE_MXFP4_MXFP8
     ):
+        backend = Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8
+        if reason := _gb10_unsupported_backend_reason(backend):
+            raise ValueError(reason)
         return _return_or_raise(
-            Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
+            backend,
             config,
             kMxfp4Static,
             kMxfp8Dynamic,

@@ -18,6 +18,7 @@ from vllm.model_executor.layers.fused_moe.oracle.mxfp4 import (
     select_deepseek_v4_mxfp4_moe_backend,
     select_mxfp4_moe_backend,
 )
+from vllm.model_executor.layers.quantization.utils.quant_utils import kMxfp8Dynamic
 
 
 class _SupportedExperts:
@@ -55,7 +56,7 @@ class _Sm12xPlatform:
 
     @staticmethod
     def is_device_capability_family(capability: int) -> bool:
-        return capability in {100, 120}
+        return capability == 120
 
 
 def _make_mxfp4_moe_config(
@@ -214,6 +215,72 @@ def test_gb10_env_forced_marlin_mxfp4_moe_rejected(monkeypatch):
         select_mxfp4_moe_backend(_make_mxfp4_moe_config())
 
 
+@pytest.mark.parametrize("moe_backend", ["flashinfer_trtllm", "flashinfer_trtllm_afp8"])
+def test_gb10_explicit_trtllm_mxfp4_moe_rejected(monkeypatch, moe_backend):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {
+            Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_BF16,
+            Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
+        },
+    )
+
+    with pytest.raises(ValueError, match="TRTLLM.*not supported on GB10/SM12x"):
+        select_mxfp4_moe_backend(
+            _make_mxfp4_moe_config(moe_backend=moe_backend),
+            activation_key=kMxfp8Dynamic if moe_backend.endswith("_afp8") else None,
+        )
+
+
+def test_gb10_env_forced_trtllm_mxfp4_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_MXFP4_MXFP8", "1")
+    _mock_backend_support(
+        monkeypatch,
+        {Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8},
+    )
+
+    with pytest.raises(ValueError, match="TRTLLM.*not supported on GB10/SM12x"):
+        select_mxfp4_moe_backend(_make_mxfp4_moe_config())
+
+
+def test_gb10_auto_mxfp4_moe_skips_trtllm_for_flashinfer_cutlass(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    kernel_by_backend = _mock_backend_support(
+        monkeypatch,
+        {
+            Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_BF16,
+            Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_BF16,
+        },
+    )
+
+    backend, experts_cls = select_mxfp4_moe_backend(_make_mxfp4_moe_config())
+
+    assert backend == Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_BF16
+    assert experts_cls is kernel_by_backend[
+        Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_BF16
+    ]
+
+
+def test_gb10_auto_mxfp4_moe_reports_trtllm_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {
+            Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_BF16,
+            Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
+        },
+    )
+
+    with pytest.raises(NotImplementedError, match="TRTLLM.*not supported"):
+        select_mxfp4_moe_backend(_make_mxfp4_moe_config())
+
+
 @pytest.mark.parametrize("moe_backend", ["marlin", "emulation", "cpu"])
 def test_gb10_explicit_deepseek_v4_mxfp4_moe_fallback_rejected(
     monkeypatch,
@@ -250,4 +317,30 @@ def test_gb10_auto_deepseek_v4_mxfp4_moe_rejects_fallback_when_no_native_backend
     )
 
     with pytest.raises(NotImplementedError, match="fallback.*not supported"):
+        select_deepseek_v4_mxfp4_moe_backend(_make_mxfp4_moe_config())
+
+
+def test_gb10_explicit_deepseek_v4_trtllm_mxfp4_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8},
+    )
+
+    with pytest.raises(ValueError, match="TRTLLM.*not supported on GB10/SM12x"):
+        select_deepseek_v4_mxfp4_moe_backend(
+            _make_mxfp4_moe_config(moe_backend="flashinfer_trtllm_afp8"),
+        )
+
+
+def test_gb10_auto_deepseek_v4_mxfp4_moe_reports_trtllm_rejection(
+    monkeypatch,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8},
+    )
+
+    with pytest.raises(NotImplementedError, match="TRTLLM.*not supported"):
         select_deepseek_v4_mxfp4_moe_backend(_make_mxfp4_moe_config())
