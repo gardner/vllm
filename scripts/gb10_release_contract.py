@@ -63,6 +63,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
+    "structured_outputs_runtime": "not_supported",
     "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
@@ -293,6 +294,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Reasoning runtime changes token parsing and output extraction outside "
         "the validated GB10 first release serving path; reject it on GB10/SM12x "
         "until native SM12x reasoning correctness and runtime evidence exists."
+    ),
+    "structured_outputs_runtime": (
+        "Structured outputs runtime compiles request-level grammars and applies "
+        "Triton grammar bitmasks to logits outside the validated GB10 first "
+        "release serving path; reject it on GB10/SM12x until native SM12x "
+        "structured-output correctness and runtime evidence exists."
     ),
     "lora_runtime": (
         "LoRA runtime uses CUDA Punica and Triton LoRA adapter kernels, "

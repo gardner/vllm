@@ -89,6 +89,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
+    "structured_outputs_runtime": "not_supported",
     "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
@@ -2477,6 +2478,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["reasoning_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["structured_outputs_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["gdn_prefill_triton_fallback"]["status"] == (
@@ -8820,6 +8824,26 @@ def test_gb10_reasoning_runtime_is_reported():
     assert "native SM12x reasoning correctness" in vllm_config
 
 
+def test_gb10_structured_outputs_runtime_is_reported():
+    request = (
+        REPO_ROOT / "vllm" / "v1" / "structured_output" / "request.py"
+    ).read_text()
+    worker = (
+        REPO_ROOT / "vllm" / "v1" / "worker" / "gpu" / "structured_outputs.py"
+    ).read_text()
+
+    assert "_GB10_STRUCTURED_OUTPUTS_RUNTIME_MESSAGE" in request
+    assert "_is_gb10_sm12x_cuda_platform" in request
+    assert (
+        "structured outputs runtime is not supported on GB10/SM12x" in request
+    )
+    assert "def from_sampling_params" in request
+    assert "request-level structured_outputs/grammar constraints" in request
+    assert "native SM12x structured-output correctness" in request
+    assert "apply_grammar_bitmask" in worker
+    assert "_apply_grammar_bitmask_kernel" in worker
+
+
 def test_gb10_lora_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     punica_gpu = (
@@ -10905,6 +10929,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Reasoning runtime lacks native GB10 evidence",
                 },
+                "structured_outputs_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Structured outputs runtime lacks native GB10 evidence"
+                    ),
+                },
                 "lora_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11831,6 +11862,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
+                "structured_outputs_runtime": {"status": "not_supported"},
                 "lora_runtime": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
@@ -12143,6 +12175,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "short_conv_triton_runtime",
         "speculative_decoding_runtime",
         "stock_torch_compile_runtime",
+        "structured_outputs_runtime",
         "tokenspeed_mla_cutedsl_fallback",
         "torchao_fp8_activation_quantization",
         "torchao_weight_quantization",

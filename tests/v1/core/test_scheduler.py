@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 import torch
 
+import vllm.platforms as platforms
 from vllm.config import (
     CacheConfig,
     ECTransferConfig,
@@ -39,6 +40,15 @@ from vllm.v1.structured_output import StructuredOutputManager
 from .utils import EOS_TOKEN_ID, create_requests, create_scheduler, mock_kv
 
 pytestmark = pytest.mark.cpu_test
+
+
+def _mock_cuda_sm12x_platform(monkeypatch, *, is_gb10: bool) -> None:
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: is_gb10 and family == 120,
+    )
 
 
 def test_add_requests():
@@ -2510,7 +2520,8 @@ def test_schedule_skip_tokenizer_init():
     assert len(output.scheduled_new_reqs) == len(requests)
 
 
-def test_schedule_skip_tokenizer_init_structured_output_request():
+def test_schedule_skip_tokenizer_init_structured_output_request(monkeypatch):
+    _mock_cuda_sm12x_platform(monkeypatch, is_gb10=False)
     scheduler = create_scheduler(skip_tokenizer_init=True)
     structured_outputs_params = StructuredOutputsParams(regex="[0-9]+")
     sampling_params = SamplingParams(
@@ -2532,6 +2543,46 @@ def test_schedule_skip_tokenizer_init_structured_output_request():
     assert len(scheduler.running) == 0
     assert len(scheduler.waiting) == 0
     assert len(scheduler.skipped_waiting) == 1
+
+
+def test_gb10_request_rejects_structured_outputs_runtime(monkeypatch):
+    _mock_cuda_sm12x_platform(monkeypatch, is_gb10=True)
+    sampling_params = SamplingParams(
+        ignore_eos=False,
+        max_tokens=16,
+        structured_outputs=StructuredOutputsParams(regex="[0-9]+"),
+    )
+    sampling_params.update_from_generation_config({}, EOS_TOKEN_ID)
+
+    with pytest.raises(ValueError, match="structured outputs runtime.*GB10/SM12x"):
+        Request(
+            request_id="0",
+            prompt_token_ids=[0, 1],
+            mm_features=None,
+            sampling_params=sampling_params,
+            pooling_params=None,
+        )
+
+
+def test_request_allows_structured_outputs_runtime_off_gb10(monkeypatch):
+    _mock_cuda_sm12x_platform(monkeypatch, is_gb10=False)
+    sampling_params = SamplingParams(
+        ignore_eos=False,
+        max_tokens=16,
+        structured_outputs=StructuredOutputsParams(regex="[0-9]+"),
+    )
+    sampling_params.update_from_generation_config({}, EOS_TOKEN_ID)
+
+    request = Request(
+        request_id="0",
+        prompt_token_ids=[0, 1],
+        mm_features=None,
+        sampling_params=sampling_params,
+        pooling_params=None,
+    )
+
+    assert request.structured_output_request is not None
+    assert request.status == RequestStatus.WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR
 
 
 def test_abort_request_when_structured_output_fsm_cannot_advance():

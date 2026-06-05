@@ -566,6 +566,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x reasoning correctness and runtime evidence exists."
                 ),
             },
+            "structured_outputs_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Structured outputs runtime compiles request-level "
+                    "grammars and applies Triton grammar bitmasks to logits "
+                    "outside the validated GB10 first release serving path. "
+                    "It must reject on GB10/SM12x until native SM12x "
+                    "structured-output correctness and runtime evidence "
+                    "exists."
+                ),
+            },
             "lora_runtime": {
                 "status": "not_supported",
                 "release_contract": (

@@ -18,6 +18,24 @@ if TYPE_CHECKING:
     from vllm.reasoning import ReasoningParser
 
 
+_GB10_STRUCTURED_OUTPUTS_RUNTIME_MESSAGE = (
+    "structured outputs runtime is not supported on GB10/SM12x in this fork: "
+    "request-level structured_outputs/grammar constraints compile grammars "
+    "and apply Triton grammar bitmasks to logits outside the validated native "
+    "first-path NVFP4 serving release. Disable structured outputs on GB10 "
+    "until native SM12x structured-output correctness and runtime evidence "
+    "exists."
+)
+
+
+def _is_gb10_sm12x_cuda_platform() -> bool:
+    from vllm.platforms import current_platform
+
+    return current_platform.is_cuda() and current_platform.is_device_capability_family(
+        120
+    )
+
+
 @dataclasses.dataclass
 class StructuredOutputRequest:
     params: StructuredOutputsParams
@@ -37,6 +55,8 @@ class StructuredOutputRequest:
         params = sampling_params.structured_outputs
         if not params or params.all_constraints_none():
             return None
+        if _is_gb10_sm12x_cuda_platform():
+            raise ValueError(_GB10_STRUCTURED_OUTPUTS_RUNTIME_MESSAGE)
         return StructuredOutputRequest(params=params)
 
     def _check_grammar_completion(self) -> bool:
