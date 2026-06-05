@@ -94,6 +94,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_int_moe_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
+    "deepseek_v4_deep_gemm_mega_moe": "deferred",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
@@ -388,6 +389,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
 }
 
 GB10_DEFERRED_PATH_REASONS = {
+    "deepseek_v4_deep_gemm_mega_moe": (
+        "DeepSeek V4 DeepGEMM MegaMoE is an explicit expert-parallel backend "
+        "with SM120-family runtime allowance, but it is deferred until GB10 "
+        "artifact, correctness, and runtime evidence exist."
+    ),
     "flashinfer_b12x_ep_all2all_eplb": (
         "FlashInfer b12x expert-parallel all-to-all/EPLB NVFP4 MoE is "
         "deferred until multi-Spark communication contracts are validated on "

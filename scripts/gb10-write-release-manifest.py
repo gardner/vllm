@@ -800,6 +800,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "dense or routed support is validated."
                 ),
             },
+            "deepseek_v4_deep_gemm_mega_moe": {
+                "status": "deferred",
+                "release_contract": (
+                    "DeepSeek V4 DeepGEMM MegaMoE is an explicit "
+                    "expert-parallel backend with SM120-family runtime "
+                    "allowance, but it is deferred until GB10 artifact, "
+                    "correctness, and runtime evidence exist."
+                ),
+            },
             "flashinfer_b12x_ep_all2all_eplb": {
                 "status": "deferred",
                 "release_contract": (

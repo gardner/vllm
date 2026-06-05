@@ -120,6 +120,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_int_moe_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
+    "deepseek_v4_deep_gemm_mega_moe": "deferred",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
     "multi_spark_ep_all2all_eplb": "deferred",
@@ -2508,6 +2509,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["flashinfer_cudnn_nvfp4_dense"]["status"] == (
         "deferred"
     )
+    assert support_matrix["entries"]["deepseek_v4_deep_gemm_mega_moe"][
+        "status"
+    ] == "deferred"
     assert support_matrix["entries"]["multi_spark_ep_all2all_eplb"]["status"] == (
         "deferred"
     )
@@ -5525,6 +5529,24 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "not supported on GB10/SM12x" in unquantized_moe_oracle
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
+
+
+def test_gb10_deepseek_v4_deep_gemm_mega_moe_is_deferred_explicit_ep_only():
+    deepseek_v4_model = (
+        REPO_ROOT / "vllm" / "models" / "deepseek_v4" / "nvidia" / "model.py"
+    ).read_text()
+
+    assert 'moe_backend == "deep_gemm_mega_moe"' in deepseek_v4_model
+    assert "not vllm_config.parallel_config.enable_expert_parallel" in (
+        deepseek_v4_model
+    )
+    assert "DeepSeek V4 MegaMoE currently requires expert parallel" in (
+        deepseek_v4_model
+    )
+    assert "arch_major not in (10, 12)" in deepseek_v4_model
+    assert "DeepGEMM MegaMoE requires SM100 or SM120-family GPUs" in (
+        deepseek_v4_model
+    )
 
 
 def test_gb10_unquantized_moe_triton_fallback_rejects_sm12x(monkeypatch):
@@ -9618,6 +9640,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
             },
             "deferred_paths": {
+                "deepseek_v4_deep_gemm_mega_moe": {
+                    "status": "deferred",
+                    "expected_handling": "block_until_hardware_validated",
+                    "reason": "DeepSeek V4 DeepGEMM MegaMoE lacks GB10 evidence",
+                },
                 "flashinfer_b12x_ep_all2all_eplb": {
                     "status": "deferred",
                     "expected_handling": "block_until_hardware_validated",
@@ -9888,6 +9915,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
                 },
+                "deepseek_v4_deep_gemm_mega_moe": {"status": "deferred"},
                 "flashinfer_b12x_ep_all2all_eplb": {"status": "deferred"},
                 "flashinfer_cudnn_nvfp4_dense": {"status": "deferred"},
                 "multi_spark_ep_all2all_eplb": {"status": "deferred"},
@@ -10026,6 +10054,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert checks_by_name["deferred_paths_reported"]["details"][
         "reported_deferred_entries"
     ] == [
+        "deepseek_v4_deep_gemm_mega_moe",
         "flashinfer_b12x_ep_all2all_eplb",
         "flashinfer_cudnn_nvfp4_dense",
         "multi_spark_ep_all2all_eplb",
