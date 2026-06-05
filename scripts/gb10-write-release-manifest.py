@@ -389,6 +389,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "but it cannot satisfy native NVFP4 release evidence."
                 ),
             },
+            "fbgemm_nvfp4_dense": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FBGEMM NVFP4 dense can prove backend reachability when "
+                    "fbgemm_gpu is installed, but it cannot satisfy native "
+                    "GB10 NVFP4 release evidence until SM121A FBGEMM artifacts "
+                    "and correctness evidence exist."
+                ),
+            },
             "modelopt_w4a16_nvfp4_checkpoint_loading": {
                 "status": "not_supported",
                 "release_contract": (

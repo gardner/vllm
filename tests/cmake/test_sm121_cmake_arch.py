@@ -83,6 +83,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
+    "fbgemm_nvfp4_dense": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
@@ -2439,6 +2440,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["fbgemm_fp8_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["fbgemm_nvfp4_dense"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["experts_int8_quantization"]["status"] == (
@@ -5199,6 +5203,7 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "before publishing GB10 artifacts" in linear_selector
     assert "MarlinNvFp4LinearKernel" in linear_selector
     assert "EmulationNvFp4LinearKernel" in linear_selector
+    assert "FbgemmNvFp4LinearKernel" in linear_selector
     assert "MarlinMxFp4LinearKernel" in linear_selector
     assert "MarlinFP8ScaledMMLinearKernel" in linear_selector
     assert "MarlinMxfp8LinearKernel" in linear_selector
@@ -5209,6 +5214,7 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "FP8 W8A16 Marlin fallback" in linear_selector
     assert "non-native MXFP4 dense fallback" in linear_selector
     assert "non-native MXFP8 dense fallback" in linear_selector
+    assert "FBGEMM NVFP4 dense backend" in linear_selector
     assert "_gb10_w8a8_mxfp8_dense_unsupported_reason" in (
         compressed_tensors_w8a8_mxfp8
     )
@@ -9228,6 +9234,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Marlin is a fallback path",
                 },
+                "fbgemm_nvfp4_dense": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "FBGEMM NVFP4 dense is not native GB10 evidence",
+                },
                 "modelopt_w4a16_nvfp4_checkpoint_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9798,6 +9809,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
                 "rocm_aiter_fp8_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
+                "fbgemm_nvfp4_dense": {"status": "not_supported"},
                 "modelopt_w4a16_nvfp4_checkpoint_loading": {
                     "status": "not_supported"
                 },
@@ -9966,6 +9978,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "deepseek_v4_fp8_quantization",
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",
+        "fbgemm_nvfp4_dense",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "fp8_w8a16_marlin_fallback",

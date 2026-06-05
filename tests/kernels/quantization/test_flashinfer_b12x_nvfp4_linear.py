@@ -188,6 +188,53 @@ def test_sm12x_linear_backend_fallback_nvfp4_dense_fails_fast(
         linear_kernels.init_nvfp4_linear_kernel()
 
 
+def test_sm12x_forced_fbgemm_nvfp4_dense_fails_fast(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(
+        linear_kernels.FbgemmNvFp4LinearKernel,
+        "is_supported",
+        classmethod(lambda cls: (True, None)),
+    )
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.setattr(
+        linear_kernels.envs,
+        "VLLM_USE_FBGEMM",
+        True,
+        raising=False,
+    )
+    monkeypatch.delenv("VLLM_NVFP4_GEMM_BACKEND", raising=False)
+
+    with pytest.raises(ValueError, match="FBGEMM NVFP4 dense"):
+        linear_kernels.init_nvfp4_linear_kernel()
+
+
+def test_sm12x_linear_backend_fbgemm_nvfp4_dense_fails_fast(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        linear_kernels,
+        "current_platform",
+        _Sm12xCudaPlatform(),
+    )
+    monkeypatch.setattr(
+        linear_kernels.FbgemmNvFp4LinearKernel,
+        "is_supported",
+        classmethod(lambda cls: (True, None)),
+    )
+    monkeypatch.setattr(linear_kernels, "_get_linear_backend", lambda: "fbgemm")
+    monkeypatch.delenv("VLLM_BATCH_INVARIANT", raising=False)
+    monkeypatch.delenv("VLLM_NVFP4_GEMM_BACKEND", raising=False)
+
+    with pytest.raises(ValueError, match="FBGEMM NVFP4 dense"):
+        linear_kernels.init_nvfp4_linear_kernel()
+
+
 def test_sm12x_auto_rejects_nvfp4_dense_fallback_when_no_native_backend(
     monkeypatch,
 ) -> None:

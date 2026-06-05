@@ -944,6 +944,30 @@ def _gb10_nvfp4_linear_fallback_unsupported_reason(
     )
 
 
+def _gb10_fbgemm_nvfp4_dense_unsupported_reason(
+    kernel_cls: type[NvFp4LinearKernel],
+) -> str | None:
+    if kernel_cls is not FbgemmNvFp4LinearKernel:
+        return None
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "FBGEMM NVFP4 dense backend is not supported on GB10/SM12x until "
+        "native SM121A FBGEMM artifacts and correctness evidence exist; use "
+        "FlashInfer b12x, FlashInfer CUTLASS, or CUTLASS native NVFP4 dense "
+        "backends instead."
+    )
+
+
+def _gb10_nvfp4_linear_unsupported_reason(
+    kernel_cls: type[NvFp4LinearKernel],
+) -> str | None:
+    return (
+        _gb10_nvfp4_linear_fallback_unsupported_reason(kernel_cls)
+        or _gb10_fbgemm_nvfp4_dense_unsupported_reason(kernel_cls)
+    )
+
+
 def _log_nvfp4_linear_kernel_selection(
     kernel_cls: type[NvFp4LinearKernel],
     failure_reasons: list[str] | None = None,
@@ -1032,11 +1056,11 @@ def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
                 )
 
     if force_kernel is not None:
-        fallback_reason = _gb10_nvfp4_linear_fallback_unsupported_reason(force_kernel)
-        if fallback_reason is not None:
+        unsupported_reason = _gb10_nvfp4_linear_unsupported_reason(force_kernel)
+        if unsupported_reason is not None:
             raise ValueError(
                 f"Forced NVFP4 kernel {force_kernel.__name__} is not "
-                f"supported: {fallback_reason}"
+                f"supported: {unsupported_reason}"
             )
         is_supported, reason = force_kernel.is_supported()
         if not is_supported:
@@ -1069,9 +1093,9 @@ def init_nvfp4_linear_kernel() -> NvFp4LinearKernel:
             )
             continue
 
-        fallback_reason = _gb10_nvfp4_linear_fallback_unsupported_reason(kernel_cls)
-        if fallback_reason is not None:
-            failure_reasons.append(f"{kernel_cls.__name__}: {fallback_reason}")
+        unsupported_reason = _gb10_nvfp4_linear_unsupported_reason(kernel_cls)
+        if unsupported_reason is not None:
+            failure_reasons.append(f"{kernel_cls.__name__}: {unsupported_reason}")
             continue
 
         is_supported, reason = kernel_cls.is_supported()

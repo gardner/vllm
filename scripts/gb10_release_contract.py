@@ -57,6 +57,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
+    "fbgemm_nvfp4_dense": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
@@ -154,6 +155,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "marlin_nvfp4_fallback": (
         "Marlin can prove fallback serving reachability, but it is not native "
         "GB10 NVFP4 Tensor Core evidence."
+    ),
+    "fbgemm_nvfp4_dense": (
+        "FBGEMM NVFP4 dense can prove backend reachability when fbgemm_gpu is "
+        "installed, but it is not native GB10 NVFP4 evidence until SM121A "
+        "FBGEMM artifacts and correctness evidence exist."
     ),
     "modelopt_w4a16_nvfp4_checkpoint_loading": (
         "ModelOpt W4A16 NVFP4 checkpoint loading is not validated on "
