@@ -794,6 +794,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x EC transfer correctness evidence exists."
                 ),
             },
+            "weight_transfer_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "RL training weight transfer uses NCCL or IPC weight "
+                    "update engines outside the validated GB10 first release "
+                    "serving path. It must reject until native SM12x "
+                    "weight-transfer correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

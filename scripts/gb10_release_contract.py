@@ -100,6 +100,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
     "ec_transfer_runtime": "not_supported",
+    "weight_transfer_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -409,6 +410,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Distributed EC cache transfer connectors are outside the validated "
         "GB10 first release path and V2 model-runner support; reject them "
         "until native SM12x EC transfer correctness evidence exists."
+    ),
+    "weight_transfer_runtime": (
+        "RL training weight transfer uses NCCL or IPC weight update engines "
+        "outside the validated GB10 first release serving path; reject it "
+        "until native SM12x weight-transfer correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "

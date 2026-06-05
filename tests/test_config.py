@@ -30,6 +30,7 @@ from vllm.config import (
     SchedulerConfig,
     SpeculativeConfig,
     VllmConfig,
+    WeightTransferConfig,
     update_config,
 )
 from vllm.config.compilation import CompilationMode, CUDAGraphMode
@@ -347,6 +348,32 @@ def test_vllm_config_allows_ec_transfer_off_gb10(monkeypatch):
     config = VllmConfig(ec_transfer_config=ec_transfer_config)
 
     assert config.ec_transfer_config is ec_transfer_config
+
+
+def test_gb10_vllm_config_rejects_weight_transfer_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="weight transfer runtime.*GB10/SM12x"):
+        VllmConfig(weight_transfer_config=WeightTransferConfig(backend="nccl"))
+
+
+def test_vllm_config_allows_weight_transfer_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    weight_transfer_config = WeightTransferConfig(backend="nccl")
+    config = VllmConfig(weight_transfer_config=weight_transfer_config)
+
+    assert config.weight_transfer_config is weight_transfer_config
 
 
 @pytest.mark.parametrize(

@@ -126,6 +126,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
     "ec_transfer_runtime": "not_supported",
+    "weight_transfer_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2565,6 +2566,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["ec_transfer_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["weight_transfer_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8865,6 +8869,16 @@ def test_gb10_ec_transfer_runtime_is_reported():
     assert "ec_transfer_config.is_ec_transfer_instance" in vllm_config
 
 
+def test_gb10_weight_transfer_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE" in vllm_config
+    assert "weight transfer runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--weight-transfer-config" in vllm_config
+    assert "RL training weight update paths use NCCL or IPC" in vllm_config
+    assert "weight_transfer_config is not None" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10901,6 +10915,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "weight_transfer_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "RL training weight transfer lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11665,6 +11687,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "distributed_parallel_runtime": {"status": "not_supported"},
                 "kv_sharing_fast_prefill_runtime": {"status": "not_supported"},
                 "ec_transfer_runtime": {"status": "not_supported"},
+                "weight_transfer_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11940,6 +11963,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "unquantized_moe_triton_fallback",
         "unvalidated_kv_cache_runtime",
         "vllm_cutlass_fp8_moe",
+        "weight_transfer_runtime",
         "wna16_moe_fallback",
     ]
     assert checks_by_name["supported_routed_paths_reported"]["details"][

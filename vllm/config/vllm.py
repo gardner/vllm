@@ -146,6 +146,13 @@ _GB10_EC_TRANSFER_RUNTIME_MESSAGE = (
     "--ec-transfer-config on GB10 until native SM12x EC transfer correctness "
     "and runtime evidence exists."
 )
+_GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE = (
+    "weight transfer runtime is not supported on GB10/SM12x in this fork: "
+    "RL training weight update paths use NCCL or IPC transfer engines outside "
+    "the validated native first-path NVFP4 serving release. Disable "
+    "--weight-transfer-config on GB10 until native SM12x weight-transfer "
+    "correctness and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -967,6 +974,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_EC_TRANSFER_RUNTIME_MESSAGE)
+
+        if (
+            self.weight_transfer_config is not None
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 
