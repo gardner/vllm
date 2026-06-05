@@ -91,6 +91,56 @@ gb10_validate_cache_ref() {
     done
 }
 
+gb10_validate_release_output_paths() {
+    GB10_LOCAL_RELEASE_MANIFEST_DIR="$GB10_LOCAL_RELEASE_MANIFEST_DIR" \
+    GB10_RELEASE_MANIFEST_JSON="$GB10_RELEASE_MANIFEST_JSON" \
+    GB10_RELEASE_CHECKSUMS="$GB10_RELEASE_CHECKSUMS" \
+    GB10_RUNTIME_IMAGE_REF="$GB10_RUNTIME_IMAGE_REF" \
+    GB10_RUNTIME_IMAGE_DIGEST="$GB10_RUNTIME_IMAGE_DIGEST" \
+    GB10_RUNTIME_IMAGE_METADATA_JSON="$GB10_RUNTIME_IMAGE_METADATA_JSON" \
+        python3 - <<'PY'
+import os
+import sys
+from pathlib import Path
+
+manifest_dir = Path(os.environ["GB10_LOCAL_RELEASE_MANIFEST_DIR"]).resolve()
+output_paths = {
+    "GB10_RELEASE_MANIFEST_JSON": os.environ["GB10_RELEASE_MANIFEST_JSON"],
+    "GB10_RELEASE_CHECKSUMS": os.environ["GB10_RELEASE_CHECKSUMS"],
+    "GB10_RUNTIME_IMAGE_REF": os.environ["GB10_RUNTIME_IMAGE_REF"],
+    "GB10_RUNTIME_IMAGE_DIGEST": os.environ["GB10_RUNTIME_IMAGE_DIGEST"],
+    "GB10_RUNTIME_IMAGE_METADATA_JSON": os.environ[
+        "GB10_RUNTIME_IMAGE_METADATA_JSON"
+    ],
+}
+
+errors = []
+for name, raw_path in output_paths.items():
+    if not raw_path:
+        errors.append(f"GB10 generated release output path {name} must be non-empty.")
+        continue
+    output_path = Path(raw_path).resolve()
+    try:
+        relative_path = output_path.relative_to(manifest_dir)
+    except ValueError:
+        errors.append(
+            f"GB10 generated release output path {name} must stay under "
+            f"GB10_LOCAL_RELEASE_MANIFEST_DIR ({manifest_dir}), got {output_path}."
+        )
+        continue
+    if not relative_path.parts:
+        errors.append(
+            f"GB10 generated release output path {name} must be a file under "
+            f"GB10_LOCAL_RELEASE_MANIFEST_DIR ({manifest_dir}), got {output_path}."
+        )
+
+if errors:
+    for error in errors:
+        print(error, file=sys.stderr)
+    raise SystemExit(2)
+PY
+}
+
 gb10_remove_stale_release_outputs() {
     rm -f \
         "$GB10_RELEASE_MANIFEST_JSON" \
@@ -216,6 +266,7 @@ export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
 
+gb10_validate_release_output_paths
 gb10_remove_stale_release_outputs
 
 set +e
