@@ -97,6 +97,38 @@ ACTIVATION_SCHEMES = ["static", "dynamic"]
 logger = init_logger(__name__)
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_public_fp8_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "Public FP8 quantization is not supported on GB10/SM12x. The "
+        "fp8 quantization method can reach the online FP8 quantization path, "
+        "FP8 scaled-mm dense kernel selection, and FP8 MoE backend selection "
+        "today, but this is not native GB10 public FP8 correctness evidence. Use a "
+        "validated GB10 public FP8 path after native SM12x correctness evidence "
+        "exists, or keep --quantization fp8 unselected."
+    )
+
+
 class Fp8Config(QuantizationConfig):
     """Config class for FP8."""
 
@@ -108,6 +140,8 @@ class Fp8Config(QuantizationConfig):
         weight_block_size: list[int] | None = None,
     ) -> None:
         super().__init__()
+        if reason := _gb10_public_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
 
         self.is_checkpoint_fp8_serialized = is_checkpoint_fp8_serialized
 

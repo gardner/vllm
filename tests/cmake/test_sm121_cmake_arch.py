@@ -69,6 +69,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
+    "public_fp8_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2338,6 +2339,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["flashinfer_trtllm_mxfp4_moe"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["public_fp8_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
@@ -5052,6 +5056,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "online" / "base.py"
     ).read_text()
+    fp8_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "fp8.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5170,6 +5178,13 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "unquantized linear/attention handling" in mxfp4_quant
     assert "MXFP4 MoE backend selection" in mxfp4_quant
     assert "not supported on GB10/SM12x" in mxfp4_quant
+    assert "_gb10_public_fp8_quantization_unsupported_reason" in fp8_quant
+    assert "Public FP8 quantization" in fp8_quant
+    assert "fp8 quantization method" in fp8_quant
+    assert "FP8 scaled-mm dense kernel selection" in fp8_quant
+    assert "FP8 MoE backend selection" in fp8_quant
+    assert "online FP8 quantization path" in fp8_quant
+    assert "not supported on GB10/SM12x" in fp8_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -5878,6 +5893,59 @@ def test_gb10_public_mxfp4_quantization_rejects_sm12x(monkeypatch):
     assert mxfp4._gb10_public_mxfp4_quantization_unsupported_reason() is None
     assert isinstance(mxfp4.Mxfp4Config(), mxfp4.Mxfp4Config)
     assert isinstance(mxfp4.GptOssMxfp4Config(), mxfp4.GptOssMxfp4Config)
+
+
+def test_gb10_public_fp8_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import fp8
+
+    monkeypatch.setattr(
+        fp8,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for kwargs in (
+        {},
+        {
+            "is_checkpoint_fp8_serialized": True,
+            "activation_scheme": "static",
+        },
+        {
+            "is_checkpoint_fp8_serialized": True,
+            "activation_scheme": "dynamic",
+            "weight_block_size": [128, 128],
+        },
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            fp8.Fp8Config(**kwargs)
+
+        reason = str(exc_info.value)
+        assert "Public FP8 quantization" in reason
+        assert "fp8 quantization method" in reason
+        assert "FP8 scaled-mm dense kernel selection" in reason
+        assert "FP8 MoE backend selection" in reason
+        assert "online FP8 quantization path" in reason
+        assert "native GB10 public FP8 correctness evidence" in reason
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        fp8.Fp8Config.from_config(
+            {
+                "quant_method": "fp8",
+                "activation_scheme": "dynamic",
+            }
+        )
+
+    monkeypatch.setattr(
+        fp8,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert fp8._gb10_public_fp8_quantization_unsupported_reason() is None
+    assert isinstance(fp8.Fp8Config(), fp8.Fp8Config)
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -8497,6 +8565,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "selection without native GB10 evidence"
                     ),
                 },
+                "public_fp8_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Public FP8 quantization can select FP8 dense kernel "
+                        "selection and FP8 MoE backend selection without "
+                        "native GB10 evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -8946,6 +9023,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
+                "public_fp8_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9114,6 +9192,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "online_fp8_quantization",
         "online_mxfp8_quantization",
         "public_flashattention_runtime",
+        "public_fp8_quantization",
         "public_mxfp4_quantization",
         "quark_nvfp4_checkpoint_loading",
         "quark_ocp_mx_checkpoint_loading",

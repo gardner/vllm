@@ -415,6 +415,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "MXFP4 correctness evidence exists."
                 ),
             },
+            "public_fp8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Public FP8 quantization can reach online FP8 quantization, "
+                    "FP8 scaled-mm dense kernel selection, and FP8 MoE backend "
+                    "selection today and must reject on GB10/SM12x until native "
+                    "GB10 public FP8 correctness evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

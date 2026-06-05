@@ -43,6 +43,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
+    "public_fp8_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -158,6 +159,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Public MXFP4 quantization can reach unquantized linear/attention "
         "handling and MXFP4 MoE backend selection today; reject it until "
         "native GB10 public MXFP4 correctness evidence exists."
+    ),
+    "public_fp8_quantization": (
+        "Public FP8 quantization can reach online FP8 quantization, FP8 "
+        "scaled-mm dense kernel selection, and FP8 MoE backend selection today; "
+        "reject it until native GB10 public FP8 correctness evidence exists."
     ),
     "fp8_w8a16_marlin_fallback": (
         "FP8 W8A16 Marlin fallback can prove reachability, but it is not "
