@@ -3517,6 +3517,102 @@ def test_gb10_local_cached_wheel_stale_output_fails_before_cache_or_docker(
     assert not cache_dir.exists()
 
 
+def test_gb10_local_cached_build_rejects_invalid_dry_run_flag_before_manifest(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    dist_dir = tmp_path / "dist"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "ture",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_LOCAL_DIST_DIR": str(dist_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "Unsupported GB10_DRY_RUN=ture" in proc.stdout
+    assert "Use 1, 0, true, false, yes, no, on, or off" in proc.stdout
+    assert "requires exactly one vLLM wheel" not in proc.stdout
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+    assert not cache_dir.exists()
+
+
+def test_gb10_local_cached_build_rejects_invalid_registry_cache_flag_before_manifest(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_USE_REGISTRY_CACHE": "maybe",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "Unsupported GB10_USE_REGISTRY_CACHE=maybe" in proc.stdout
+    assert "Use 1, 0, true, false, yes, no, on, or off" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+    assert not cache_dir.exists()
+
+
+def test_gb10_local_cached_build_accepts_boolean_flag_aliases(tmp_path):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "true",
+            "GB10_USE_REGISTRY_CACHE": "on",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    assert "GB10 local cached build dry run" in proc.stdout
+    assert "registry_cache_enabled=1" in proc.stdout
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
     tmp_path,
 ):

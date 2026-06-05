@@ -26,6 +26,24 @@ EOF
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+gb10_bool_flag() {
+    local name="$1"
+    local value="$2"
+    local normalized_value="${value,,}"
+    case "$normalized_value" in
+        1|true|yes|on)
+            printf '1'
+            ;;
+        0|false|no|off)
+            printf '0'
+            ;;
+        *)
+            echo "Unsupported ${name}=${value}. Use 1, 0, true, false, yes, no, on, or off." >&2
+            return 2
+            ;;
+    esac
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
@@ -67,7 +85,9 @@ GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"
 GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"
 GB10_NATIVE_CUDA_ARCHS_ONLY="${GB10_NATIVE_CUDA_ARCHS_ONLY:-1}"
 GB10_DRY_RUN="${GB10_DRY_RUN:-0}"
+GB10_DRY_RUN_ENABLED="$(gb10_bool_flag GB10_DRY_RUN "$GB10_DRY_RUN")"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
+GB10_USE_REGISTRY_CACHE_ENABLED="$(gb10_bool_flag GB10_USE_REGISTRY_CACHE "$GB10_USE_REGISTRY_CACHE")"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_DIST_DIR="${GB10_LOCAL_DIST_DIR:-$repo_root/dist}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
@@ -167,7 +187,7 @@ cache_next="$cache_root/${cache_key}.next"
 cache_failed="$cache_root/${cache_key}.failed"
 registry_cache_refs_string="${registry_cache_refs[*]}"
 
-if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
+if [ "$GB10_DRY_RUN_ENABLED" = "1" ]; then
     echo "GB10 local cached build dry run"
     echo "target_arg=$target_arg"
     echo "docker_target=$docker_target"
@@ -177,6 +197,7 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     echo "cache_next=$cache_next"
     echo "cache_failed=$cache_failed"
     echo "registry_cache_refs=$registry_cache_refs_string"
+    echo "registry_cache_enabled=$GB10_USE_REGISTRY_CACHE_ENABLED"
     echo "output_mode=$output_mode"
     echo "GB10_PREFLIGHT_ONLY=$GB10_PREFLIGHT_ONLY"
     echo "GB10_PUSH_IMAGE=$GB10_PUSH_IMAGE"
@@ -224,7 +245,7 @@ if [ -f "$cache_failed/index.json" ]; then
 fi
 cache_args+=(--cache-to "type=local,dest=$cache_next,mode=max")
 
-if [ "$GB10_USE_REGISTRY_CACHE" = "1" ]; then
+if [ "$GB10_USE_REGISTRY_CACHE_ENABLED" = "1" ]; then
     for ref in "${registry_cache_refs[@]}"; do
         cache_args+=(--cache-from "type=registry,ref=$ref")
     done
