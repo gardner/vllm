@@ -79,6 +79,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "fp8_w8a16_moe_fallback": "not_supported",
     "int8_moe_triton_fallback": "not_supported",
     "wna16_moe_fallback": "not_supported",
+    "compressed_tensors_wna16_dense_loading": "not_supported",
     "compressed_tensors_wna16_moe_fallback": "not_supported",
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
@@ -2349,6 +2350,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["wna16_moe_fallback"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["compressed_tensors_wna16_dense_loading"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_wna16_moe_fallback"][
         "status"
     ] == "not_supported"
@@ -4933,6 +4937,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "schemes" /
         "compressed_tensors_w4a8_int.py"
     ).read_text()
+    compressed_tensors_wna16 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "schemes" /
+        "compressed_tensors_wNa16.py"
+    ).read_text()
     compressed_tensors_mxfp4_moe = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
@@ -5077,6 +5086,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "CompressedTensors W4A8 Int dense loading" in compressed_tensors_w4a8_int
     assert "generic mixed-precision" in compressed_tensors_w4a8_int
     assert "not supported on GB10/SM12x" in compressed_tensors_w4a8_int
+    assert "_gb10_wna16_dense_unsupported_reason" in compressed_tensors_wna16
+    assert "CompressedTensors WNA16 dense loading" in compressed_tensors_wna16
+    assert "generic mixed-precision" in compressed_tensors_wna16
+    assert "not supported on GB10/SM12x" in compressed_tensors_wna16
     assert "weight_quant.type == QuantizationType.INT" in compressed_tensors
     assert "_gb10_mxfp4_moe_fallback_unsupported_reason" in mxfp4_moe_oracle
     assert "_gb10_mxfp4_moe_trtllm_unsupported_reason" in mxfp4_moe_oracle
@@ -5387,6 +5400,71 @@ def test_gb10_compressed_tensors_w4a8_int_rejects_dense_sm12x(monkeypatch):
             input_symmetric=True,
         ),
         compressed_tensors_w4a8_int.CompressedTensorsW4A8Int,
+    )
+
+
+def test_gb10_compressed_tensors_wna16_dense_rejects_sm12x(monkeypatch):
+    from compressed_tensors import CompressionFormat
+    from compressed_tensors.quantization import (
+        QuantizationArgs,
+        QuantizationStrategy,
+        QuantizationType,
+    )
+
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors import (  # noqa: E501
+        CompressedTensorsConfig,
+    )
+    from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
+        compressed_tensors_wNa16,
+    )
+
+    monkeypatch.setattr(
+        compressed_tensors_wNa16,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    weight_quant = QuantizationArgs(
+        num_bits=4,
+        type=QuantizationType.INT,
+        strategy=QuantizationStrategy.GROUP,
+        symmetric=True,
+        dynamic=False,
+        group_size=128,
+    )
+    config = CompressedTensorsConfig(
+        target_scheme_map={},
+        ignore=[],
+        quant_format=CompressionFormat.pack_quantized.value,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        config._get_scheme_from_parts(
+            weight_quant,
+            None,
+            format=CompressionFormat.pack_quantized.value,
+        )
+
+    reason = str(exc_info.value)
+    assert "CompressedTensors WNA16 dense loading" in reason
+    assert "generic mixed-precision" in reason
+    assert "not native GB10 WNA16/MXINT dense evidence" in reason
+
+    monkeypatch.setattr(
+        compressed_tensors_wNa16,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert compressed_tensors_wNa16._gb10_wna16_dense_unsupported_reason() is None
+    assert isinstance(
+        config._get_scheme_from_parts(
+            weight_quant,
+            None,
+            format=CompressionFormat.pack_quantized.value,
+        ),
+        compressed_tensors_wNa16.CompressedTensorsWNA16,
     )
 
 
@@ -7242,6 +7320,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "WNA16 MoE fallback paths are not native GB10 evidence",
                 },
+                "compressed_tensors_wna16_dense_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors WNA16 dense loading can select "
+                        "generic mixed-precision fallbacks"
+                    ),
+                },
                 "compressed_tensors_wna16_moe_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -7526,6 +7612,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
                 "wna16_moe_fallback": {"status": "not_supported"},
+                "compressed_tensors_wna16_dense_loading": {
+                    "status": "not_supported"
+                },
                 "compressed_tensors_wna16_moe_fallback": {
                     "status": "not_supported"
                 },
@@ -7624,6 +7713,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w4a4_mxfp4_dense_loading",
         "compressed_tensors_w4a8_fp8_loading",
         "compressed_tensors_w4a8_int_dense_loading",
+        "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",

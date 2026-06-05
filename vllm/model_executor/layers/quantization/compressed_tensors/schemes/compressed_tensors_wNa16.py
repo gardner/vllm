@@ -12,6 +12,9 @@ from vllm.model_executor.kernels.linear import (
     MPLinearLayerConfig,
     choose_mp_linear_kernel,
 )
+from vllm.model_executor.layers.quantization.compressed_tensors import (
+    utils as compressed_tensors_utils,
+)
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
     CompressedTensorsScheme,
 )
@@ -35,6 +38,23 @@ __all__ = ["CompressedTensorsWNA16"]
 WNA16_SUPPORTED_TYPES_MAP = {4: scalar_types.uint4b8, 8: scalar_types.uint8b128}
 WNA16_ZP_SUPPORTED_TYPES_MAP = {4: scalar_types.uint4, 8: scalar_types.uint8}
 WNA16_SUPPORTED_BITS = list(WNA16_SUPPORTED_TYPES_MAP.keys())
+
+
+def _is_sm12x_device() -> bool:
+    return compressed_tensors_utils._is_sm12x_device()
+
+
+def _gb10_wna16_dense_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors WNA16 dense loading is "
+        "not supported on GB10/SM12x. The generic mixed-precision "
+        "WNA16/W4A16 kernels can prove reachability, but they are not native "
+        "GB10 WNA16/MXINT dense evidence. Use a native SM12x WNA16/MXINT "
+        "dense backend after correctness evidence exists, or keep this "
+        "checkpoint format unselected."
+    )
 
 
 class CompressedTensorsWNA16(CompressedTensorsScheme):
@@ -68,6 +88,10 @@ class CompressedTensorsWNA16(CompressedTensorsScheme):
                 f"Unsupported num_bits = {num_bits}. "
                 f"Supported num_bits = {WNA16_SUPPORTED_TYPES_MAP.keys()}"
             )
+
+        unsupported_reason = _gb10_wna16_dense_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
 
         self.quant_type = (
             WNA16_ZP_SUPPORTED_TYPES_MAP[num_bits]

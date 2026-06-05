@@ -436,6 +436,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "WNA16/MXINT MoE release evidence."
                 ),
             },
+            "compressed_tensors_wna16_dense_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors WNA16 dense loading can select generic "
+                    "mixed-precision WNA16/W4A16 kernels today and must "
+                    "reject on GB10/SM12x until native GB10 WNA16/MXINT "
+                    "dense correctness evidence exists."
+                ),
+            },
             "compressed_tensors_wna16_moe_fallback": {
                 "status": "not_supported",
                 "release_contract": (

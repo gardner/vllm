@@ -53,6 +53,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "fp8_w8a16_moe_fallback": "not_supported",
     "int8_moe_triton_fallback": "not_supported",
     "wna16_moe_fallback": "not_supported",
+    "compressed_tensors_wna16_dense_loading": "not_supported",
     "compressed_tensors_wna16_moe_fallback": "not_supported",
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
@@ -151,6 +152,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "wna16_moe_fallback": (
         "WNA16 MoE Marlin and batched Marlin fallbacks can prove "
         "reachability, but they are not native GB10 WNA16/MXINT MoE evidence."
+    ),
+    "compressed_tensors_wna16_dense_loading": (
+        "CompressedTensors WNA16 dense loading can select generic "
+        "mixed-precision WNA16/W4A16 kernels today; reject it until native "
+        "GB10 WNA16/MXINT dense correctness evidence exists."
     ),
     "compressed_tensors_wna16_moe_fallback": (
         "CompressedTensors WNA16 MoE legacy fused-experts fallback can prove "
