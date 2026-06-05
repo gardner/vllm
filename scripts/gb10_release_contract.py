@@ -46,6 +46,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
     "torchao_fp8_activation_quantization": "not_supported",
+    "bitsandbytes_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -177,6 +178,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "TorchAO FP8 activation quantization can call "
         "torchao.quantization.quantize_ and hardware-specific tensor packing "
         "today; reject it until native GB10 TorchAO FP8 activation correctness "
+        "evidence exists."
+    ),
+    "bitsandbytes_quantization": (
+        "BitsAndBytes quantization can select bitsandbytes 4-bit linear "
+        "kernels, bitsandbytes 8-bit matmul kernels, and BitsAndBytesMoE "
+        "handling today; reject it until native GB10 BitsAndBytes correctness "
         "evidence exists."
     ),
     "fp8_w8a16_marlin_fallback": (

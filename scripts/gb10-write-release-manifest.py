@@ -444,6 +444,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "bitsandbytes_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "BitsAndBytes quantization can select bitsandbytes 4-bit "
+                    "linear kernels, bitsandbytes 8-bit matmul kernels, and "
+                    "BitsAndBytesMoE handling today and must reject on "
+                    "GB10/SM12x until native GB10 BitsAndBytes correctness "
+                    "evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

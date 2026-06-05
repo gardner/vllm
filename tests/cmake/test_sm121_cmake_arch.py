@@ -72,6 +72,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
     "torchao_fp8_activation_quantization": "not_supported",
+    "bitsandbytes_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2352,6 +2353,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["torchao_fp8_activation_quantization"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["bitsandbytes_quantization"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
         "not_supported"
     )
@@ -5075,6 +5079,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "torchao.py"
     ).read_text()
+    bitsandbytes_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "bitsandbytes.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5216,6 +5224,15 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "torchao.quantization.quantize_" in torchao_quant
     assert "convert_to_packed_tensor_based_on_current_hardware" in torchao_quant
     assert "not supported on GB10/SM12x" in torchao_quant
+    assert "_gb10_bitsandbytes_quantization_unsupported_reason" in (
+        bitsandbytes_quant
+    )
+    assert "BitsAndBytes quantization" in bitsandbytes_quant
+    assert "bitsandbytes quantization method" in bitsandbytes_quant
+    assert "bitsandbytes 4-bit linear kernels" in bitsandbytes_quant
+    assert "bitsandbytes 8-bit matmul kernels" in bitsandbytes_quant
+    assert "BitsAndBytesMoEMethod" in bitsandbytes_quant
+    assert "not supported on GB10/SM12x" in bitsandbytes_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -6082,6 +6099,60 @@ def test_gb10_torchao_fp8_activation_quantization_rejects_sm12x(monkeypatch):
     )
     assert torchao._gb10_torchao_fp8_activation_unsupported_reason(fp8_config) is None
     assert isinstance(torchao.TorchAOConfig(fp8_config), torchao.TorchAOConfig)
+
+
+def test_gb10_bitsandbytes_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import bitsandbytes
+
+    monkeypatch.setattr(
+        bitsandbytes,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for kwargs in (
+        {},
+        {"load_in_4bit": True},
+        {"load_in_8bit": True, "load_in_4bit": False},
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            bitsandbytes.BitsAndBytesConfig(**kwargs)
+
+        reason = str(exc_info.value)
+        assert "BitsAndBytes quantization" in reason
+        assert "bitsandbytes quantization method" in reason
+        assert "bitsandbytes 4-bit linear kernels" in reason
+        assert "bitsandbytes 8-bit matmul kernels" in reason
+        assert "BitsAndBytesMoEMethod" in reason
+        assert "native GB10 BitsAndBytes correctness evidence" in reason
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        bitsandbytes.BitsAndBytesConfig.from_config(
+            {
+                "quant_method": "bitsandbytes",
+                "load_in_4bit": True,
+                "bnb_4bit_quant_type": "nf4",
+            }
+        )
+
+    monkeypatch.setattr(
+        bitsandbytes,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert bitsandbytes._gb10_bitsandbytes_quantization_unsupported_reason() is None
+    assert isinstance(
+        bitsandbytes.BitsAndBytesConfig(),
+        bitsandbytes.BitsAndBytesConfig,
+    )
+    assert isinstance(
+        bitsandbytes.BitsAndBytesConfig(load_in_8bit=True, load_in_4bit=False),
+        bitsandbytes.BitsAndBytesConfig,
+    )
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -8729,6 +8800,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "without native GB10 TorchAO FP8 evidence"
                     ),
                 },
+                "bitsandbytes_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "BitsAndBytes quantization can select bitsandbytes "
+                        "4-bit linear kernels, 8-bit matmul kernels, or MoE "
+                        "handling without native GB10 BitsAndBytes evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9181,6 +9261,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "public_fp8_quantization": {"status": "not_supported"},
                 "deepseek_v4_fp8_quantization": {"status": "not_supported"},
                 "torchao_fp8_activation_quantization": {"status": "not_supported"},
+                "bitsandbytes_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9314,6 +9395,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert checks_by_name["unsupported_paths_reported"]["details"][
         "reported_not_supported_entries"
     ] == [
+        "bitsandbytes_quantization",
         "compressed_tensors_w4a16_nvfp4_loading",
         "compressed_tensors_w4a4_mxfp4_dense_loading",
         "compressed_tensors_w4a8_fp8_loading",

@@ -27,6 +27,39 @@ from vllm.platforms import current_platform
 from vllm.utils.torch_utils import direct_register_custom_op
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_bitsandbytes_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "BitsAndBytes quantization is not supported on GB10/SM12x. The "
+        "bitsandbytes quantization method can select "
+        "bitsandbytes 4-bit linear kernels, bitsandbytes 8-bit matmul kernels, and "
+        "BitsAndBytesMoEMethod handling today, but this is not native GB10 "
+        "BitsAndBytes correctness evidence. Use a validated GB10 "
+        "BitsAndBytes path after native SM12x correctness evidence exists, "
+        "or keep --quantization bitsandbytes unselected."
+    )
+
+
 def _check_bitsandbytes_version():
     min_version = "0.49.2" if current_platform.is_rocm() else "0.48.1"
     try:
@@ -65,6 +98,8 @@ class BitsAndBytesConfig(QuantizationConfig):
         llm_int8_threshold: float = 6.0,
     ) -> None:
         super().__init__()
+        if reason := _gb10_bitsandbytes_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.load_in_8bit = load_in_8bit
         self.load_in_4bit = load_in_4bit
         self.bnb_4bit_compute_dtype = bnb_4bit_compute_dtype
