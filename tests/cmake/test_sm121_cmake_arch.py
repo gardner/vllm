@@ -70,6 +70,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
+    "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -1880,6 +1881,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["flashinfer_trtllm_mxfp4_moe"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["modelopt_w4a16_nvfp4_checkpoint_loading"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
         "not_supported"
     )
@@ -3068,6 +3072,7 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
 
     assert "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel" in modelopt_quant
     assert "_gb10_w4a16_nvfp4_marlin_unsupported_reason" in modelopt_quant
+    assert "_gb10_w4a16_nvfp4_moe_unsupported_reason" in modelopt_quant
     assert "not supported on GB10/SM12x" in modelopt_quant
     assert "record_nvfp4_backend_selection" in modelopt_quant
     assert "record_nvfp4_fallback" in modelopt_quant
@@ -4741,6 +4746,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Marlin is a fallback path",
                 },
+                "modelopt_w4a16_nvfp4_checkpoint_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "ModelOpt W4A16 NVFP4 checkpoint loading is not validated"
+                    ),
+                },
                 "marlin_mxfp4_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4970,6 +4982,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
+                "modelopt_w4a16_nvfp4_checkpoint_loading": {
+                    "status": "not_supported"
+                },
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
@@ -5060,6 +5075,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_trtllm_nvfp4_dense",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
+        "modelopt_w4a16_nvfp4_checkpoint_loading",
         "mxfp4_moe_fallback",
         "public_flashattention_runtime",
         "quark_nvfp4_checkpoint_loading",

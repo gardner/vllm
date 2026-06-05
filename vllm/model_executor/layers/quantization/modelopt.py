@@ -131,6 +131,16 @@ def _gb10_w4a16_nvfp4_marlin_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_w4a16_nvfp4_moe_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "W4A16_NVFP4 MoE checkpoint loading is not supported on GB10/SM12x; "
+        "it lacks native W4A16 NVFP4 MoE correctness evidence and would "
+        "otherwise continue into fallback backend selection."
+    )
+
+
 class ModelOptKVCacheMethod(BaseKVCacheMethod):
     """
     Supports loading kv-cache scaling factors from FP8 or NVFP4 checkpoints.
@@ -1433,9 +1443,14 @@ class ModelOptNvFp4FusedMoE(FusedMoEMethodBase):
         # activation_key=None every W4A4 backend's _supports_quant_scheme
         # rejects itself (they all require (kNvfp4Static, kNvfp4Dynamic)
         # exactly); only Marlin survives. Marlin's MoE path drops
-        # activation scales in convert_to_nvfp4_moe_kernel_format, so no
-        # other change is needed.
+        # activation scales in convert_to_nvfp4_moe_kernel_format, so SM12x
+        # rejects this path before backend selection until native evidence
+        # exists.
         self.use_a16 = quant_config.quant_method == "W4A16_NVFP4"
+        if self.use_a16:
+            unsupported_reason = _gb10_w4a16_nvfp4_moe_unsupported_reason()
+            if unsupported_reason is not None:
+                raise ValueError(unsupported_reason)
         self.nvfp4_backend, self.experts_cls = select_nvfp4_moe_backend(
             config=self.moe,
             weight_key=kNvfp4Static,

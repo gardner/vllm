@@ -399,6 +399,32 @@ def test_modelopt_w4a16_nvfp4_rejects_marlin_fallback_on_sm12x(monkeypatch):
         modelopt.ModelOptNvFp4W4A16LinearMethod(config)
 
 
+def test_modelopt_w4a16_nvfp4_moe_rejects_on_sm12x_before_backend_selection(
+    monkeypatch,
+):
+    import vllm.model_executor.layers.quantization.modelopt as modelopt
+
+    class Sm12xPlatform:
+        def is_device_capability_family(self, capability: int) -> bool:
+            return capability == 120
+
+    config = ModelOptNvFp4Config(
+        quant_method="W4A16_NVFP4",
+        is_checkpoint_nvfp4_serialized=True,
+        kv_cache_quant_algo=None,
+        exclude_modules=[],
+        group_size=16,
+    )
+    backend_selector = MagicMock(return_value=(MagicMock(), MagicMock()))
+    monkeypatch.setattr(modelopt, "current_platform", Sm12xPlatform(), raising=False)
+    monkeypatch.setattr(modelopt, "select_nvfp4_moe_backend", backend_selector)
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        modelopt.ModelOptNvFp4FusedMoE(config, MagicMock())
+
+    backend_selector.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "quant_method, expected_use_a16, act_key_is_none",
     [
@@ -409,13 +435,13 @@ def test_modelopt_w4a16_nvfp4_rejects_marlin_fallback_on_sm12x(monkeypatch):
 def test_modelopt_nvfp4_moe_dispatches_to_marlin_when_w4a16(
     quant_method, expected_use_a16, act_key_is_none
 ):
-    """``ModelOptNvFp4FusedMoE``: when the ckpt's ``quant_method`` is
-    ``W4A16_NVFP4``, the MoE class must pass ``activation_key=None`` to
-    ``select_nvfp4_moe_backend``. That filters out every W4A4 backend
-    (their ``_supports_quant_scheme`` requires
-    ``(kNvfp4Static, kNvfp4Dynamic)`` exactly); Marlin survives because
-    it only checks ``weight_key``. A regression here would mean a W4A16
-    ckpt silently went to the cutlass W4A4 path.
+    """Off SM12x, W4A16_NVFP4 MoE passes ``activation_key=None`` to the
+    backend selector.
+
+    That filters out every W4A4 backend (their ``_supports_quant_scheme``
+    requires ``(kNvfp4Static, kNvfp4Dynamic)`` exactly); Marlin survives
+    because it only checks ``weight_key``. On SM12x this path rejects before
+    backend selection.
     """
     from vllm.model_executor.layers.quantization.modelopt import (
         ModelOptNvFp4Config,
@@ -434,8 +460,16 @@ def test_modelopt_nvfp4_moe_dispatches_to_marlin_when_w4a16(
         group_size=16,
     )
 
+    class NonSm12xPlatform:
+        def is_device_capability_family(self, capability: int) -> bool:
+            return False
+
     mock_select = MagicMock(return_value=(MagicMock(), MagicMock()))
     with (
+        patch(
+            "vllm.model_executor.layers.quantization.modelopt.current_platform",
+            NonSm12xPlatform(),
+        ),
         patch(
             "vllm.model_executor.layers.quantization.modelopt.select_nvfp4_moe_backend",
             mock_select,

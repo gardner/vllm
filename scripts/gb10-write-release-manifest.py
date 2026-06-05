@@ -358,6 +358,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "but it cannot satisfy native NVFP4 release evidence."
                 ),
             },
+            "modelopt_w4a16_nvfp4_checkpoint_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "ModelOpt W4A16 NVFP4 checkpoint loading is not "
+                    "validated on GB10/SM12x and must reject before Marlin "
+                    "dense fallback or MoE backend selection until native "
+                    "GB10 W4A16 NVFP4 correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (
