@@ -714,6 +714,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "MXFP8 dense and MoE correctness evidence exists."
                 ),
             },
+            "online_mxfp4_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Online MXFP4 quantization can accept weight='mxfp4' for "
+                    "dense or MoE online quantization, but no online MXFP4 "
+                    "method is wired today. It must reject on GB10/SM12x until "
+                    "native GB10 online MXFP4 correctness evidence exists."
+                ),
+            },
             "online_int8_moe_quantization": {
                 "status": "not_supported",
                 "release_contract": (

@@ -81,6 +81,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "fp_quant_fp4_quantization": "not_supported",
     "online_fp8_quantization": "not_supported",
     "online_mxfp8_quantization": "not_supported",
+    "online_mxfp4_quantization": "not_supported",
     "online_int8_moe_quantization": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
     "compressed_tensors_w8a8_mxfp8_moe_loading": "not_supported",
@@ -335,6 +336,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Online MXFP8 quantization can reach FlashInfer CUTLASS MXFP8 dense "
         "and generic MXFP8 MoE backend selection today; reject it until "
         "native GB10 online MXFP8 dense and MoE correctness evidence exists."
+    ),
+    "online_mxfp4_quantization": (
+        "Online MXFP4 quantization can accept weight='mxfp4' for dense or "
+        "MoE online quantization, but no online MXFP4 method is wired today; "
+        "reject it until native GB10 online MXFP4 correctness evidence exists."
     ),
     "online_int8_moe_quantization": (
         "Online Int8 MoE quantization can reach online Int8 MoE backend "

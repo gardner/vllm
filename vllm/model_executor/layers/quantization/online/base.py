@@ -43,6 +43,7 @@ from vllm.model_executor.layers.quantization.utils.quant_utils import (
     kFp8Static128BlockSym,
     kFp8StaticTensorSym,
     kInt8StaticChannelSym,
+    kMxfp4Dynamic,
     kMxfp8Dynamic,
 )
 from vllm.platforms import current_platform
@@ -96,6 +97,10 @@ def _spec_uses_mxfp8_weight(spec: QuantSpec | None) -> bool:
     return spec is not None and spec.weight == kMxfp8Dynamic
 
 
+def _spec_uses_mxfp4_weight(spec: QuantSpec | None) -> bool:
+    return spec is not None and spec.weight == kMxfp4Dynamic
+
+
 def _spec_uses_int8_moe_weight(spec: QuantSpec | None) -> bool:
     return spec is not None and spec.weight == kInt8StaticChannelSym
 
@@ -136,6 +141,25 @@ def _gb10_online_mxfp8_quantization_unsupported_reason(
     )
 
 
+def _gb10_online_mxfp4_quantization_unsupported_reason(
+    args: QuantizationConfigArgs,
+) -> str | None:
+    if not _is_sm12x_device():
+        return None
+    if not (
+        _spec_uses_mxfp4_weight(args.linear) or _spec_uses_mxfp4_weight(args.moe)
+    ):
+        return None
+    return (
+        "Online MXFP4 quantization is not supported on GB10/SM12x. "
+        "quantization_config can request weight='mxfp4' for dense or MoE "
+        "online quantization, but no online MXFP4 method is wired and this is "
+        "not native GB10 online MXFP4 correctness evidence. Use a native "
+        "SM12x online MXFP4 path after correctness evidence exists, or keep "
+        "weight='mxfp4' online quantization unselected."
+    )
+
+
 def _gb10_online_int8_moe_quantization_unsupported_reason(
     args: QuantizationConfigArgs,
 ) -> str | None:
@@ -171,6 +195,8 @@ class OnlineQuantizationConfig(QuantizationConfig):
         if reason := _gb10_online_fp8_quantization_unsupported_reason(args):
             raise ValueError(reason)
         if reason := _gb10_online_mxfp8_quantization_unsupported_reason(args):
+            raise ValueError(reason)
+        if reason := _gb10_online_mxfp4_quantization_unsupported_reason(args):
             raise ValueError(reason)
         if reason := _gb10_online_int8_moe_quantization_unsupported_reason(args):
             raise ValueError(reason)
