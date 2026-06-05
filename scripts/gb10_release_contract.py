@@ -59,6 +59,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "fbgemm_fp8_quantization": "not_supported",
+    "experts_int8_quantization": "not_supported",
     "fp_quant_fp4_quantization": "not_supported",
     "online_fp8_quantization": "not_supported",
     "online_mxfp8_quantization": "not_supported",
@@ -190,6 +191,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "FBGEMM FP8 quantization is a deprecated public quantization method "
         "that can reach generic FP8 linear kernel selection today; reject it "
         "until native GB10 FBGEMM FP8 correctness evidence exists."
+    ),
+    "experts_int8_quantization": (
+        "ExpertsInt8 quantization is a backward-compatible public "
+        "quantization method that can reach online Int8 MoE backend selection "
+        "today; reject it until native GB10 online Int8 MoE correctness "
+        "evidence exists."
     ),
     "fp_quant_fp4_quantization": (
         "FPQuant FP4 quantization is a deprecated public quantization method "

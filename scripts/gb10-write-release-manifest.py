@@ -485,6 +485,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "until native GB10 FBGEMM FP8 correctness evidence exists."
                 ),
             },
+            "experts_int8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "ExpertsInt8 quantization is a backward-compatible public "
+                    "quantization method that can reach online Int8 MoE "
+                    "backend selection today and must reject on GB10/SM12x "
+                    "until native GB10 online Int8 MoE correctness evidence "
+                    "exists."
+                ),
+            },
             "fp_quant_fp4_quantization": {
                 "status": "not_supported",
                 "release_contract": (

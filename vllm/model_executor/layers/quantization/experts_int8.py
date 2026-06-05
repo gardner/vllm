@@ -17,6 +17,39 @@ from vllm.model_executor.layers.quantization.base_config import (
 from vllm.model_executor.layers.quantization.online.int8 import (
     Int8OnlineMoEMethod,
 )
+from vllm.platforms import current_platform
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_experts_int8_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "ExpertsInt8 quantization is not supported on GB10/SM12x. The "
+        "backward-compatible public quantization method can reach "
+        "online Int8 MoE backend selection today, but this is not native GB10 "
+        "online Int8 MoE correctness evidence. Use a validated GB10 Int8 "
+        "MoE path after native SM12x correctness evidence exists, or keep "
+        "--quantization experts_int8 unselected."
+    )
 
 
 class ExpertsInt8Config(QuantizationConfig):
@@ -29,6 +62,8 @@ class ExpertsInt8Config(QuantizationConfig):
 
     def __init__(self) -> None:
         super().__init__()
+        if reason := _gb10_experts_int8_quantization_unsupported_reason():
+            raise ValueError(reason)
 
     @classmethod
     def get_name(cls) -> QuantizationMethods:
