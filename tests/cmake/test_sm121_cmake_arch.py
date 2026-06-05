@@ -3274,6 +3274,57 @@ def test_gb10_local_cached_runtime_build_writes_release_checksums():
     )
 
 
+def test_gb10_local_cached_runtime_build_requires_wheel_before_docker():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert "runtime_wheel_count=" in script
+    assert '[ -d "$GB10_LOCAL_DIST_DIR" ]' in script
+    assert "GB10 local runtime build requires exactly one vLLM wheel" in script
+    assert "Run scripts/gb10-build-cached.sh wheel first" in script
+    assert '[ "$docker_target" = "vllm-openai" ]' in script
+    assert '[ "$output_mode" != "cacheonly" ]' in script
+    assert script.index(
+        "GB10 local runtime build requires exactly one vLLM wheel"
+    ) < script.index('mkdir -p "$cache_root"')
+    assert script.index(
+        "GB10 local runtime build requires exactly one vLLM wheel"
+    ) < script.index('docker buildx inspect "$GB10_BUILDX_BUILDER" --bootstrap')
+
+
+def test_gb10_local_cached_runtime_missing_wheel_fails_before_cache_or_docker(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    dist_dir = tmp_path / "dist"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_LOCAL_DIST_DIR": str(dist_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "requires exactly one vLLM wheel" in proc.stdout
+    assert "before Docker/Buildx starts" in proc.stdout
+    assert "Run scripts/gb10-build-cached.sh wheel first" in proc.stdout
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
     tmp_path,
 ):

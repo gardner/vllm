@@ -186,6 +186,21 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     exit 0
 fi
 
+if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; then
+    runtime_wheel_count=0
+    if [ -d "$GB10_LOCAL_DIST_DIR" ]; then
+        runtime_wheel_count="$(
+            find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -type f \
+                | wc -l
+        )"
+    fi
+    if [ "$runtime_wheel_count" -ne 1 ]; then
+        echo "GB10 local runtime build requires exactly one vLLM wheel in $GB10_LOCAL_DIST_DIR before Docker/Buildx starts." >&2
+        echo "Run scripts/gb10-build-cached.sh wheel first, or set GB10_LOCAL_DIST_DIR to a directory with one vLLM wheel." >&2
+        exit 1
+    fi
+fi
+
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 cache_dir="$cache_root/$cache_key"
 cache_next="$cache_root/${cache_key}.next"
