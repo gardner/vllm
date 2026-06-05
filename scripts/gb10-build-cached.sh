@@ -253,6 +253,24 @@ cache_failed="$cache_root/${cache_key}.failed"
 registry_cache_refs_string="${registry_cache_refs[*]}"
 
 if [ "$GB10_DRY_RUN_ENABLED" = "1" ]; then
+    source_dependency_settings="$(python3 - "$GB10_RELEASE_MANIFEST_JSON" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    manifest = json.load(stream)
+
+source_dependencies = manifest["dependencies"]["source_dependencies"]
+for dependency_name, variable_prefix in (
+    ("deepgemm", "DEEPGEMM"),
+    ("flashmla", "FLASH_MLA"),
+    ("triton_kernels", "TRITON_KERNELS"),
+):
+    dependency = source_dependencies[dependency_name]
+    print(f"{variable_prefix}_GIT_REPOSITORY={dependency['repository']}")
+    print(f"{variable_prefix}_GIT_TAG={dependency['ref']}")
+PY
+)"
     echo "GB10 local cached build dry run"
     echo "target_arg=$target_arg"
     echo "docker_target=$docker_target"
@@ -286,6 +304,7 @@ if [ "$GB10_DRY_RUN_ENABLED" = "1" ]; then
     echo "GB10_FLASH_ATTN_REPO=$GB10_FLASH_ATTN_REPO"
     echo "GB10_FLASH_ATTN_REF=$GB10_FLASH_ATTN_REF"
     echo "GB10_RUNNER_LABELS=$GB10_RUNNER_LABELS"
+    printf '%s\n' "$source_dependency_settings"
     echo "GB10_PREBUILT_WHEEL_URLS=$GB10_PREBUILT_WHEEL_URLS"
     exit 0
 fi

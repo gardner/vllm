@@ -4163,6 +4163,18 @@ def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
         'GB10_RUNNER_LABELS=["self-hosted","linux","aarch64",'
         '"cuda13","dgx-spark","sm121"]'
     ) in proc.stdout
+    assert "DEEPGEMM_GIT_REPOSITORY=https://github.com/gardner/DeepGEMM.git" in (
+        proc.stdout
+    )
+    assert f"DEEPGEMM_GIT_TAG={DEEPGEMM_GIT_TAG}" in proc.stdout
+    assert "FLASH_MLA_GIT_REPOSITORY=https://github.com/gardner/FlashMLA.git" in (
+        proc.stdout
+    )
+    assert f"FLASH_MLA_GIT_TAG={FLASHMLA_GIT_TAG}" in proc.stdout
+    assert "TRITON_KERNELS_GIT_REPOSITORY=https://github.com/gardner/triton.git" in (
+        proc.stdout
+    )
+    assert f"TRITON_KERNELS_GIT_TAG={TRITON_KERNELS_GIT_TAG}" in proc.stdout
     assert (
         f"GB10_RELEASE_MANIFEST_JSON="
         f"{manifest_dir / 'gb10-release-manifest.json'}"
