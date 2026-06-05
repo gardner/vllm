@@ -175,6 +175,13 @@ gb10_remove_stale_release_outputs() {
         "$GB10_RUNTIME_IMAGE_METADATA_JSON"
 }
 
+gb10_validate_cache_root_path() {
+    if [ -e "$GB10_LOCAL_CACHE_DIR" ] && [ ! -d "$GB10_LOCAL_CACHE_DIR" ]; then
+        echo "GB10_LOCAL_CACHE_DIR must be a directory path; existing target is not a directory: $GB10_LOCAL_CACHE_DIR." >&2
+        return 2
+    fi
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
@@ -230,6 +237,7 @@ GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_USE_REGISTRY_CACHE_ENABLED="$(gb10_bool_flag GB10_USE_REGISTRY_CACHE "$GB10_USE_REGISTRY_CACHE")"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_DIST_DIR="${GB10_LOCAL_DIST_DIR:-$repo_root/dist}"
+GB10_LOCAL_CACHE_DIR="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
 GB10_RUNTIME_IMAGE_METADATA_JSON="${GB10_RUNTIME_IMAGE_METADATA_JSON:-$GB10_LOCAL_RELEASE_MANIFEST_DIR/buildx-runtime-image-metadata.json}"
 GB10_RELEASE_MANIFEST_JSON="$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
@@ -291,6 +299,7 @@ export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
 
+gb10_validate_cache_root_path
 gb10_validate_release_output_paths
 gb10_remove_stale_release_outputs
 
@@ -333,7 +342,7 @@ scripts/gb10-write-release-manifest.py \
     --gb10-validate-release-inputs \
     --gb10-output-json "$GB10_RELEASE_MANIFEST_JSON"
 
-cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
+cache_root="$GB10_LOCAL_CACHE_DIR"
 cache_dir="$cache_root/$cache_key"
 cache_next="$cache_root/${cache_key}.next"
 cache_failed="$cache_root/${cache_key}.failed"

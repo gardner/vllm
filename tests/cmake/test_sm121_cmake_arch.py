@@ -4097,6 +4097,40 @@ def test_gb10_local_cached_build_rejects_manifest_dir_file(
     assert not cache_dir.exists()
 
 
+def test_gb10_local_cached_build_rejects_cache_root_file_before_manifest(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    cache_dir.write_text("keep\n")
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10_LOCAL_CACHE_DIR must be a directory path" in proc.stdout
+    assert "existing target is not a directory" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert cache_dir.read_text() == "keep\n"
+    assert not manifest_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_pushed_non_ghcr_image_before_manifest(
     tmp_path,
 ):
