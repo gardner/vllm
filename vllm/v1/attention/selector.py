@@ -17,6 +17,13 @@ from vllm.v1.attention.backends.registry import (
 
 logger = init_logger(__name__)
 
+_GB10_UNVALIDATED_MAMBA_BACKENDS = {
+    MambaAttentionBackendEnum.MAMBA1: "Mamba1",
+    MambaAttentionBackendEnum.MAMBA2: "Mamba2",
+    MambaAttentionBackendEnum.SHORT_CONV: "ShortConv",
+    MambaAttentionBackendEnum.LINEAR: "Linear attention",
+}
+
 
 class AttentionSelectorConfig(NamedTuple):
     head_size: int
@@ -167,6 +174,9 @@ def _cached_get_mamba_attn_backend(
 ) -> type[AttentionBackend]:
     assert mamba_type and isinstance(mamba_type, MambaAttentionBackendEnum)
 
+    if reason := _gb10_mamba_attn_unsupported_reason(mamba_type):
+        raise ValueError(reason)
+
     mamba_attn_backend = mamba_type.get_class()
     if envs.VLLM_BATCH_INVARIANT and not mamba_attn_backend.supports_batch_invariance():
         raise RuntimeError(
@@ -174,3 +184,32 @@ def _cached_get_mamba_attn_backend(
             f"{mamba_attn_backend.get_name()}."
         )
     return mamba_attn_backend
+
+
+def _is_sm12x_cuda_platform() -> bool:
+    from vllm.platforms import current_platform
+
+    return (
+        current_platform.is_cuda()
+        and current_platform.is_device_capability_family(120)
+    )
+
+
+def _gb10_mamba_attn_unsupported_reason(
+    mamba_type: MambaAttentionBackendEnum,
+) -> str | None:
+    if not _is_sm12x_cuda_platform():
+        return None
+
+    backend_name = _GB10_UNVALIDATED_MAMBA_BACKENDS.get(mamba_type)
+    if backend_name is None:
+        return None
+
+    return (
+        f"{backend_name} Mamba attention backend is not supported on "
+        "GB10/SM12x because its full vLLM runtime still uses unvalidated "
+        "generic Triton causal-conv, SSD, linear-attention, or prefill "
+        "kernels. FlashInfer Mamba SSU is native GB10 evidence for the "
+        "selective-state-update kernel only; keep this model backend "
+        "unselected until full native SM12x Mamba runtime evidence exists."
+    )

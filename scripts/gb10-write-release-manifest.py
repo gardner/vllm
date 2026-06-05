@@ -500,6 +500,42 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "use native FlashInfer SM12x kernels."
                 ),
             },
+            "mamba1_triton_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Mamba1 runtime uses generic Triton causal-conv and "
+                    "prefill/scan kernels beyond native FlashInfer SSU, so "
+                    "it must reject on GB10/SM12x until full native Mamba1 "
+                    "correctness, artifact, and runtime evidence exists."
+                ),
+            },
+            "mamba2_triton_ssd_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Mamba2 runtime uses generic Triton causal-conv and SSD "
+                    "prefill kernels beyond native FlashInfer SSU, so it must "
+                    "reject on GB10/SM12x until full native Mamba2 "
+                    "correctness, artifact, and runtime evidence exists."
+                ),
+            },
+            "short_conv_triton_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "ShortConv runtime uses generic Triton causal-conv "
+                    "kernels and must reject on GB10/SM12x until native "
+                    "ShortConv correctness, artifact, and runtime evidence "
+                    "exists."
+                ),
+            },
+            "linear_attention_triton_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Linear attention runtime uses generic Triton "
+                    "lightning/decode kernels and must reject on GB10/SM12x "
+                    "until native linear-attention correctness, artifact, "
+                    "and runtime evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (

@@ -56,6 +56,10 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "cutlass_mla_sm100_fallback": "not_supported",
     "tokenspeed_mla_cutedsl_fallback": "not_supported",
     "triton_mamba_ssu_fallback": "not_supported",
+    "mamba1_triton_runtime": "not_supported",
+    "mamba2_triton_ssd_runtime": "not_supported",
+    "short_conv_triton_runtime": "not_supported",
+    "linear_attention_triton_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -229,6 +233,28 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Triton Mamba selective-state-update can prove fallback reachability, "
         "but it is not native GB10 Mamba SSU correctness, artifact, or runtime "
         "evidence; use the native FlashInfer SM12x Mamba SSU backend."
+    ),
+    "mamba1_triton_runtime": (
+        "Mamba1 runtime uses generic Triton causal-conv and prefill/scan "
+        "kernels beyond the native FlashInfer SSU kernel, so it is not native "
+        "GB10 runtime evidence until full SM12x Mamba1 correctness, artifact, "
+        "and runtime evidence exists."
+    ),
+    "mamba2_triton_ssd_runtime": (
+        "Mamba2 runtime uses generic Triton causal-conv and SSD prefill "
+        "kernels beyond the native FlashInfer SSU kernel, so it is not native "
+        "GB10 runtime evidence until full SM12x Mamba2 correctness, artifact, "
+        "and runtime evidence exists."
+    ),
+    "short_conv_triton_runtime": (
+        "ShortConv runtime uses generic Triton causal-conv kernels and is not "
+        "native GB10 runtime evidence until SM12x ShortConv correctness, "
+        "artifact, and runtime evidence exists."
+    ),
+    "linear_attention_triton_runtime": (
+        "Linear attention runtime uses generic Triton lightning/decode kernels "
+        "and is not native GB10 runtime evidence until SM12x linear-attention "
+        "correctness, artifact, and runtime evidence exists."
     ),
     "gdn_prefill_triton_fallback": (
         "GDN prefill Triton/FLA fallback can prove reachability, but it is not "

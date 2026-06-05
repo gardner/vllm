@@ -82,6 +82,10 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "cutlass_mla_sm100_fallback": "not_supported",
     "tokenspeed_mla_cutedsl_fallback": "not_supported",
     "triton_mamba_ssu_fallback": "not_supported",
+    "mamba1_triton_runtime": "not_supported",
+    "mamba2_triton_ssd_runtime": "not_supported",
+    "short_conv_triton_runtime": "not_supported",
+    "linear_attention_triton_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -2432,6 +2436,18 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["triton_mamba_ssu_fallback"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["mamba1_triton_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["mamba2_triton_ssd_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["short_conv_triton_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["linear_attention_triton_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["gdn_prefill_triton_fallback"]["status"] == (
@@ -8678,6 +8694,22 @@ def test_gb10_mamba_ssu_backend_selection_is_reported():
     assert "MambaAttentionBackendEnum.MAMBA2" in mamba_ssu
 
 
+def test_gb10_mamba_attention_backend_selection_is_reported():
+    selector = (REPO_ROOT / "vllm" / "v1" / "attention" / "selector.py").read_text()
+
+    assert "_gb10_mamba_attn_unsupported_reason" in selector
+    assert "Mamba attention backend is not supported on " in selector
+    assert "GB10/SM12x" in selector
+    assert "FlashInfer Mamba SSU is native GB10 evidence" in selector
+    assert "MambaAttentionBackendEnum.MAMBA1" in selector
+    assert "MambaAttentionBackendEnum.MAMBA2" in selector
+    assert "MambaAttentionBackendEnum.SHORT_CONV" in selector
+    assert "MambaAttentionBackendEnum.LINEAR" in selector
+    assert "MambaAttentionBackendEnum.GDN_ATTN" not in selector.split(
+        "_GB10_UNVALIDATED_MAMBA_BACKENDS", 1
+    )[1].split("}", 1)[0]
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10547,6 +10579,26 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Triton Mamba SSU lacks native GB10 evidence",
                 },
+                "mamba1_triton_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Mamba1 runtime lacks native GB10 evidence",
+                },
+                "mamba2_triton_ssd_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Mamba2 Triton SSD runtime lacks native GB10 evidence",
+                },
+                "short_conv_triton_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "ShortConv runtime lacks native GB10 evidence",
+                },
+                "linear_attention_triton_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Linear attention runtime lacks native GB10 evidence",
+                },
                 "gdn_prefill_triton_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11330,6 +11382,10 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "cutlass_mla_sm100_fallback": {"status": "not_supported"},
                 "tokenspeed_mla_cutedsl_fallback": {"status": "not_supported"},
                 "triton_mamba_ssu_fallback": {"status": "not_supported"},
+                "mamba1_triton_runtime": {"status": "not_supported"},
+                "mamba2_triton_ssd_runtime": {"status": "not_supported"},
+                "short_conv_triton_runtime": {"status": "not_supported"},
+                "linear_attention_triton_runtime": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
                 "mm_encoder_fp8_attention": {"status": "not_supported"},
@@ -11571,6 +11627,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "humming_quantization",
         "inc_quantization",
         "int8_moe_triton_fallback",
+        "linear_attention_triton_runtime",
+        "mamba1_triton_runtime",
+        "mamba2_triton_ssd_runtime",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "mm_encoder_fp8_attention",
@@ -11605,6 +11664,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_fp8_moe",
         "rocm_aiter_mxfp4_moe",
         "rocm_aiter_unquantized_moe",
+        "short_conv_triton_runtime",
         "tokenspeed_mla_cutedsl_fallback",
         "torchao_fp8_activation_quantization",
         "torchao_weight_quantization",
