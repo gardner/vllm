@@ -120,6 +120,8 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
     "unvalidated_kv_cache_runtime": "not_supported",
+    "kv_offload_runtime": "not_supported",
+    "kv_transfer_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2541,6 +2543,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["unvalidated_kv_cache_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["kv_offload_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["kv_transfer_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8781,6 +8789,19 @@ def test_gb10_unvalidated_kv_cache_runtime_is_reported():
     assert "fp8_ds_mla" in vllm_config
 
 
+def test_gb10_kv_transfer_and_offload_runtime_are_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_KV_TRANSFER_RUNTIME_MESSAGE" in vllm_config
+    assert "_GB10_KV_OFFLOAD_RUNTIME_MESSAGE" in vllm_config
+    assert "KV transfer runtime is not supported on GB10/SM12x" in vllm_config
+    assert "KV offload runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--kv-transfer-config" in vllm_config
+    assert "--kv-offloading-size" in vllm_config
+    assert "disaggregated prefill/decode" in vllm_config
+    assert "slot-mapping" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10769,6 +10790,22 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "runtime dtypes lack native SM12x correctness evidence"
                     ),
                 },
+                "kv_offload_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "KV offload changes KV allocation and slot-mapping "
+                        "outside native SM12x correctness evidence"
+                    ),
+                },
+                "kv_transfer_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Distributed KV transfer and disaggregated serving "
+                        "lack native SM12x correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11527,6 +11564,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "modelopt_nvfp4_kv_cache_loading": {"status": "not_supported"},
                 "nvfp4_kv_cache_runtime": {"status": "not_supported"},
                 "unvalidated_kv_cache_runtime": {"status": "not_supported"},
+                "kv_offload_runtime": {"status": "not_supported"},
+                "kv_transfer_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11742,6 +11781,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "humming_quantization",
         "inc_quantization",
         "int8_moe_triton_fallback",
+        "kv_offload_runtime",
+        "kv_transfer_runtime",
         "linear_attention_triton_runtime",
         "lora_runtime",
         "mamba1_triton_runtime",

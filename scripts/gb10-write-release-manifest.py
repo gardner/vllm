@@ -737,6 +737,24 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "kv_offload_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Single-instance KV offload changes KV allocation, "
+                    "slot-mapping, and transfer behavior outside the "
+                    "validated GB10 first release path. It must reject until "
+                    "native SM12x KV offload correctness evidence exists."
+                ),
+            },
+            "kv_transfer_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Distributed KV transfer, disaggregated prefill/decode, "
+                    "and external KV connector request paths are not "
+                    "validated on GB10/SM12x. They must reject until native "
+                    "SM12x KV transfer correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

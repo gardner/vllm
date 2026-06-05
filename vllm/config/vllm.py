@@ -102,6 +102,20 @@ _GB10_UNVALIDATED_KV_CACHE_MESSAGE = (
     "--kv-cache-dtype fp8_e4m3 or auto for GB10 until native SM12x "
     "correctness evidence exists for this dtype."
 )
+_GB10_KV_TRANSFER_RUNTIME_MESSAGE = (
+    "KV transfer runtime is not supported on GB10/SM12x in this fork: "
+    "distributed KV connectors, disaggregated prefill/decode, and external "
+    "KV-transfer request paths are not validated for the native first-path "
+    "NVFP4 release. Disable --kv-transfer-config on GB10 until native SM12x "
+    "KV transfer correctness and runtime evidence exists."
+)
+_GB10_KV_OFFLOAD_RUNTIME_MESSAGE = (
+    "KV offload runtime is not supported on GB10/SM12x in this fork: "
+    "single-instance KV cache offload connectors change KV allocation, "
+    "slot-mapping, and transfer behavior outside the validated native "
+    "first-path NVFP4 release. Disable --kv-offloading-size on GB10 until "
+    "native SM12x KV offload correctness and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -880,6 +894,19 @@ class VllmConfig:
 
         if self.performance_mode != "balanced":
             logger.info_once("Performance mode set to '%s'.", self.performance_mode)
+
+        if (
+            self.cache_config.kv_offloading_size is not None
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_KV_OFFLOAD_RUNTIME_MESSAGE)
+
+        if (
+            self.kv_transfer_config is not None
+            and self.kv_transfer_config.kv_connector is not None
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_KV_TRANSFER_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

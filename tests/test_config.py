@@ -21,6 +21,7 @@ from vllm.config import (
     CacheConfig,
     CompilationConfig,
     KernelConfig,
+    KVTransferConfig,
     LoRAConfig,
     ModelConfig,
     ParallelConfig,
@@ -241,6 +242,50 @@ def test_vllm_config_allows_unvalidated_kv_cache_runtime_off_gb10(
     config = VllmConfig(cache_config=cache_config)
 
     assert config.cache_config is cache_config
+
+
+def test_gb10_vllm_config_rejects_kv_transfer_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    kv_transfer_config = KVTransferConfig(
+        kv_connector="NixlConnector",
+        kv_role="kv_both",
+    )
+
+    with pytest.raises(ValueError, match="KV transfer runtime.*GB10/SM12x"):
+        VllmConfig(kv_transfer_config=kv_transfer_config)
+
+
+def test_gb10_vllm_config_rejects_kv_offload_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="KV offload runtime.*GB10/SM12x"):
+        VllmConfig(cache_config=CacheConfig(kv_offloading_size=1.0))
+
+
+def test_vllm_config_allows_kv_offload_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    config = VllmConfig(cache_config=CacheConfig(kv_offloading_size=1.0))
+
+    assert config.kv_transfer_config is not None
+    assert config.kv_transfer_config.kv_connector == "OffloadingConnector"
+    assert config.kv_transfer_config.kv_role == "kv_both"
 
 
 def test_compile_config_repr_succeeds():

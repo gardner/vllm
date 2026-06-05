@@ -94,6 +94,8 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
     "unvalidated_kv_cache_runtime": "not_supported",
+    "kv_offload_runtime": "not_supported",
+    "kv_transfer_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -370,6 +372,16 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "FlashMLA sparse fp8_ds_mla are not validated; reject E5M2, Gaudi "
         "FP8, and per-token-head KV-cache formats until native SM12x "
         "correctness evidence exists."
+    ),
+    "kv_offload_runtime": (
+        "Single-instance KV offload changes KV allocation, slot-mapping, and "
+        "transfer behavior outside the validated GB10 first release path; "
+        "reject it until native SM12x KV offload correctness evidence exists."
+    ),
+    "kv_transfer_runtime": (
+        "Distributed KV transfer, disaggregated prefill/decode, and external "
+        "KV connector request paths are not validated on GB10/SM12x; reject "
+        "them until native SM12x KV transfer correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "
