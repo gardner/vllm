@@ -5466,6 +5466,96 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
     assert "evidence/provenance/buildx-runtime-image-metadata.json" in tar_names
 
 
+def test_gb10_release_evidence_bundle_failure_leaves_no_partial_outputs(
+    tmp_path,
+):
+    bundler = _load_gb10_release_bundle_module()
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "bundle"
+    report_dir.mkdir()
+
+    (report_dir / "gb10-release-evidence-image.json").write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "release_gate_passed": False,
+                "failure_count": 3,
+            }
+        )
+        + "\n"
+    )
+
+    exit_code = bundler.main(
+        [
+            "--gb10-report-dir",
+            str(report_dir),
+            "--gb10-output-dir",
+            str(output_dir),
+            "--gb10-bundle-name",
+            "evidence",
+        ]
+    )
+
+    assert exit_code == 1
+    for path in (
+        output_dir / "reports",
+        output_dir / "provenance",
+        output_dir / bundler.RELEASE_EVIDENCE_METADATA_FILE,
+        output_dir / bundler.RELEASE_EVIDENCE_CHECKSUM_FILE,
+        output_dir / bundler.release_evidence_bundle_archive_name("evidence"),
+        output_dir / bundler.release_evidence_bundle_archive_checksum_name("evidence"),
+    ):
+        assert not path.exists(), path
+
+
+def test_gb10_release_evidence_bundle_missing_provenance_leaves_no_partial_outputs(
+    tmp_path,
+):
+    bundler = _load_gb10_release_bundle_module()
+    report_dir = tmp_path / "reports"
+    output_dir = tmp_path / "bundle"
+    report_dir.mkdir()
+
+    report_payloads = {
+        "gb10-nvfp4-smoke.json": {"status": "passed"},
+        "gb10-openai-server-smoke-image.json": {"status": "passed"},
+        "gb10-release-evidence-image.json": {
+            "status": "passed",
+            "release_gate_passed": True,
+            "failure_count": 0,
+        },
+    }
+    for name, payload in report_payloads.items():
+        (report_dir / name).write_text(json.dumps(payload) + "\n")
+    (report_dir / "gb10-smoked-image-digest.txt").write_text(
+        "ghcr.io/gardner/vllm-gb10@sha256:" + "d" * 64 + "\n"
+    )
+
+    exit_code = bundler.main(
+        [
+            "--gb10-report-dir",
+            str(report_dir),
+            "--gb10-output-dir",
+            str(output_dir),
+            "--gb10-bundle-name",
+            "evidence",
+            "--gb10-release-manifest-json",
+            str(tmp_path / "missing-manifest.json"),
+        ]
+    )
+
+    assert exit_code == 1
+    for path in (
+        output_dir / "reports",
+        output_dir / "provenance",
+        output_dir / bundler.RELEASE_EVIDENCE_METADATA_FILE,
+        output_dir / bundler.RELEASE_EVIDENCE_CHECKSUM_FILE,
+        output_dir / bundler.release_evidence_bundle_archive_name("evidence"),
+        output_dir / bundler.release_evidence_bundle_archive_checksum_name("evidence"),
+    ):
+        assert not path.exists(), path
+
+
 def test_gb10_release_evidence_bundle_marks_failed_gate(tmp_path):
     bundler = _load_gb10_release_bundle_module()
     report_dir = tmp_path / "reports"

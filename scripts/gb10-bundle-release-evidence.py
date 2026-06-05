@@ -161,25 +161,31 @@ def _git_head(repo_root: Path) -> str | None:
     return value
 
 
-def _copy_reports(
+def _select_reports(
     *,
     report_dir: Path,
-    output_dir: Path,
     include_globs: list[str],
+) -> dict[str, Path]:
+    selected: dict[str, Path] = {}
+    for pattern in include_globs:
+        for path in sorted(report_dir.glob(pattern)):
+            if path.is_file():
+                selected[path.name] = path
+    return selected
+
+
+def _copy_reports(
+    *,
+    selected_reports: dict[str, Path],
+    output_dir: Path,
 ) -> list[dict[str, Any]]:
     reports_dir = output_dir / "reports"
     if reports_dir.exists():
         shutil.rmtree(reports_dir)
     reports_dir.mkdir(parents=True)
 
-    selected: dict[str, Path] = {}
-    for pattern in include_globs:
-        for path in sorted(report_dir.glob(pattern)):
-            if path.is_file():
-                selected[path.name] = path
-
     included = []
-    for name, source in sorted(selected.items()):
+    for name, source in sorted(selected_reports.items()):
         destination = reports_dir / name
         shutil.copy2(source, destination)
         included.append(
@@ -193,21 +199,16 @@ def _copy_reports(
     return included
 
 
-def _copy_optional_provenance(
+def _resolve_optional_provenance_sources(
     *,
-    output_dir: Path,
     release_manifest_json: Path | None,
     runtime_image_metadata_json: Path | None,
-) -> list[dict[str, Any]]:
-    provenance_dir = output_dir / "provenance"
-    if provenance_dir.exists():
-        shutil.rmtree(provenance_dir)
-
+) -> list[tuple[str, Path]]:
     sources = [
         ("release_manifest", release_manifest_json),
         ("runtime_image_metadata", runtime_image_metadata_json),
     ]
-    included = []
+    resolved_sources = []
     for kind, source in sources:
         if source is None:
             continue
@@ -218,6 +219,21 @@ def _copy_optional_provenance(
         if not source.is_file():
             raise RuntimeError(f"GB10 provenance path is not a file: {source}")
 
+        resolved_sources.append((kind, source))
+    return resolved_sources
+
+
+def _copy_optional_provenance(
+    *,
+    output_dir: Path,
+    provenance_sources: list[tuple[str, Path]],
+) -> list[dict[str, Any]]:
+    provenance_dir = output_dir / "provenance"
+    if provenance_dir.exists():
+        shutil.rmtree(provenance_dir)
+
+    included = []
+    for kind, source in provenance_sources:
         provenance_dir.mkdir(parents=True, exist_ok=True)
         destination = output_dir / PROVENANCE_RELATIVE_PATHS[kind]
         shutil.copy2(source, destination)
@@ -580,10 +596,9 @@ def _metadata_status(
     return "complete"
 
 
-def _missing_evidence(
-    included_files: list[dict[str, Any]],
+def _missing_evidence_from_names(
+    included_names: set[str],
 ) -> tuple[list[str], list[str]]:
-    included_names = {Path(item["relative_path"]).name for item in included_files}
     missing_evidence_files = [
         evidence_file
         for evidence_file in EXPECTED_EVIDENCE_FILES
@@ -593,6 +608,22 @@ def _missing_evidence(
         report for report in EXPECTED_REPORTS if report not in included_names
     ]
     return missing_reports, missing_evidence_files
+
+
+def _missing_evidence(
+    included_files: list[dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    included_names = {Path(item["relative_path"]).name for item in included_files}
+    return _missing_evidence_from_names(included_names)
+
+
+def _clear_generated_outputs(output_dir: Path, bundle_name: str) -> None:
+    for path in release_evidence_asset_paths(output_dir, bundle_name):
+        if path.exists():
+            path.unlink()
+    for path in (output_dir / "reports", output_dir / "provenance"):
+        if path.exists():
+            shutil.rmtree(path)
 
 
 def _write_checksums(output_dir: Path, files: list[Path]) -> Path:
@@ -644,30 +675,46 @@ def _bundle(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError(f"GB10 report directory does not exist: {report_dir}")
     if not report_dir.is_dir():
         raise RuntimeError(f"GB10 report path is not a directory: {report_dir}")
+    if output_dir.exists() and not output_dir.is_dir():
+        raise RuntimeError(
+            f"GB10 evidence output path is not a directory: {output_dir}"
+        )
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for path in release_evidence_asset_paths(output_dir, args.gb10_bundle_name):
-        if path.exists():
-            path.unlink()
-
-    included_files = _copy_reports(
+    selected_reports = _select_reports(
         report_dir=report_dir,
-        output_dir=output_dir,
         include_globs=include_globs,
     )
-    missing_reports, missing_evidence_files = _missing_evidence(included_files)
+    missing_reports, missing_evidence_files = _missing_evidence_from_names(
+        set(selected_reports)
+    )
+
+    if output_dir.exists():
+        _clear_generated_outputs(output_dir, args.gb10_bundle_name)
+
     if missing_evidence_files and not args.gb10_allow_partial:
         missing = ", ".join(missing_evidence_files)
         raise RuntimeError(
             "Missing required GB10 final-image release evidence files: "
             f"{missing}. Pass --gb10-allow-partial to bundle available evidence."
         )
-    if not included_files:
+    if not selected_reports:
         raise RuntimeError(f"No GB10 evidence files found in {report_dir}")
-    included_provenance = _copy_optional_provenance(
-        output_dir=output_dir,
+
+    provenance_sources = _resolve_optional_provenance_sources(
         release_manifest_json=args.gb10_release_manifest_json,
         runtime_image_metadata_json=args.gb10_runtime_image_metadata_json,
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _clear_generated_outputs(output_dir, args.gb10_bundle_name)
+
+    included_files = _copy_reports(
+        selected_reports=selected_reports,
+        output_dir=output_dir,
+    )
+    included_provenance = _copy_optional_provenance(
+        output_dir=output_dir,
+        provenance_sources=provenance_sources,
     )
 
     repo_root = Path(__file__).resolve().parents[1]
