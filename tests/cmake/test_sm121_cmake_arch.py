@@ -4110,6 +4110,19 @@ def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker
     assert not cache_dir.exists()
 
 
+def test_gb10_local_cached_build_dry_run_prints_resolved_env_keys():
+    resolver = _load_gb10_release_settings_resolver_module()
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    missing_keys = [
+        key
+        for key in resolver.RESOLVED_ENV_KEYS
+        if f'echo "{key}=$' not in script
+    ]
+
+    assert missing_keys == []
+
+
 def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
     tmp_path,
 ):
@@ -4235,6 +4248,7 @@ def test_gb10_local_cached_release_dry_run_prints_release_tag(tmp_path):
 
     assert proc.returncode == 0, proc.stdout
     assert "GB10 local cached build dry run" in proc.stdout
+    assert "GB10_OUTPUT=push" in proc.stdout
     assert f"GB10_RELEASE_TAG={release_tag}" in proc.stdout
     assert "GB10_PUSH_IMAGE=true" in proc.stdout
     assert f"GB10_IMAGE_TAG={release_tag}" in proc.stdout
