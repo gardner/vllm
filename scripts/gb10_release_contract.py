@@ -49,6 +49,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
+    "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
@@ -123,6 +124,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Quark W4A8 MXFP4+FP8 checkpoint loading is not validated on "
         "GB10/SM12x; reject it until dense correctness evidence exists for a "
         "native GB10 MXFP4 backend."
+    ),
+    "compressed_tensors_w4a4_mxfp4_dense_loading": (
+        "CompressedTensors W4A4 MXFP4 dense loading is not validated on "
+        "GB10/SM12x; reject it until native GB10 MXFP4 dense correctness "
+        "evidence exists."
     ),
     "compressed_tensors_w4a16_nvfp4_loading": (
         "CompressedTensors W4A16 NVFP4 loading selects FP4 Marlin today; reject "

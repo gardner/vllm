@@ -13,8 +13,20 @@ from vllm.model_executor.parameter import (
     GroupQuantScaleParameter,
     ModelWeightParameter,
 )
+from vllm.platforms import current_platform
 
 __all__ = ["CompressedTensorsW4A4Mxfp4"]
+
+
+def _gb10_w4a4_mxfp4_dense_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "CompressedTensors W4A4 MXFP4 dense loading is not validated on "
+        "GB10/SM12x and is not supported on GB10/SM12x until native MXFP4 "
+        "dense correctness evidence exists; use validated NVFP4 dense paths "
+        "or keep this checkpoint format unselected."
+    )
 
 
 class CompressedTensorsW4A4Mxfp4(CompressedTensorsScheme):
@@ -34,6 +46,9 @@ class CompressedTensorsW4A4Mxfp4(CompressedTensorsScheme):
     """
 
     def __init__(self):
+        unsupported_reason = _gb10_w4a4_mxfp4_dense_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.group_size = 32
         self.kernel = init_mxfp4_linear_kernel()
 

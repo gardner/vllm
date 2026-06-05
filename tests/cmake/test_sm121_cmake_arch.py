@@ -75,6 +75,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
+    "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
     "flashinfer_cudnn_nvfp4_dense": "deferred",
@@ -1894,6 +1895,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["quark_w4a8_mxfp4_fp8_checkpoint_loading"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["compressed_tensors_w4a4_mxfp4_dense_loading"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_w4a16_nvfp4_loading"][
         "status"
     ] == "not_supported"
@@ -3018,6 +3022,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "schemes" /
         "compressed_tensors_w4a16_nvfp4.py"
     ).read_text()
+    compressed_tensors_w4a4_mxfp4 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "schemes" /
+        "compressed_tensors_w4a4_mxfp4.py"
+    ).read_text()
     compressed_tensors_mxfp4_moe = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
@@ -3074,6 +3083,13 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_w4a16
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_w4a16
+    assert "_gb10_w4a4_mxfp4_dense_unsupported_reason" in (
+        compressed_tensors_w4a4_mxfp4
+    )
+    assert "CompressedTensors W4A4 MXFP4 dense loading is not validated" in (
+        compressed_tensors_w4a4_mxfp4
+    )
+    assert "not supported on GB10/SM12x" in compressed_tensors_w4a4_mxfp4
     assert "_gb10_mxfp4_moe_marlin_unsupported_reason" in (
         compressed_tensors_mxfp4_moe
     )
@@ -4752,6 +4768,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Quark W4A8 MXFP4+FP8 checkpoint loading is not validated"
                     ),
                 },
+                "compressed_tensors_w4a4_mxfp4_dense_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors W4A4 MXFP4 dense loading is not validated"
+                    ),
+                },
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4954,6 +4977,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "quark_w4a8_mxfp4_fp8_checkpoint_loading": {
                     "status": "not_supported"
                 },
+                "compressed_tensors_w4a4_mxfp4_dense_loading": {
+                    "status": "not_supported"
+                },
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
                 },
@@ -5029,6 +5055,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "reported_not_supported_entries"
     ] == [
         "compressed_tensors_w4a16_nvfp4_loading",
+        "compressed_tensors_w4a4_mxfp4_dense_loading",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "marlin_mxfp4_fallback",
