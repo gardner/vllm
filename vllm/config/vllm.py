@@ -184,6 +184,13 @@ _GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE = (
     "serving release. Disable prompt embeds on GB10 until "
     "native SM12x prompt-embeds correctness and runtime evidence exists."
 )
+_GB10_STOCK_TORCH_COMPILE_RUNTIME_MESSAGE = (
+    "stock torch.compile runtime is not supported on GB10/SM12x in this fork: "
+    "CompilationMode.STOCK_TORCH_COMPILE selects the generic PyTorch compile "
+    "pipeline outside the validated native first-path NVFP4 serving release. "
+    "Use the default vLLM compile path on GB10 until "
+    "native SM12x stock torch.compile correctness and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -1044,6 +1051,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE)
+
+        if (
+            self.compilation_config.mode == CompilationMode.STOCK_TORCH_COMPILE
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_STOCK_TORCH_COMPILE_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

@@ -131,6 +131,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
+    "stock_torch_compile_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2585,6 +2586,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["prompt_embeds_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["stock_torch_compile_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8940,6 +8944,17 @@ def test_gb10_prompt_embeds_runtime_is_reported():
     assert "native SM12x prompt-embeds correctness" in vllm_config
 
 
+def test_gb10_stock_torch_compile_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_STOCK_TORCH_COMPILE_RUNTIME_MESSAGE" in vllm_config
+    assert "stock torch.compile runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "CompilationMode.STOCK_TORCH_COMPILE" in vllm_config
+    assert "native SM12x stock torch.compile correctness" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -11016,6 +11031,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "stock_torch_compile_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "stock torch.compile lacks native SM12x correctness "
+                        "evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11785,6 +11808,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
                 "prompt_embeds_runtime": {"status": "not_supported"},
+                "stock_torch_compile_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -12050,6 +12074,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_unquantized_moe",
         "short_conv_triton_runtime",
         "speculative_decoding_runtime",
+        "stock_torch_compile_runtime",
         "tokenspeed_mla_cutedsl_fallback",
         "torchao_fp8_activation_quantization",
         "torchao_weight_quantization",

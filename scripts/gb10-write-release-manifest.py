@@ -840,6 +840,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "native SM12x prompt-embeds correctness evidence exists."
                 ),
             },
+            "stock_torch_compile_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Stock torch.compile selects the generic PyTorch compile "
+                    "pipeline outside the validated GB10 first release "
+                    "serving path. It must reject until native SM12x stock "
+                    "torch.compile correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (
