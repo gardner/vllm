@@ -476,6 +476,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP8 MoE release evidence."
                 ),
             },
+            "online_fp8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Online FP8 quantization can reach FP8 scaled-mm dense "
+                    "kernels and generic FP8 MoE backend selection today and "
+                    "must reject on GB10/SM12x until native GB10 online FP8 "
+                    "dense and MoE correctness evidence exists."
+                ),
+            },
             "online_mxfp8_quantization": {
                 "status": "not_supported",
                 "release_contract": (

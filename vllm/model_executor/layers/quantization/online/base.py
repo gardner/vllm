@@ -66,6 +66,8 @@ _ONLINE_MOE_METHODS: dict[QuantKey, type] = {
     kInt8StaticChannelSym: Int8OnlineMoEMethod,
 }
 
+_ONLINE_FP8_WEIGHT_KEYS = frozenset((kFp8StaticTensorSym, kFp8Static128BlockSym))
+
 
 def _is_sm12x_device() -> bool:
     is_family = getattr(current_platform, "is_device_capability_family", None)
@@ -86,8 +88,29 @@ def _is_sm12x_device() -> bool:
     return False
 
 
+def _spec_uses_fp8_weight(spec: QuantSpec | None) -> bool:
+    return spec is not None and spec.weight in _ONLINE_FP8_WEIGHT_KEYS
+
+
 def _spec_uses_mxfp8_weight(spec: QuantSpec | None) -> bool:
     return spec is not None and spec.weight == kMxfp8Dynamic
+
+
+def _gb10_online_fp8_quantization_unsupported_reason(
+    args: QuantizationConfigArgs,
+) -> str | None:
+    if not _is_sm12x_device():
+        return None
+    if not (_spec_uses_fp8_weight(args.linear) or _spec_uses_fp8_weight(args.moe)):
+        return None
+    return (
+        "Online FP8 quantization is not supported on GB10/SM12x. The "
+        "online dense path can select FP8 scaled-mm dense kernels and the "
+        "online MoE path can reach generic FP8 MoE backend selection, but "
+        "this is not native GB10 online FP8 correctness evidence. Use a "
+        "native SM12x online FP8 dense/MoE path after correctness evidence "
+        "exists, or keep online FP8 quantization unselected."
+    )
 
 
 def _gb10_online_mxfp8_quantization_unsupported_reason(
@@ -124,6 +147,8 @@ class OnlineQuantizationConfig(QuantizationConfig):
                 "quantization_config.linear or quantization_config.moe "
                 "to be set."
             )
+        if reason := _gb10_online_fp8_quantization_unsupported_reason(args):
+            raise ValueError(reason)
         if reason := _gb10_online_mxfp8_quantization_unsupported_reason(args):
             raise ValueError(reason)
         self.args = args

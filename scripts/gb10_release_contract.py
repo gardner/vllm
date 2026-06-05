@@ -58,6 +58,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
+    "online_fp8_quantization": "not_supported",
     "online_mxfp8_quantization": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
     "compressed_tensors_w8a8_mxfp8_moe_loading": "not_supported",
@@ -182,6 +183,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "mxfp8_moe_fallback": (
         "MXFP8 MoE Marlin fallback can prove reachability, but it is not "
         "native GB10 MXFP8 MoE evidence."
+    ),
+    "online_fp8_quantization": (
+        "Online FP8 quantization can reach FP8 scaled-mm dense kernels and "
+        "generic FP8 MoE backend selection today; reject it until native GB10 "
+        "online FP8 dense and MoE correctness evidence exists."
     ),
     "online_mxfp8_quantization": (
         "Online MXFP8 quantization can reach FlashInfer CUTLASS MXFP8 dense "
