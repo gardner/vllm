@@ -33,8 +33,20 @@ from vllm.model_executor.layers.quantization.utils.marlin_utils_fp4 import (
     prepare_moe_fp4_layer_for_marlin,
 )
 from vllm.model_executor.utils import set_weight_attrs
+from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
+
+
+def _gb10_mxfp4_moe_marlin_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "CompressedTensors W4A4 MXFP4 MoE would select the FP4 Marlin "
+        "fallback, which is not supported on GB10/SM12x; use a native "
+        "SM12x MXFP4 MoE backend after correctness evidence exists, or keep "
+        "the path unselected."
+    )
 
 
 class CompressedTensorsW4A4Mxfp4MoEMethod(CompressedTensorsMoEMethod):
@@ -49,6 +61,9 @@ class CompressedTensorsW4A4Mxfp4MoEMethod(CompressedTensorsMoEMethod):
             logger.info_once("Using CutlassExpertsMxfp4 for MXFP4 MoE")
             self.experts_cls = CutlassExpertsMxfp4
         else:
+            unsupported_reason = _gb10_mxfp4_moe_marlin_unsupported_reason()
+            if unsupported_reason is not None:
+                raise ValueError(unsupported_reason)
             logger.info_once("Using MarlinExperts for MXFP4 MoE")
             self.experts_cls = MarlinExperts
 

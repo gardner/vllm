@@ -352,8 +352,9 @@ def _gb10_support_matrix() -> dict[str, object]:
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (
-                    "Marlin-backed MXFP4 can prove fallback reachability, "
-                    "but it cannot satisfy native GB10 MXFP4 release evidence."
+                    "Marlin-backed MXFP4 dense/MoE can prove fallback "
+                    "reachability, but it cannot satisfy native GB10 MXFP4 "
+                    "release evidence."
                 ),
             },
             "quark_nvfp4_checkpoint_loading": {

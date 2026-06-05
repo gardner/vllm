@@ -91,8 +91,8 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "GB10 NVFP4 Tensor Core evidence."
     ),
     "marlin_mxfp4_fallback": (
-        "Marlin can prove MXFP4 fallback reachability, but it is not native "
-        "GB10 MXFP4 Tensor Core evidence."
+        "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "
+        "not native GB10 MXFP4 Tensor Core evidence."
     ),
     "quark_nvfp4_checkpoint_loading": (
         "Quark NVFP4 checkpoint loading is not validated on GB10/SM12x; reject "

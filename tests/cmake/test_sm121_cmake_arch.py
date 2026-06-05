@@ -3002,6 +3002,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "schemes" /
         "compressed_tensors_w4a16_nvfp4.py"
     ).read_text()
+    compressed_tensors_mxfp4_moe = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
+        "compressed_tensors_moe_w4a4_mxfp4.py"
+    ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
     assert "record_nvfp4_backend_selection" in linear_selector
@@ -3041,6 +3046,13 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_w4a16
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_w4a16
+    assert "_gb10_mxfp4_moe_marlin_unsupported_reason" in (
+        compressed_tensors_mxfp4_moe
+    )
+    assert "CompressedTensors W4A4 MXFP4 MoE would select" in (
+        compressed_tensors_mxfp4_moe
+    )
+    assert "not supported on GB10/SM12x" in compressed_tensors_mxfp4_moe
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
 
