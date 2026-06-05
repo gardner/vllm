@@ -14,6 +14,9 @@ from vllm.model_executor.layers.fused_moe import (
     FusedMoEMethodBase,
     UnquantizedFusedMoEMethod,
 )
+from vllm.model_executor.layers.fused_moe.oracle.int_wna16 import (
+    _is_sm12x_device,
+)
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes.compressed_tensors_wNa16 import (  # noqa
     WNA16_SUPPORTED_BITS,
 )
@@ -23,6 +26,18 @@ from vllm.model_executor.layers.quantization.utils.marlin_utils import (
 from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
+
+
+def _gb10_compressed_tensors_wna16_moe_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors WNA16 MoE legacy fused-experts fallback is "
+        "not supported on GB10/SM12x. The generic CUDA/Triton WNA16 fused-experts "
+        "path can prove reachability, but it is not native GB10 WNA16/MXINT "
+        "MoE evidence. Use a native SM12x WNA16/MXINT MoE backend after "
+        "correctness evidence exists, or keep the path unselected."
+    )
 
 
 class CompressedTensorsMoEMethod(FusedMoEMethodBase):
@@ -94,10 +109,15 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
                 )
 
             # Prefer to use the MarlinMoE kernel when it is supported.
-            if (
+            use_legacy_wna16_fused_experts = (
                 not check_moe_marlin_supports_layer(layer, group_size)
                 or current_platform.is_rocm()
-            ):
+            )
+
+            if use_legacy_wna16_fused_experts:
+                if reason := _gb10_compressed_tensors_wna16_moe_unsupported_reason():
+                    raise ValueError(reason)
+
                 from .compressed_tensors_moe_wna16 import (
                     CompressedTensorsWNA16MoEMethod,
                 )

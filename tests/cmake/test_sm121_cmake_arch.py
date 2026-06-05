@@ -78,6 +78,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "fp8_w8a16_marlin_fallback": "not_supported",
     "fp8_w8a16_moe_fallback": "not_supported",
     "wna16_moe_fallback": "not_supported",
+    "compressed_tensors_wna16_moe_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -2341,6 +2342,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["wna16_moe_fallback"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["compressed_tensors_wna16_moe_fallback"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["mxfp8_dense_fallback"]["status"] == (
         "not_supported"
     )
@@ -4913,6 +4917,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
         "compressed_tensors_moe_w4a4_mxfp4.py"
     ).read_text()
+    compressed_tensors_moe = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
+        "compressed_tensors_moe.py"
+    ).read_text()
     quark_w4a8_mxfp4_fp8 = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "quark" / "schemes" / "quark_w4a8_mxfp4_fp8.py"
@@ -5002,6 +5011,13 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_mxfp4_moe
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_mxfp4_moe
+    assert "_gb10_compressed_tensors_wna16_moe_unsupported_reason" in (
+        compressed_tensors_moe
+    )
+    assert "CompressedTensors WNA16 MoE legacy fused-experts fallback" in (
+        compressed_tensors_moe
+    )
+    assert "not supported on GB10/SM12x" in compressed_tensors_moe
     assert "gb10_quark_w4a8_mxfp4_fp8_unsupported_reason" in (
         quark_w4a8_mxfp4_fp8
     )
@@ -5072,6 +5088,60 @@ def test_gb10_wna16_moe_fallbacks_reject_sm12x(monkeypatch):
             int_wna16.WNA16MoEBackend.MARLIN
         )
         is None
+    )
+
+
+def test_gb10_compressed_tensors_wna16_moe_rejects_legacy_sm12x(monkeypatch):
+    from compressed_tensors import CompressionFormat
+
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa: E501
+        compressed_tensors_moe,
+    )
+
+    class FakeCompressedTensorsConfig:
+        def _add_fused_moe_to_target_scheme_map(self):
+            return None
+
+        def get_scheme_dict(self, layer, name):
+            return {
+                "weights": SimpleNamespace(
+                    num_bits=4,
+                    group_size=64,
+                    strategy="group",
+                    actorder=None,
+                    symmetric=True,
+                ),
+                "input_activations": None,
+                "format": CompressionFormat.pack_quantized.value,
+            }
+
+        def _is_mxfp4(self, weight_quant):
+            return False
+
+        def _is_mxfp8(self, weight_quant):
+            return False
+
+        def _is_wNa16_group_channel(self, weight_quant, input_quant):
+            return True
+
+    monkeypatch.setattr(compressed_tensors_moe, "_is_sm12x_device", lambda: True)
+    monkeypatch.setattr(
+        compressed_tensors_moe,
+        "check_moe_marlin_supports_layer",
+        lambda layer, group_size: False,
+    )
+
+    layer = SimpleNamespace(moe_config=SimpleNamespace())
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        compressed_tensors_moe.CompressedTensorsMoEMethod.get_moe_method(
+            FakeCompressedTensorsConfig(),
+            layer,
+            "model.layers.0.mlp.experts",
+        )
+
+    assert "CompressedTensors WNA16 MoE legacy fused-experts fallback" in str(
+        exc_info.value
     )
 
 
@@ -6829,6 +6899,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "WNA16 MoE fallback paths are not native GB10 evidence",
                 },
+                "compressed_tensors_wna16_moe_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors WNA16 MoE legacy fused-experts "
+                        "fallback is not native GB10 evidence"
+                    ),
+                },
                 "rocm_aiter_fp8_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -7080,6 +7158,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "wna16_moe_fallback": {"status": "not_supported"},
+                "compressed_tensors_wna16_moe_fallback": {
+                    "status": "not_supported"
+                },
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
@@ -7166,6 +7247,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     ] == [
         "compressed_tensors_w4a16_nvfp4_loading",
         "compressed_tensors_w4a4_mxfp4_dense_loading",
+        "compressed_tensors_wna16_moe_fallback",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "fp8_w8a16_marlin_fallback",

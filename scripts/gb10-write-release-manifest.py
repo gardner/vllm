@@ -429,6 +429,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "WNA16/MXINT MoE release evidence."
                 ),
             },
+            "compressed_tensors_wna16_moe_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors WNA16 MoE legacy fused-experts fallback "
+                    "can prove reachability, but it cannot satisfy native "
+                    "GB10 WNA16/MXINT MoE release evidence."
+                ),
+            },
             "mxfp8_dense_fallback": {
                 "status": "not_supported",
                 "release_contract": (
