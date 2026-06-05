@@ -4356,6 +4356,16 @@ def test_gb10_local_cached_release_dry_run_rejects_invalid_release_tag_before_ma
     script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
     manifest_dir = tmp_path / "manifest"
     cache_dir = tmp_path / "cache"
+    stale_outputs = (
+        manifest_dir / "gb10-release-manifest.json",
+        manifest_dir / "gb10-vllm-release-SHA256SUMS",
+        manifest_dir / "gb10-runtime-image-ref.txt",
+        manifest_dir / "gb10-runtime-image-digest.txt",
+        manifest_dir / "buildx-runtime-image-metadata.json",
+    )
+    manifest_dir.mkdir()
+    for stale_output in stale_outputs:
+        stale_output.write_text("stale\n")
 
     proc = subprocess.run(
         ["bash", str(script), "runtime"],
@@ -4383,7 +4393,7 @@ def test_gb10_local_cached_release_dry_run_rejects_invalid_release_tag_before_ma
     assert "release-tag must match" in proc.stdout
     assert "GB10 local cached build dry run" not in proc.stdout
     assert not cache_dir.exists()
-    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+    assert not any(stale_output.exists() for stale_output in stale_outputs)
 
 
 def test_gb10_local_cached_build_script_preserves_failed_cache_exports():

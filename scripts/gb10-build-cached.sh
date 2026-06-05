@@ -91,6 +91,15 @@ gb10_validate_cache_ref() {
     done
 }
 
+gb10_remove_stale_release_outputs() {
+    rm -f \
+        "$GB10_RELEASE_MANIFEST_JSON" \
+        "$GB10_RELEASE_CHECKSUMS" \
+        "$GB10_RUNTIME_IMAGE_REF" \
+        "$GB10_RUNTIME_IMAGE_DIGEST" \
+        "$GB10_RUNTIME_IMAGE_METADATA_JSON"
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
@@ -206,6 +215,8 @@ export GB10_INPUT_PREBUILT_WHEEL_URLS="${GB10_PREBUILT_WHEEL_URLS:-}"
 export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
+
+gb10_remove_stale_release_outputs
 
 set +e
 resolved_settings="$(python3 scripts/gb10-resolve-release-settings.py --gb10-output-shell 2>&1)"
