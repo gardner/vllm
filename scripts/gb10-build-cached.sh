@@ -44,9 +44,59 @@ gb10_bool_flag() {
     esac
 }
 
+gb10_cache_ref_error() {
+    local name="$1"
+    local value="$2"
+    echo "GB10 local cached build cache ref ${name} must be a GHCR image ref with a Docker-compatible tag, got ${value}." >&2
+}
+
+gb10_validate_cache_ref() {
+    local name="$1"
+    local value="$2"
+    local image_name
+    local image_tag
+    local repository
+    local repository_part
+    local -a repository_parts
+
+    if [[ "$value" =~ [[:space:]] ]] \
+        || [[ "$value" != ghcr.io/* ]] \
+        || [[ "$value" == *@* ]] \
+        || [[ "$value" != *:* ]]; then
+        gb10_cache_ref_error "$name" "$value"
+        return 2
+    fi
+
+    image_name="${value%:*}"
+    image_tag="${value##*:}"
+    repository="${image_name#ghcr.io/}"
+
+    if [[ "$image_name" == "$value" ]] \
+        || [[ "$image_name" == *:* ]] \
+        || ! [[ "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+        gb10_cache_ref_error "$name" "$value"
+        return 2
+    fi
+
+    IFS='/' read -r -a repository_parts <<< "$repository"
+    if [ "${#repository_parts[@]}" -lt 2 ]; then
+        gb10_cache_ref_error "$name" "$value"
+        return 2
+    fi
+    for repository_part in "${repository_parts[@]}"; do
+        if ! [[ "$repository_part" =~ ^[a-z0-9]+([._-]+[a-z0-9]+)*$ ]]; then
+            gb10_cache_ref_error "$name" "$value"
+            return 2
+        fi
+    done
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
+gb10_validate_cache_ref GB10_PREFLIGHT_CACHE_REF "$GB10_PREFLIGHT_CACHE_REF"
+gb10_validate_cache_ref GB10_WHEEL_CACHE_REF "$GB10_WHEEL_CACHE_REF"
+gb10_validate_cache_ref GB10_RUNTIME_CACHE_REF "$GB10_RUNTIME_CACHE_REF"
 
 target_arg="${1:-preflight}"
 case "$target_arg" in

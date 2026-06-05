@@ -3859,6 +3859,53 @@ def test_gb10_local_cached_build_rejects_invalid_registry_cache_flag_before_mani
     assert not cache_dir.exists()
 
 
+@pytest.mark.parametrize(
+    ("cache_env_name", "cache_ref"),
+    (
+        (
+            "GB10_PREFLIGHT_CACHE_REF",
+            "docker.io/gardner/vllm-gb10-buildcache:preflight",
+        ),
+        ("GB10_WHEEL_CACHE_REF", "ghcr.io/gardner/vllm-gb10-buildcache"),
+        ("GB10_RUNTIME_CACHE_REF", "ghcr.io/Gardner/vllm-gb10-buildcache:runtime"),
+    ),
+)
+def test_gb10_local_cached_build_rejects_invalid_cache_ref_before_manifest(
+    tmp_path,
+    cache_env_name,
+    cache_ref,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            cache_env_name: cache_ref,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert f"GB10 local cached build cache ref {cache_env_name}" in proc.stdout
+    assert "must be a GHCR image ref with a Docker-compatible tag" in proc.stdout
+    assert cache_ref in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+    assert not manifest_dir.exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_pushed_non_ghcr_image_before_manifest(
     tmp_path,
 ):
