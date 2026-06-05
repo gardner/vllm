@@ -380,6 +380,27 @@ _POSSIBLE_MXFP8_KERNELS: dict[PlatformEnum, list[type[Mxfp8LinearKernel]]] = {
     ],
 }
 
+_MXFP8_LINEAR_FALLBACK_KERNELS = {
+    MarlinMxfp8LinearKernel,
+    EmulationMxfp8LinearKernel,
+}
+
+
+def _gb10_mxfp8_linear_fallback_unsupported_reason(
+    kernel_cls: type[Mxfp8LinearKernel],
+) -> str | None:
+    if kernel_cls not in _MXFP8_LINEAR_FALLBACK_KERNELS:
+        return None
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        f"{kernel_cls.__name__} is a non-native MXFP8 dense fallback and is "
+        "not supported on GB10/SM12x; use FlashInfer CUTLASS native MXFP8 "
+        "dense support after correctness evidence is available, or keep the "
+        "path unselected."
+    )
+
+
 _POSSIBLE_NVFP4_KERNELS: dict[PlatformEnum, list[type[NvFp4LinearKernel]]] = {
     PlatformEnum.CUDA: [
         FlashInferB12xNvFp4LinearKernel,
@@ -735,6 +756,11 @@ def init_mxfp8_linear_kernel() -> Mxfp8LinearKernel:
             failure_reasons.append(
                 f" {kernel_cls.__name__} disabled by environment variable"
             )
+            continue
+
+        fallback_reason = _gb10_mxfp8_linear_fallback_unsupported_reason(kernel_cls)
+        if fallback_reason is not None:
+            failure_reasons.append(f"{kernel_cls.__name__}: {fallback_reason}")
             continue
 
         is_supported, reason = kernel_cls.is_supported()

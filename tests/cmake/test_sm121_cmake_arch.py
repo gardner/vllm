@@ -73,6 +73,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
+    "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
@@ -1891,6 +1892,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["mxfp4_moe_fallback"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["mxfp8_dense_fallback"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["mxfp8_moe_fallback"]["status"] == (
         "not_supported"
     )
@@ -3069,8 +3073,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "MarlinNvFp4LinearKernel" in linear_selector
     assert "EmulationNvFp4LinearKernel" in linear_selector
     assert "MarlinMxFp4LinearKernel" in linear_selector
+    assert "MarlinMxfp8LinearKernel" in linear_selector
+    assert "EmulationMxfp8LinearKernel" in linear_selector
     assert "_gb10_mxfp4_linear_fallback_unsupported_reason" in linear_selector
+    assert "_gb10_mxfp8_linear_fallback_unsupported_reason" in linear_selector
     assert "non-native MXFP4 dense fallback" in linear_selector
+    assert "non-native MXFP8 dense fallback" in linear_selector
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -4775,6 +4783,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "MXFP4 MoE fallback paths are not native GB10 evidence",
                 },
+                "mxfp8_dense_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "MXFP8 dense fallback paths are not native GB10 evidence",
+                },
                 "mxfp8_moe_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -5004,6 +5017,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
+                "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
                 "quark_ocp_mx_checkpoint_loading": {"status": "not_supported"},
@@ -5095,6 +5109,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "marlin_nvfp4_fallback",
         "modelopt_w4a16_nvfp4_checkpoint_loading",
         "mxfp4_moe_fallback",
+        "mxfp8_dense_fallback",
         "mxfp8_moe_fallback",
         "public_flashattention_runtime",
         "quark_nvfp4_checkpoint_loading",

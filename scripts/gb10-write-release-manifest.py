@@ -383,6 +383,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP4 release evidence."
                 ),
             },
+            "mxfp8_dense_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "MXFP8 dense Marlin and emulation fallbacks can prove "
+                    "reachability, but they cannot satisfy native GB10 "
+                    "MXFP8 dense release evidence."
+                ),
+            },
             "mxfp8_moe_fallback": {
                 "status": "not_supported",
                 "release_contract": (
