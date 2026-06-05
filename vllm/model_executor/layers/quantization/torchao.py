@@ -24,6 +24,7 @@ from vllm.model_executor.layers.quantization.base_config import (
     QuantizeMethodBase,
 )
 from vllm.model_executor.utils import set_weight_attrs
+from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
 
@@ -99,6 +100,50 @@ else:
     convert_to_packed_tensor_based_on_current_hardware = lambda t: t
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _is_torchao_fp8_activation_config(torchao_config: Any) -> bool:
+    config_name = type(torchao_config).__name__
+    return "Float8" in config_name and "Activation" in config_name
+
+
+def _gb10_torchao_fp8_activation_unsupported_reason(
+    torchao_config: Any,
+) -> str | None:
+    if not _is_sm12x_device() or not _is_torchao_fp8_activation_config(
+        torchao_config
+    ):
+        return None
+    config_name = type(torchao_config).__name__
+    return (
+        "TorchAO FP8 activation quantization is not supported on GB10/SM12x. "
+        f"The torchao quantization method can use {config_name}, call "
+        "torchao.quantization.quantize_, and convert weights with "
+        "convert_to_packed_tensor_based_on_current_hardware today, but this is "
+        "not native GB10 TorchAO FP8 activation correctness evidence. Use a "
+        "validated GB10 TorchAO FP8 activation path after native SM12x "
+        "correctness evidence exists, or keep FP8 activation TorchAO configs "
+        "unselected."
+    )
+
+
 def _check_torchao_fp8_activation_capability(torchao_config) -> None:
     """Check if the current GPU supports FP8 activation quantization.
 
@@ -111,7 +156,8 @@ def _check_torchao_fp8_activation_capability(torchao_config) -> None:
     if "Float8" not in config_name or "Activation" not in config_name:
         return
 
-    from vllm.platforms import current_platform
+    if reason := _gb10_torchao_fp8_activation_unsupported_reason(torchao_config):
+        raise ValueError(reason)
 
     if current_platform.supports_fp8():
         return
@@ -141,6 +187,8 @@ class TorchAOConfig(QuantizationConfig):
         is_checkpoint_torchao_serialized: bool = False,
     ) -> None:
         super().__init__()
+        if reason := _gb10_torchao_fp8_activation_unsupported_reason(torchao_config):
+            raise ValueError(reason)
         self.torchao_config = torchao_config
         self.skip_modules = skip_modules or []
         self.is_checkpoint_torchao_serialized = is_checkpoint_torchao_serialized

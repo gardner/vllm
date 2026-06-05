@@ -45,6 +45,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
+    "torchao_fp8_activation_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -170,6 +171,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "DeepSeek V4 FP8 quantization can reach FP8 block-quantized "
         "linear/attention layers and FP8, MXFP4, or ModelOpt NVFP4 MoE "
         "dispatch today; reject it until native GB10 DeepSeek V4 correctness "
+        "evidence exists."
+    ),
+    "torchao_fp8_activation_quantization": (
+        "TorchAO FP8 activation quantization can call "
+        "torchao.quantization.quantize_ and hardware-specific tensor packing "
+        "today; reject it until native GB10 TorchAO FP8 activation correctness "
         "evidence exists."
     ),
     "fp8_w8a16_marlin_fallback": (

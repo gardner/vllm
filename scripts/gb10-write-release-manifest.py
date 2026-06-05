@@ -434,6 +434,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "torchao_fp8_activation_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "TorchAO FP8 activation quantization can call "
+                    "torchao.quantization.quantize_ and hardware-specific "
+                    "tensor packing today and must reject on GB10/SM12x until "
+                    "native GB10 TorchAO FP8 activation correctness evidence "
+                    "exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

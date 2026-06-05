@@ -71,6 +71,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
+    "torchao_fp8_activation_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2348,6 +2349,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["deepseek_v4_fp8_quantization"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["torchao_fp8_activation_quantization"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
         "not_supported"
     )
@@ -5067,6 +5071,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     deepseek_v4_quant = (
         REPO_ROOT / "vllm" / "models" / "deepseek_v4" / "quant_config.py"
     ).read_text()
+    torchao_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "torchao.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5200,6 +5208,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "FP8 block-quantized linear/attention layers" in deepseek_v4_quant
     assert "FP8, MXFP4, or ModelOpt NVFP4 MoE dispatch" in deepseek_v4_quant
     assert "not supported on GB10/SM12x" in deepseek_v4_quant
+    assert "_gb10_torchao_fp8_activation_unsupported_reason" in torchao_quant
+    assert "TorchAO FP8 activation quantization" in torchao_quant
+    assert "torchao quantization method" in torchao_quant
+    assert "Float8" in torchao_quant
+    assert "Activation" in torchao_quant
+    assert "torchao.quantization.quantize_" in torchao_quant
+    assert "convert_to_packed_tensor_based_on_current_hardware" in torchao_quant
+    assert "not supported on GB10/SM12x" in torchao_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -6024,6 +6040,48 @@ def test_gb10_deepseek_v4_fp8_quantization_rejects_sm12x(monkeypatch):
         ),
         quant_config.DeepseekV4FP8Config,
     )
+
+
+def test_gb10_torchao_fp8_activation_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import torchao
+
+    class Float8DynamicActivationFloat8WeightConfig:
+        pass
+
+    class Int8WeightOnlyConfig:
+        pass
+
+    monkeypatch.setattr(
+        torchao,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    fp8_config = Float8DynamicActivationFloat8WeightConfig()
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        torchao.TorchAOConfig(fp8_config)
+
+    reason = str(exc_info.value)
+    assert "TorchAO FP8 activation quantization" in reason
+    assert "torchao quantization method" in reason
+    assert "Float8DynamicActivationFloat8WeightConfig" in reason
+    assert "torchao.quantization.quantize_" in reason
+    assert "convert_to_packed_tensor_based_on_current_hardware" in reason
+    assert "native GB10 TorchAO FP8 activation correctness evidence" in reason
+
+    assert torchao._gb10_torchao_fp8_activation_unsupported_reason(
+        Int8WeightOnlyConfig()
+    ) is None
+
+    monkeypatch.setattr(
+        torchao,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert torchao._gb10_torchao_fp8_activation_unsupported_reason(fp8_config) is None
+    assert isinstance(torchao.TorchAOConfig(fp8_config), torchao.TorchAOConfig)
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -8662,6 +8720,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "native GB10 DeepSeek V4 evidence"
                     ),
                 },
+                "torchao_fp8_activation_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "TorchAO FP8 activation quantization can call "
+                        "torchao.quantization.quantize_ and hardware packing "
+                        "without native GB10 TorchAO FP8 evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9113,6 +9180,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "public_mxfp4_quantization": {"status": "not_supported"},
                 "public_fp8_quantization": {"status": "not_supported"},
                 "deepseek_v4_fp8_quantization": {"status": "not_supported"},
+                "torchao_fp8_activation_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9289,6 +9357,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "quark_w4a8_mxfp4_fp8_checkpoint_loading",
         "rocm_aiter_fp8_moe",
         "rocm_aiter_unquantized_moe",
+        "torchao_fp8_activation_quantization",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
         "wna16_moe_fallback",
