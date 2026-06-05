@@ -74,6 +74,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "fp8_w8a16_marlin_fallback": "not_supported",
+    "fp8_w8a16_moe_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -1896,6 +1897,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["fp8_w8a16_marlin_fallback"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["fp8_w8a16_moe_fallback"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["mxfp8_dense_fallback"]["status"] == (
         "not_supported"
     )
@@ -3064,6 +3068,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "mxfp8.py"
     ).read_text()
+    fp8_moe_oracle = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
+        "oracle" / "fp8.py"
+    ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
     assert "record_nvfp4_backend_selection" in linear_selector
@@ -3141,6 +3149,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "_MXFP8_MOE_FALLBACK_BACKENDS" in mxfp8_moe_oracle
     assert "MXFP8 MoE fallback backend" in mxfp8_moe_oracle
     assert "not supported on GB10/SM12x" in mxfp8_moe_oracle
+    assert "_gb10_fp8_moe_fallback_unsupported_reason" in fp8_moe_oracle
+    assert "_FP8_MOE_FALLBACK_BACKENDS" in fp8_moe_oracle
+    assert "FP8 MoE fallback backend" in fp8_moe_oracle
+    assert "Marlin and CPU W8A16 fallbacks" in fp8_moe_oracle
+    assert "not supported on GB10/SM12x" in fp8_moe_oracle
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
 
@@ -4797,6 +4810,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "FP8 W8A16 Marlin fallback is not native GB10 evidence"
                     ),
                 },
+                "fp8_w8a16_moe_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "FP8 MoE W8A16 fallback paths are not native GB10 evidence"
+                    ),
+                },
                 "mxfp8_dense_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -5032,6 +5052,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
+                "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
@@ -5121,6 +5142,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "fp8_w8a16_marlin_fallback",
+        "fp8_w8a16_moe_fallback",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "modelopt_w4a16_nvfp4_checkpoint_loading",

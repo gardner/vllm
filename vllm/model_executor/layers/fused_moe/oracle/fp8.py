@@ -86,6 +86,22 @@ def _gb10_trtllm_gen_moe_unsupported_reason(
     )
 
 
+_FP8_MOE_FALLBACK_BACKENDS = (Fp8MoeBackend.MARLIN, Fp8MoeBackend.CPU)
+
+
+def _gb10_fp8_moe_fallback_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend not in _FP8_MOE_FALLBACK_BACKENDS or not _is_sm12x_device():
+        return None
+    return (
+        f"FP8 MoE fallback backend '{backend.value}' "
+        "is not supported on GB10/SM12x. Marlin and CPU W8A16 fallbacks can "
+        "prove reachability, but they are not native GB10 FP8 MoE evidence. "
+        "Use a validated GB10-safe MoE backend such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(
     moe_config: FusedMoEConfig,
     weight_key: QuantKey | None,
@@ -333,6 +349,8 @@ def select_fp8_moe_backend(
 
         if reason := _gb10_trtllm_gen_moe_unsupported_reason(requested_backend):
             raise ValueError(reason)
+        if reason := _gb10_fp8_moe_fallback_unsupported_reason(requested_backend):
+            raise ValueError(reason)
 
         if (
             requested_backend
@@ -352,7 +370,10 @@ def select_fp8_moe_backend(
 
     unavailable_gb10_reasons: list[str] = []
     for backend in list(AVAILABLE_BACKENDS):
-        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+        reason = _gb10_trtllm_gen_moe_unsupported_reason(
+            backend
+        ) or _gb10_fp8_moe_fallback_unsupported_reason(backend)
+        if reason:
             AVAILABLE_BACKENDS.remove(backend)
             _append_unique_reason(unavailable_gb10_reasons, reason)
 
@@ -430,6 +451,8 @@ def select_fp8_moe_backend(
     # Handle explicit MARLIN FP8 configuration.
     if envs.VLLM_TEST_FORCE_FP8_MARLIN:
         backend = Fp8MoeBackend.MARLIN
+        if reason := _gb10_fp8_moe_fallback_unsupported_reason(backend):
+            raise ValueError(reason)
         return _return_or_raise(
             backend, config, weight_key, activation_key, activation_format
         )

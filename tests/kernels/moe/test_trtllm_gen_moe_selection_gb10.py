@@ -272,6 +272,51 @@ def test_gb10_auto_fp8_moe_skips_trtllm_for_cutlass(monkeypatch):
     assert experts_cls is kernel_by_backend[Fp8MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_explicit_fp8_marlin_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.MARLIN})
+    config = make_dummy_moe_config()
+    config.moe_backend = "marlin"
+
+    with pytest.raises(ValueError, match="FP8 MoE fallback.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            config,
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
+def test_gb10_env_explicit_fp8_marlin_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_TEST_FORCE_FP8_MARLIN", "1")
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.MARLIN})
+
+    with pytest.raises(ValueError, match="FP8 MoE fallback.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
+def test_gb10_auto_fp8_moe_reports_trtllm_and_marlin_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(
+        monkeypatch,
+        {
+            Fp8MoeBackend.FLASHINFER_TRTLLM,
+            Fp8MoeBackend.MARLIN,
+        },
+    )
+
+    with pytest.raises(NotImplementedError, match="FP8 MoE fallback.*not supported"):
+        select_fp8_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
 def test_gb10_explicit_mxfp8_trtllm_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.FLASHINFER_TRTLLM})
