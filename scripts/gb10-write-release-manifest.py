@@ -493,6 +493,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "GB10 MXFP4 correctness evidence exists."
                 ),
             },
+            "compressed_tensors_w4a8_fp8_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W4A8 FP8 loading uses exact-SM90 "
+                    "CUTLASS W4A8 kernels today and cannot satisfy native "
+                    "GB10 dense or MoE release evidence."
+                ),
+            },
             "compressed_tensors_w4a4_mxfp4_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (

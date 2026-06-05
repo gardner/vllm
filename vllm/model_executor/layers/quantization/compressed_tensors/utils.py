@@ -6,7 +6,11 @@ from types import MappingProxyType
 
 import regex as re
 from compressed_tensors import CompressionFormat
-from compressed_tensors.quantization import QuantizationStrategy
+from compressed_tensors.quantization import (
+    QuantizationArgs,
+    QuantizationStrategy,
+    QuantizationType,
+)
 from torch.nn import Module
 
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
@@ -19,6 +23,9 @@ from vllm.model_executor.parameter import (
     ChannelQuantScaleParameter,
     PerTensorScaleParameter,
 )
+from vllm.platforms import current_platform
+
+_GB10_SM12X_UNSUPPORTED = "not supported on GB10/SM12x"
 
 # Maps quantization strategy to the corresponding scale parameter type.
 # Shared across compressed-tensor scheme classes (w8a16_fp8, w8a8_fp8, …).
@@ -45,6 +52,81 @@ def is_activation_quantization_format(format: str) -> bool:
         CompressionFormat.nvfp4_pack_quantized.value,
     ]
     return format in _ACTIVATION_QUANTIZATION_FORMATS
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _matches_quantization_type(
+    quant: QuantizationArgs | None,
+    expected_type: QuantizationType,
+) -> bool:
+    if quant is None:
+        return False
+    return quant.type == expected_type or quant.type == expected_type.value
+
+
+def is_fp8_w4a8_quantization(
+    weight_quant: QuantizationArgs | None,
+    input_quant: QuantizationArgs | None,
+) -> bool:
+    if not _matches_quantization_type(
+        weight_quant, QuantizationType.FLOAT
+    ) or not _matches_quantization_type(input_quant, QuantizationType.FLOAT):
+        return False
+
+    assert weight_quant is not None
+    assert input_quant is not None
+    is_weight_4_bits = weight_quant.num_bits == 4
+    is_activation_8_bits = input_quant.num_bits == 8
+    weight_strategy = weight_quant.strategy == QuantizationStrategy.GROUP.value
+    is_token = (
+        weight_strategy and input_quant.strategy == QuantizationStrategy.TOKEN.value
+    )
+    is_dynamic = not weight_quant.dynamic and input_quant.dynamic
+    is_symmetric = weight_quant.symmetric and input_quant.symmetric
+    return (
+        is_weight_4_bits
+        and is_activation_8_bits
+        and is_token
+        and is_symmetric
+        and is_dynamic
+    )
+
+
+def gb10_compressed_tensors_w4a8_fp8_unsupported_reason(
+    weight_quant: QuantizationArgs | None,
+    input_quant: QuantizationArgs | None,
+) -> str | None:
+    if not _is_sm12x_device() or not is_fp8_w4a8_quantization(
+        weight_quant, input_quant
+    ):
+        return None
+    return (
+        "CompressedTensors W4A8 FP8 checkpoint loading is "
+        f"{_GB10_SM12X_UNSUPPORTED}. "
+        "The available CompressedTensors W4A8 FP8 implementation "
+        "uses exact-SM90 CUTLASS W4A8 kernels today, which can prove Hopper "
+        "reachability but cannot satisfy native GB10 evidence. Use a native "
+        "SM12x W4A8 FP8 backend after correctness evidence exists, or keep "
+        "the path unselected."
+    )
 
 
 def should_ignore_layer(

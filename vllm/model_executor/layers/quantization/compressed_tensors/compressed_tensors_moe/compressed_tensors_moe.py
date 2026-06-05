@@ -20,6 +20,9 @@ from vllm.model_executor.layers.fused_moe.oracle.int_wna16 import (
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes.compressed_tensors_wNa16 import (  # noqa
     WNA16_SUPPORTED_BITS,
 )
+from vllm.model_executor.layers.quantization.compressed_tensors.utils import (
+    gb10_compressed_tensors_w4a8_fp8_unsupported_reason,
+)
 from vllm.model_executor.layers.quantization.utils.marlin_utils import (
     check_moe_marlin_supports_layer,
 )
@@ -188,6 +191,10 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
             return CompressedTensorsW4A8Fp8MoEMethod(
                 weight_quant, input_quant, layer.moe_config
             )
+        elif reason := gb10_compressed_tensors_w4a8_fp8_unsupported_reason(
+            weight_quant, input_quant
+        ):
+            raise ValueError(reason)
         elif quant_config._is_dynamic_token_w4a8_int(weight_quant, input_quant):
             from .compressed_tensors_moe_w4a8_int8 import (
                 CompressedTensorsW4A8Int8MoEMethod,

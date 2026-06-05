@@ -53,7 +53,9 @@ from vllm.model_executor.layers.quantization.compressed_tensors.transform.linear
 )
 from vllm.model_executor.layers.quantization.compressed_tensors.utils import (
     find_matched_target,
+    gb10_compressed_tensors_w4a8_fp8_unsupported_reason,
     is_activation_quantization_format,
+    is_fp8_w4a8_quantization,
     should_ignore_layer,
 )
 from vllm.model_executor.layers.quantization.kv_cache import BaseKVCacheMethod
@@ -460,6 +462,13 @@ class CompressedTensorsConfig(QuantizationConfig):
     def _is_dynamic_token_w4a8_int(
         weight_quant: QuantizationArgs, input_quant: QuantizationArgs
     ) -> bool:
+        is_integer = (
+            weight_quant.type == QuantizationType.INT
+            or weight_quant.type == QuantizationType.INT.value
+        ) and (
+            input_quant.type == QuantizationType.INT
+            or input_quant.type == QuantizationType.INT.value
+        )
         is_weight_4_bits = weight_quant.num_bits == 4
         is_activation_8_bits = input_quant.num_bits == 8
         weight_strategy = (
@@ -474,7 +483,8 @@ class CompressedTensorsConfig(QuantizationConfig):
         # Both symmetric and asymmetric input quantization supported.
         # Only symmetric weight quantization supported.
         return (
-            is_weight_4_bits
+            is_integer
+            and is_weight_4_bits
             and is_activation_8_bits
             and is_token
             and weight_quant.symmetric
@@ -522,25 +532,7 @@ class CompressedTensorsConfig(QuantizationConfig):
     def _is_fp8_w4a8(
         weight_quant: QuantizationArgs, input_quant: QuantizationArgs
     ) -> bool:
-        if not weight_quant or not input_quant:
-            return False
-        is_weight_4_bits = weight_quant.num_bits == 4
-        is_activation_8_bits = input_quant.num_bits == 8
-        weight_strategy = weight_quant.strategy == QuantizationStrategy.GROUP.value
-        is_token = (
-            weight_strategy and input_quant.strategy == QuantizationStrategy.TOKEN.value
-        )
-        is_dynamic = not weight_quant.dynamic and input_quant.dynamic
-        is_symmetric = weight_quant.symmetric and input_quant.symmetric
-        # Only per-group symmetric weight (4bit)
-        # + per-tok symmetric activation (8bit) quantization supported.
-        return (
-            is_weight_4_bits
-            and is_activation_8_bits
-            and is_token
-            and is_symmetric
-            and is_dynamic
-        )
+        return is_fp8_w4a8_quantization(weight_quant, input_quant)
 
     @classmethod
     def _is_fp8_w4a8_sm90(
@@ -633,6 +625,11 @@ class CompressedTensorsConfig(QuantizationConfig):
                 group_size=weight_quant.group_size,
                 actorder=weight_quant.actorder,
             )
+
+        if reason := gb10_compressed_tensors_w4a8_fp8_unsupported_reason(
+            weight_quant, input_quant
+        ):
+            raise ValueError(reason)
 
         if (
             self._is_wNa16_group_channel(weight_quant, input_quant)
