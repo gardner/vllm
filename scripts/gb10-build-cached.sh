@@ -193,6 +193,14 @@ if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; th
         --gb10-context "GB10 local runtime build before Docker/Buildx starts" \
         --gb10-remediation "Run scripts/gb10-build-cached.sh wheel first, or set GB10_LOCAL_DIST_DIR to a directory with one current vLLM wheel."
 fi
+if [ "$docker_target" = "build" ] && [ "$output_mode" = "load" ]; then
+    scripts/gb10-validate-vllm-wheel-artifact.py \
+        --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
+        --gb10-vllm-version "$GB10_VLLM_VERSION" \
+        --gb10-context "GB10 local wheel build output directory before Docker/Buildx starts" \
+        --gb10-remediation "Remove stale vLLM wheels from GB10_LOCAL_DIST_DIR, or set GB10_LOCAL_DIST_DIR to a clean directory." \
+        --gb10-allow-empty
+fi
 
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 cache_dir="$cache_root/$cache_key"

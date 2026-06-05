@@ -3316,6 +3316,36 @@ def test_gb10_vllm_wheel_artifact_validator_enforces_exact_version(tmp_path):
     assert "requires exactly one vLLM wheel" in multiple_proc.stdout
 
 
+def test_gb10_vllm_wheel_artifact_validator_allows_empty_when_requested(
+    tmp_path,
+):
+    validator = REPO_ROOT / "scripts" / "gb10-validate-vllm-wheel-artifact.py"
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+
+    empty_proc = subprocess.run(
+        [
+            sys.executable,
+            str(validator),
+            "--gb10-dist-dir",
+            str(dist_dir),
+            "--gb10-vllm-version",
+            "0.22.1rc0+gb10.abcdef123456",
+            "--gb10-context",
+            "GB10 local wheel build output directory before Docker/Buildx starts",
+            "--gb10-allow-empty",
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert empty_proc.returncode == 0, empty_proc.stdout
+    assert "No local vLLM wheel artifacts found" in empty_proc.stdout
+
+
 def test_gb10_local_cached_runtime_build_writes_release_checksums():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 
@@ -3445,6 +3475,45 @@ def test_gb10_local_cached_runtime_stale_wheel_fails_before_cache_or_docker(
     assert "does not match GB10_VLLM_VERSION" in proc.stdout
     assert "0.22.1rc0+gb10.abcdef123456" in proc.stdout
     assert "Run scripts/gb10-build-cached.sh wheel first" in proc.stdout
+    assert not cache_dir.exists()
+
+
+def test_gb10_local_cached_wheel_stale_output_fails_before_cache_or_docker(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    (dist_dir / "vllm-0.22.1rc0+gb10.stale-cp38-abi3-linux_aarch64.whl").write_bytes(
+        b"stale"
+    )
+
+    proc = subprocess.run(
+        ["bash", str(script), "wheel"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_LOCAL_DIST_DIR": str(dist_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "output directory before Docker/Buildx starts" in proc.stdout
+    assert "does not match GB10_VLLM_VERSION" in proc.stdout
+    assert "0.22.1rc0+gb10.abcdef123456" in proc.stdout
+    assert "Remove stale vLLM wheels" in proc.stdout
     assert not cache_dir.exists()
 
 

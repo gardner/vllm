@@ -20,12 +20,21 @@ def _parser() -> argparse.ArgumentParser:
             "GB10_LOCAL_DIST_DIR to a directory with one current vLLM wheel."
         ),
     )
+    parser.add_argument(
+        "--gb10-allow-empty",
+        action="store_true",
+        help="Allow zero vLLM wheels while still rejecting stale or duplicate wheels.",
+    )
     return parser
 
 
 def _main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     wheels = sorted(args.gb10_dist_dir.glob("vllm-*.whl"))
+
+    if not wheels and args.gb10_allow_empty:
+        print(f"No local vLLM wheel artifacts found in {args.gb10_dist_dir}.")
+        return 0
 
     if len(wheels) != 1:
         print(
