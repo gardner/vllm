@@ -77,6 +77,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "mxfp4_moe_fallback": "not_supported",
     "fp8_w8a16_marlin_fallback": "not_supported",
     "fp8_w8a16_moe_fallback": "not_supported",
+    "int8_moe_triton_fallback": "not_supported",
     "wna16_moe_fallback": "not_supported",
     "compressed_tensors_wna16_moe_fallback": "not_supported",
     "moe_wna16_legacy_fallback": "not_supported",
@@ -2338,6 +2339,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["fp8_w8a16_moe_fallback"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["int8_moe_triton_fallback"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["wna16_moe_fallback"]["status"] == (
@@ -4958,6 +4962,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "fp8.py"
     ).read_text()
+    int8_moe_oracle = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
+        "oracle" / "int8.py"
+    ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
     assert "record_nvfp4_backend_selection" in linear_selector
@@ -5061,6 +5069,9 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "ROCm-specific backend" in fp8_moe_oracle
     assert "Marlin and CPU W8A16 fallbacks" in fp8_moe_oracle
     assert "not supported on GB10/SM12x" in fp8_moe_oracle
+    assert "_gb10_int8_moe_triton_unsupported_reason" in int8_moe_oracle
+    assert "Int8 MoE Triton fallback backend" in int8_moe_oracle
+    assert "not supported on GB10/SM12x" in int8_moe_oracle
     assert "_gb10_aiter_unquantized_moe_unsupported_reason" in (
         unquantized_moe_oracle
     )
@@ -5179,6 +5190,33 @@ def test_gb10_moe_wna16_rejects_legacy_sm12x(monkeypatch):
         config.get_quant_method(FakeRoutedExperts(), "model.layers.0.mlp.experts")
 
     assert "MoeWNA16 legacy fused-experts fallback" in str(exc_info.value)
+
+
+def test_gb10_int8_moe_triton_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.fused_moe.oracle import int8
+
+    monkeypatch.setattr(int8, "_is_sm12x_device", lambda: True, raising=False)
+
+    config = SimpleNamespace(
+        moe_backend="auto",
+        moe_parallel_config=SimpleNamespace(use_batched_activation_format=False),
+    )
+
+    with pytest.raises(NotImplementedError, match="not supported on GB10/SM12x"):
+        int8.select_int8_moe_backend(config)
+
+    reason = int8._gb10_int8_moe_triton_unsupported_reason(
+        int8.Int8MoeBackend.TRITON
+    )
+    assert reason is not None
+    assert "Int8 MoE Triton fallback backend" in reason
+    assert "not native GB10 Int8 MoE evidence" in reason
+
+    monkeypatch.setattr(int8, "_is_sm12x_device", lambda: False, raising=False)
+    assert (
+        int8._gb10_int8_moe_triton_unsupported_reason(int8.Int8MoeBackend.TRITON)
+        is None
+    )
 
 
 def test_gb10_nvfp4_moe_fallbacks_are_reported():
@@ -6930,6 +6968,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "FP8 MoE W8A16 fallback paths are not native GB10 evidence"
                     ),
                 },
+                "int8_moe_triton_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Int8 MoE Triton fallback is not native GB10 evidence"
+                    ),
+                },
                 "wna16_moe_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -7201,6 +7246,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
+                "int8_moe_triton_fallback": {"status": "not_supported"},
                 "wna16_moe_fallback": {"status": "not_supported"},
                 "compressed_tensors_wna16_moe_fallback": {
                     "status": "not_supported"
@@ -7297,6 +7343,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_trtllm_nvfp4_dense",
         "fp8_w8a16_marlin_fallback",
         "fp8_w8a16_moe_fallback",
+        "int8_moe_triton_fallback",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "modelopt_w4a16_nvfp4_checkpoint_loading",

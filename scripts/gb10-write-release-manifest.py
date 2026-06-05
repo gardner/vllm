@@ -421,6 +421,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "MoE release evidence."
                 ),
             },
+            "int8_moe_triton_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Int8 MoE Triton fallback can prove reachability, but it "
+                    "cannot satisfy native GB10 Int8 MoE release evidence."
+                ),
+            },
             "wna16_moe_fallback": {
                 "status": "not_supported",
                 "release_contract": (

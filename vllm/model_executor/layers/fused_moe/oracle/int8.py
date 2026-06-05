@@ -22,12 +22,50 @@ from vllm.model_executor.layers.quantization.utils.quant_utils import (
     kInt8DynamicTokenSym,
     kInt8StaticChannelSym,
 )
+from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
 
 
 class Int8MoeBackend(Enum):
     TRITON = "TRITON"
+
+
+_GB10_SM12X_UNSUPPORTED = "not supported on GB10/SM12x"
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_int8_moe_triton_unsupported_reason(
+    backend: Int8MoeBackend,
+) -> str | None:
+    if backend != Int8MoeBackend.TRITON or not _is_sm12x_device():
+        return None
+    return (
+        f"Int8 MoE Triton fallback backend '{backend.value}' is "
+        f"{_GB10_SM12X_UNSUPPORTED}. "
+        "The generic Triton Int8 MoE path can prove reachability, "
+        "but it is not native GB10 Int8 MoE evidence. Use a native SM12x "
+        "Int8 MoE backend after correctness evidence exists, or keep the path "
+        "unselected."
+    )
 
 
 def _get_priority_backends(
@@ -103,9 +141,22 @@ def select_int8_moe_backend(
                 "deployment configuration."
             )
 
+    def _append_unique_reason(reasons: list[str], reason: str) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+
+    def _unsupported_suffix(reasons: list[str]) -> str:
+        if not reasons:
+            return ""
+        return " " + " ".join(reasons)
+
     def _return_or_raise(
         backend: Int8MoeBackend,
     ) -> tuple[Int8MoeBackend, type[mk.FusedMoEExperts]]:
+        if reason := _gb10_int8_moe_triton_unsupported_reason(backend):
+            raise ValueError(_make_log_unsupported(backend, reason))
+
+        reason: str | None = None
         for k_cls in backend_to_kernel_cls(backend):
             supported, reason = k_cls.is_supported_config(
                 k_cls, config, weight_key, activation_key, activation_format
@@ -122,7 +173,13 @@ def select_int8_moe_backend(
         return _return_or_raise(requested_backend)
 
     # Select kernels in order of backend.
+    unavailable_gb10_reasons: list[str] = []
     for backend in AVAILABLE_BACKENDS:
+        if reason := _gb10_int8_moe_triton_unsupported_reason(backend):
+            _append_unique_reason(unavailable_gb10_reasons, reason)
+            logger.debug_once(_make_log_unsupported(backend, reason))
+            continue
+
         for k_cls in backend_to_kernel_cls(backend):
             supported, reason = k_cls.is_supported_config(
                 k_cls,
@@ -139,6 +196,7 @@ def select_int8_moe_backend(
 
     raise NotImplementedError(
         "No Int8 MoE backend supports the deployment configuration."
+        + _unsupported_suffix(unavailable_gb10_reasons)
     )
 
 

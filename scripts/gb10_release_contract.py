@@ -51,6 +51,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mxfp4_moe_fallback": "not_supported",
     "fp8_w8a16_marlin_fallback": "not_supported",
     "fp8_w8a16_moe_fallback": "not_supported",
+    "int8_moe_triton_fallback": "not_supported",
     "wna16_moe_fallback": "not_supported",
     "compressed_tensors_wna16_moe_fallback": "not_supported",
     "moe_wna16_legacy_fallback": "not_supported",
@@ -140,6 +141,10 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "fp8_w8a16_moe_fallback": (
         "FP8 MoE Marlin and CPU W8A16 fallbacks can prove reachability, but "
         "they are not native GB10 FP8 MoE evidence."
+    ),
+    "int8_moe_triton_fallback": (
+        "Int8 MoE Triton fallback can prove reachability, but it is not "
+        "native GB10 Int8 MoE evidence."
     ),
     "wna16_moe_fallback": (
         "WNA16 MoE Marlin and batched Marlin fallbacks can prove "
