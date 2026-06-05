@@ -4155,6 +4155,15 @@ def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
     assert "GB10_IMAGE_TAG=gb10-abcdef123456" in proc.stdout
     assert "GB10_VLLM_VERSION=0.22.1rc0+gb10.abcdef123456" in proc.stdout
     assert (
+        "GB10_FLASH_ATTN_REPO="
+        "https://github.com/gardner/vllm-flash-attention.git"
+    ) in proc.stdout
+    assert f"GB10_FLASH_ATTN_REF={VLLM_FLASH_ATTN_GIT_TAG}" in proc.stdout
+    assert (
+        'GB10_RUNNER_LABELS=["self-hosted","linux","aarch64",'
+        '"cuda13","dgx-spark","sm121"]'
+    ) in proc.stdout
+    assert (
         f"GB10_RELEASE_MANIFEST_JSON="
         f"{manifest_dir / 'gb10-release-manifest.json'}"
     ) in proc.stdout
