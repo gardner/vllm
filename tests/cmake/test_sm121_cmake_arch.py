@@ -212,6 +212,13 @@ def _load_gb10_release_manifest_module():
     )
 
 
+def _load_gb10_release_settings_resolver_module():
+    return _load_script_module(
+        "gb10_resolve_release_settings",
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py",
+    )
+
+
 def _load_gb10_flashinfer_jit_cache_validator_module():
     return _load_script_module(
         "gb10_verify_flashinfer_jit_cache",
@@ -401,6 +408,9 @@ def test_gb10_flashinfer_wheels_fail_fast():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
     versions_json = (REPO_ROOT / "docker" / "versions.json").read_text()
 
     for text in (dockerfile, docker_bake, gb10_workflow, versions_json):
@@ -411,13 +421,18 @@ def test_gb10_flashinfer_wheels_fail_fast():
         assert "flashinfer_cubin" in text
         assert "flashinfer_jit_cache" in text
 
-    assert "GB10 prebuilt FlashInfer wheel URLs are required" in gb10_workflow
+    assert "GB10 prebuilt FlashInfer wheel URLs are required" in (
+        release_settings_resolver
+    )
     assert "GB10 FlashInfer wheels are required" in dockerfile
 
 
 def test_gb10_release_workflow_defaults_to_published_flashinfer_wheels():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
     ).read_text()
 
     assert "GB10_DEFAULT_PREBUILT_WHEEL_URLS" in gb10_workflow
@@ -428,7 +443,7 @@ def test_gb10_release_workflow_defaults_to_published_flashinfer_wheels():
             f"https://github.com/gardner/flashinfer/releases/download/"
             f"{FLASHINFER_RELEASE_TAG}/{wheel}"
         ) in gb10_workflow
-    assert 'prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"' in gb10_workflow
+    assert '"GB10_DEFAULT_PREBUILT_WHEEL_URLS"' in release_settings_resolver
 
 
 def test_gb10_release_workflow_uses_vllm_dockerfile():
@@ -566,10 +581,13 @@ def test_gb10_release_workflow_supports_manual_preflight_only():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
 
     assert "preflight-only:" in gb10_workflow
-    assert "GB10_PREFLIGHT_ONLY=${preflight_only}" in gb10_workflow
-    assert "preflight_only=\"${{ inputs['preflight-only'] }}\"" in gb10_workflow
+    assert "GB10_INPUT_PREFLIGHT_ONLY" in gb10_workflow
+    assert "GB10_PREFLIGHT_ONLY" in release_settings_resolver
 
     for step_name in (
         "Build wheel stage",
@@ -593,6 +611,9 @@ def test_gb10_release_workflow_routes_full_builds_to_self_hosted_gb10():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
 
     assert "runner-labels:" in gb10_workflow
     assert 'default: \'["ubuntu-22.04-arm"]\'' in gb10_workflow
@@ -604,19 +625,16 @@ def test_gb10_release_workflow_routes_full_builds_to_self_hosted_gb10():
         "- name: Resolve release settings",
         1,
     )[1].split("- name: Write GB10 release manifest", 1)[0]
-    assert "runner_labels='${{ inputs['runner-labels'] }}'" in resolve_step
-    assert 'release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"' in (
-        resolve_step
-    )
-    assert "GB10_RUNNER_LABELS<<GB10_RUNNER_LABELS_EOF" in resolve_step
-    assert 'echo "$release_runner_labels"' in resolve_step
-    assert "reject_multiline_env_value \"release_runner_labels\"" in resolve_step
-    assert '[ "$preflight_only" != "true" ]' in resolve_step
-    assert '[[ "$release_runner_labels" != *"\\"self-hosted\\""* ]]' in (
-        resolve_step
+    assert "GB10_INPUT_RUNNER_LABELS" in resolve_step
+    assert "scripts/gb10-resolve-release-settings.py" in resolve_step
+    assert "GB10_RUNNER_LABELS" in release_settings_resolver
+    assert "DEFAULT_SELF_HOSTED_RUNNER_LABELS" in release_settings_resolver
+    assert "preflight_only != \"true\"" in release_settings_resolver
+    assert '"self-hosted" not in _runner_labels(labels_json)' in (
+        release_settings_resolver
     )
     assert "GB10 full release builds require self-hosted runner labels" in (
-        resolve_step
+        release_settings_resolver
     )
 
 
@@ -624,47 +642,30 @@ def test_gb10_release_workflow_requires_pushed_image_for_tagged_release():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
 
     resolve_step = gb10_workflow.split(
         "- name: Resolve release settings",
         1,
     )[1].split("- name: Write GB10 release manifest", 1)[0]
 
-    assert '[ "$preflight_only" != "true" ]' in resolve_step
-    assert '[ -n "$release_tag" ]' in resolve_step
-    assert '[ "$push_image" != "true" ]' in resolve_step
-    assert "GB10 full release publication requires push-image=true" in resolve_step
+    assert "GB10_INPUT_PUSH_IMAGE" in resolve_step
+    assert "preflight_only != \"true\"" in release_settings_resolver
+    assert "release_tag and push_image != \"true\"" in release_settings_resolver
+    assert (
+        "GB10 full release publication requires push-image=true"
+        in release_settings_resolver
+    )
 
 
 def test_gb10_release_workflow_requires_durable_image_ref_for_tagged_release():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
-
-    resolve_step = gb10_workflow.split(
-        "- name: Resolve release settings",
-        1,
-    )[1].split("- name: Write GB10 release manifest", 1)[0]
-
-    assert '[[ "$image_name" != ghcr.io/* ]]' in resolve_step
-    assert "requires a GHCR image-name" in resolve_step
-    assert '[[ "$image_name" == *:* || "$image_name" == *@* ]]' in resolve_step
-    assert "must not include a tag or digest" in resolve_step
-    assert "image_repository=\"${image_name#ghcr.io/}\"" in resolve_step
-    assert "IFS=/ read -r -a image_repository_parts" in resolve_step
-    assert "must be a lowercase Docker repository name" in resolve_step
-    assert (
-        '[[ ! "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]'
-        in resolve_step
-    )
-    assert "runtime image tag must be a Docker-compatible tag" in resolve_step
-    assert '[ "$image_tag" != "$release_tag" ]' in resolve_step
-    assert "runtime image tag must match the release tag" in resolve_step
-
-
-def test_gb10_release_workflow_rejects_multiline_env_values():
-    gb10_workflow = (
-        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
     ).read_text()
 
     resolve_step = gb10_workflow.split(
@@ -672,22 +673,45 @@ def test_gb10_release_workflow_rejects_multiline_env_values():
         1,
     )[1].split("- name: Write GB10 release manifest", 1)[0]
 
-    assert "reject_multiline_env_value()" in resolve_step
-    assert '$\'\\n\'' in resolve_step
-    assert '$\'\\r\'' in resolve_step
-    assert "GB10 release setting must be single-line" in resolve_step
+    assert "GB10_INPUT_IMAGE_NAME" in resolve_step
+    assert 'image_name.startswith("ghcr.io/")' in release_settings_resolver
+    assert "requires a GHCR image-name" in release_settings_resolver
+    assert '":" in image_name or "@" in image_name' in release_settings_resolver
+    assert "must not include a tag or digest" in release_settings_resolver
+    assert 'image_name.removeprefix("ghcr.io/")' in release_settings_resolver
+    assert "DOCKER_REPOSITORY_COMPONENT_RE" in release_settings_resolver
+    assert "must be a lowercase Docker " in release_settings_resolver
+    assert "repository name" in release_settings_resolver
+    assert "DOCKER_TAG_RE" in release_settings_resolver
+    assert "runtime image tag must be a Docker-compatible " in (
+        release_settings_resolver
+    )
+    assert "tag, got" in release_settings_resolver
+    assert "image_tag != release_tag" in release_settings_resolver
+    assert "runtime image tag must match the release tag" in release_settings_resolver
+
+
+def test_gb10_release_workflow_rejects_multiline_env_values():
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
+
+    assert "def _reject_multiline" in release_settings_resolver
+    assert '"\\n" in value' in release_settings_resolver
+    assert '"\\r" in value' in release_settings_resolver
+    assert "GB10 release setting must be single-line" in release_settings_resolver
     for variable in (
-        "release_tag",
-        "image_name",
-        "image_tag",
-        "vllm_version",
-        "prebuilt_wheel_urls",
-        "flash_attn_repo",
-        "flash_attn_ref",
-        "push_image",
-        "preflight_only",
+        "GB10_RELEASE_TAG",
+        "GB10_IMAGE_NAME",
+        "GB10_IMAGE_TAG",
+        "GB10_VLLM_VERSION",
+        "GB10_PREBUILT_WHEEL_URLS",
+        "GB10_FLASH_ATTN_REPO",
+        "GB10_FLASH_ATTN_REF",
+        "GB10_PUSH_IMAGE",
+        "GB10_PREFLIGHT_ONLY",
     ):
-        assert f'reject_multiline_env_value "{variable}" "${variable}"' in resolve_step
+        assert f'"{variable}"' in release_settings_resolver
 
 
 def test_gb10_release_workflow_uses_durable_split_build_caches():
@@ -804,6 +828,9 @@ def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
     gb10_workflow = (
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
 
     assert "max-jobs:" in gb10_workflow
     assert "nvcc-threads:" in gb10_workflow
@@ -811,17 +838,185 @@ def test_gb10_release_workflow_uses_conservative_self_hosted_parallelism():
     assert 'GB10_NVCC_THREADS: "1"' in gb10_workflow
     assert 'GB10_NATIVE_CUDA_ARCHS_ONLY: "1"' in gb10_workflow
     assert "1 / 1 = 1 job" in gb10_workflow
-    assert 'max_jobs="${{ inputs[\'max-jobs\'] }}"' in gb10_workflow
-    assert 'nvcc_threads="${{ inputs[\'nvcc-threads\'] }}"' in gb10_workflow
-    assert 'echo "GB10_MAX_JOBS=${max_jobs}"' in gb10_workflow
-    assert 'echo "GB10_NVCC_THREADS=${nvcc_threads}"' in gb10_workflow
-    assert "GB10 max-jobs must be a positive integer" in gb10_workflow
-    assert "GB10 nvcc-threads must be a positive integer" in gb10_workflow
+    assert "GB10_INPUT_MAX_JOBS" in gb10_workflow
+    assert "GB10_INPUT_NVCC_THREADS" in gb10_workflow
+    assert '"GB10_MAX_JOBS"' in release_settings_resolver
+    assert '"GB10_NVCC_THREADS"' in release_settings_resolver
+    assert "GB10 max-jobs must be a positive integer" in release_settings_resolver
+    assert "GB10 nvcc-threads must be a positive integer" in release_settings_resolver
     assert gb10_workflow.count('--build-arg max_jobs="$GB10_MAX_JOBS"') == 2
     assert gb10_workflow.count('--build-arg nvcc_threads="$GB10_NVCC_THREADS"') == 2
     assert gb10_workflow.count(
         '--build-arg vllm_native_cuda_archs_only="$GB10_NATIVE_CUDA_ARCHS_ONLY"'
     ) == 2
+
+
+def _gb10_release_resolver_env(**overrides: str) -> dict[str, str]:
+    env = {
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REF": "refs/heads/gb10-native-nvfp4",
+        "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        "GB10_DEFAULT_PREBUILT_WHEEL_URLS": " ".join(
+            f"https://github.com/gardner/flashinfer/releases/download/"
+            f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+            for wheel in FLASHINFER_RELEASE_WHEELS
+        ),
+        "GB10_SELF_HOSTED_RUNNER_LABELS": json.dumps(
+            ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
+        ),
+        "GB10_MAX_JOBS": "1",
+        "GB10_NVCC_THREADS": "1",
+        "GB10_INPUT_RELEASE_TAG": "",
+        "GB10_INPUT_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+        "GB10_INPUT_PREBUILT_WHEEL_URLS": "",
+        "GB10_INPUT_FLASH_ATTN_REPO": (
+            "https://github.com/gardner/vllm-flash-attention.git"
+        ),
+        "GB10_INPUT_FLASH_ATTN_REF": VLLM_FLASH_ATTN_GIT_TAG,
+        "GB10_INPUT_PUSH_IMAGE": "true",
+        "GB10_INPUT_PREFLIGHT_ONLY": "true",
+        "GB10_INPUT_RUNNER_LABELS": json.dumps(["ubuntu-22.04-arm"]),
+        "GB10_INPUT_MAX_JOBS": "1",
+        "GB10_INPUT_NVCC_THREADS": "1",
+    }
+    env.update(overrides)
+    return env
+
+
+def test_gb10_release_settings_resolver_supports_hosted_preflight():
+    resolver = _load_gb10_release_settings_resolver_module()
+
+    settings = resolver.resolve_release_settings(_gb10_release_resolver_env())
+
+    assert settings["GB10_RELEASE_TAG"] == ""
+    assert settings["GB10_IMAGE_TAG"] == "gb10-abcdef123456"
+    assert settings["GB10_VLLM_VERSION"] == "0.22.1rc0+gb10.abcdef123456"
+    assert settings["GB10_PREFLIGHT_ONLY"] == "true"
+    assert settings["GB10_PUSH_IMAGE"] == "true"
+    assert settings["GB10_RUNNER_LABELS"] == json.dumps(["ubuntu-22.04-arm"])
+    assert settings["GB10_MAX_JOBS"] == "1"
+    assert settings["GB10_NVCC_THREADS"] == "1"
+    assert settings["GB10_PREBUILT_WHEEL_URLS"].split() == [
+        f"https://github.com/gardner/flashinfer/releases/download/"
+        f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+        for wheel in FLASHINFER_RELEASE_WHEELS
+    ]
+
+
+def test_gb10_release_settings_resolver_push_tag_uses_release_defaults():
+    resolver = _load_gb10_release_settings_resolver_module()
+    release_tag = "gb10-vllm-v0.22.1rc0-abcdef123"
+
+    settings = resolver.resolve_release_settings(
+        _gb10_release_resolver_env(
+            GITHUB_EVENT_NAME="push",
+            GITHUB_REF=f"refs/tags/{release_tag}",
+        )
+    )
+
+    assert settings["GB10_RELEASE_TAG"] == release_tag
+    assert settings["GB10_IMAGE_NAME"] == "ghcr.io/gardner/vllm-gb10"
+    assert settings["GB10_IMAGE_TAG"] == release_tag
+    assert settings["GB10_VLLM_VERSION"] == "0.22.1rc0+gb10.abcdef123456"
+    assert settings["GB10_PUSH_IMAGE"] == "true"
+    assert settings["GB10_PREFLIGHT_ONLY"] == "false"
+    assert settings["GB10_RUNNER_LABELS"] == json.dumps(
+        ["self-hosted", "linux", "aarch64", "cuda13", "dgx-spark", "sm121"]
+    )
+
+
+def test_gb10_release_settings_resolver_rejects_hosted_full_build():
+    resolver = _load_gb10_release_settings_resolver_module()
+
+    with pytest.raises(ValueError, match="full release builds require self-hosted"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(GB10_INPUT_PREFLIGHT_ONLY="false")
+        )
+
+
+def test_gb10_release_settings_resolver_rejects_invalid_parallelism():
+    resolver = _load_gb10_release_settings_resolver_module()
+
+    with pytest.raises(ValueError, match="max-jobs must be a positive integer"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(GB10_INPUT_MAX_JOBS="0")
+        )
+
+    with pytest.raises(ValueError, match="nvcc-threads must be a positive integer"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(GB10_INPUT_NVCC_THREADS="many")
+        )
+
+
+def test_gb10_release_settings_resolver_rejects_bad_tagged_release_image():
+    resolver = _load_gb10_release_settings_resolver_module()
+    release_tag = "gb10-vllm-v0.22.1rc0-abcdef123"
+
+    with pytest.raises(ValueError, match="requires push-image=true"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(
+                GB10_INPUT_RELEASE_TAG=release_tag,
+                GB10_INPUT_PREFLIGHT_ONLY="false",
+                GB10_INPUT_PUSH_IMAGE="false",
+                GB10_INPUT_RUNNER_LABELS=json.dumps(
+                    [
+                        "self-hosted",
+                        "linux",
+                        "aarch64",
+                        "cuda13",
+                        "dgx-spark",
+                        "sm121",
+                    ]
+                ),
+            )
+        )
+
+    with pytest.raises(ValueError, match="requires a GHCR image-name"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(
+                GB10_INPUT_RELEASE_TAG=release_tag,
+                GB10_INPUT_PREFLIGHT_ONLY="false",
+                GB10_INPUT_IMAGE_NAME="docker.io/gardner/vllm-gb10",
+                GB10_INPUT_RUNNER_LABELS=json.dumps(
+                    [
+                        "self-hosted",
+                        "linux",
+                        "aarch64",
+                        "cuda13",
+                        "dgx-spark",
+                        "sm121",
+                    ]
+                ),
+            )
+        )
+
+
+def test_gb10_release_settings_resolver_writes_github_env_file(tmp_path):
+    resolver = _load_gb10_release_settings_resolver_module()
+    settings = resolver.resolve_release_settings(_gb10_release_resolver_env())
+    github_env = tmp_path / "github-env"
+
+    resolver.write_github_env(github_env, settings)
+
+    lines = github_env.read_text().splitlines()
+    assert lines[0] == "GB10_RELEASE_TAG="
+    assert f"GB10_RUNNER_LABELS={json.dumps(['ubuntu-22.04-arm'])}" in lines
+    assert any(line.startswith("GB10_PREBUILT_WHEEL_URLS=") for line in lines)
+    assert not any("<<" in line for line in lines)
+
+
+def test_gb10_release_workflow_resolves_settings_with_tested_script():
+    gb10_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
+    ).read_text()
+    resolver_script = REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+
+    assert resolver_script.exists()
+    assert "scripts/gb10-resolve-release-settings.py" in gb10_workflow
+    assert "--gb10-output-env \"$GITHUB_ENV\"" in gb10_workflow
+    assert "GB10_INPUT_RELEASE_TAG" in gb10_workflow
+    assert "GB10_INPUT_RUNNER_LABELS" in gb10_workflow
+    assert "reject_multiline_env_value()" not in gb10_workflow
 
 
 def test_gb10_release_workflow_sets_runtime_image_build_metadata():
@@ -2926,10 +3121,15 @@ def test_gb10_release_workflow_overrides_pep440_wheel_version():
         REPO_ROOT / ".github" / "workflows" / "gb10-release.yml"
     ).read_text()
     dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text()
+    release_settings_resolver = (
+        REPO_ROOT / "scripts" / "gb10-resolve-release-settings.py"
+    ).read_text()
 
-    assert 'vllm_version_base="0.22.1rc0"' in gb10_workflow
-    assert 'vllm_version="${vllm_version_base}+gb10.${GITHUB_SHA::12}"' in gb10_workflow
-    assert "GB10_VLLM_VERSION=${vllm_version}" in gb10_workflow
+    assert 'DEFAULT_VLLM_VERSION_BASE = "0.22.1rc0"' in release_settings_resolver
+    assert 'f"{_vllm_version_base(release_tag)}+gb10.{github_sha[:12]}"' in (
+        release_settings_resolver
+    )
+    assert '"GB10_VLLM_VERSION"' in release_settings_resolver
     assert '--build-arg vllm_version_override="$GB10_VLLM_VERSION"' in gb10_workflow
     assert 'ARG vllm_version_override=""' in dockerfile
     assert 'export VLLM_VERSION_OVERRIDE="${vllm_version_override}"' in dockerfile

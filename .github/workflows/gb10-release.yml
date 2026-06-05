@@ -104,142 +104,20 @@ jobs:
           fetch-depth: 0
 
       - name: Resolve release settings
+        env:
+          GB10_INPUT_RELEASE_TAG: ${{ inputs['release-tag'] }}
+          GB10_INPUT_IMAGE_NAME: ${{ inputs['image-name'] }}
+          GB10_INPUT_PREBUILT_WHEEL_URLS: ${{ inputs['prebuilt-wheel-urls'] }}
+          GB10_INPUT_FLASH_ATTN_REPO: ${{ inputs['vllm-flash-attn-git-repository'] }}
+          GB10_INPUT_FLASH_ATTN_REF: ${{ inputs['vllm-flash-attn-git-tag'] }}
+          GB10_INPUT_PUSH_IMAGE: ${{ inputs['push-image'] }}
+          GB10_INPUT_PREFLIGHT_ONLY: ${{ inputs['preflight-only'] }}
+          GB10_INPUT_RUNNER_LABELS: ${{ inputs['runner-labels'] }}
+          GB10_INPUT_MAX_JOBS: ${{ inputs['max-jobs'] }}
+          GB10_INPUT_NVCC_THREADS: ${{ inputs['nvcc-threads'] }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            release_tag="${GITHUB_REF#refs/tags/}"
-            image_name="ghcr.io/gardner/vllm-gb10"
-            prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
-            flash_attn_repo="https://github.com/gardner/vllm-flash-attention.git"
-            flash_attn_ref="de3849e75d07edd1c00aec02c92ec852ba757adc"
-            push_image="true"
-            preflight_only="false"
-            release_runner_labels="$GB10_SELF_HOSTED_RUNNER_LABELS"
-            max_jobs="$GB10_MAX_JOBS"
-            nvcc_threads="$GB10_NVCC_THREADS"
-          else
-            release_tag="${{ inputs.release-tag }}"
-            image_name="${{ inputs.image-name }}"
-            prebuilt_wheel_urls="${{ inputs.prebuilt-wheel-urls }}"
-            flash_attn_repo="${{ inputs.vllm-flash-attn-git-repository }}"
-            flash_attn_ref="${{ inputs.vllm-flash-attn-git-tag }}"
-            push_image="${{ inputs.push-image }}"
-            preflight_only="${{ inputs['preflight-only'] }}"
-            runner_labels='${{ inputs['runner-labels'] }}'
-            release_runner_labels="$runner_labels"
-            max_jobs="${{ inputs['max-jobs'] }}"
-            nvcc_threads="${{ inputs['nvcc-threads'] }}"
-          fi
-          if [ -z "${prebuilt_wheel_urls}" ]; then
-            prebuilt_wheel_urls="$GB10_DEFAULT_PREBUILT_WHEEL_URLS"
-          fi
-
-          reject_multiline_env_value() {
-            local name="$1"
-            local value="$2"
-            if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
-              echo "GB10 release setting must be single-line: ${name}" >&2
-              exit 1
-            fi
-          }
-
-          if [ "$preflight_only" != "true" ] && [[ "$release_runner_labels" != *"\"self-hosted\""* ]]; then
-            echo "GB10 full release builds require self-hosted runner labels; GitHub-hosted ARM runners repeatedly terminate the multi-hour wheel build without logs." >&2
-            echo "Use runner-labels=$GB10_SELF_HOSTED_RUNNER_LABELS for full release builds." >&2
-            exit 1
-          fi
-
-          if [[ ! "$max_jobs" =~ ^[1-9][0-9]*$ ]]; then
-            echo "GB10 max-jobs must be a positive integer, got ${max_jobs}." >&2
-            exit 1
-          fi
-          if [[ ! "$nvcc_threads" =~ ^[1-9][0-9]*$ ]]; then
-            echo "GB10 nvcc-threads must be a positive integer, got ${nvcc_threads}." >&2
-            exit 1
-          fi
-
-          if [ "$preflight_only" != "true" ] && [ -n "$release_tag" ] && [ "$push_image" != "true" ]; then
-            echo "GB10 full release publication requires push-image=true so the runtime image is durable in GHCR." >&2
-            exit 1
-          fi
-
-          if [ -z "${prebuilt_wheel_urls}" ]; then
-            echo "GB10 prebuilt FlashInfer wheel URLs are required." >&2
-            exit 1
-          fi
-          for required_wheel in flashinfer_python flashinfer_cubin flashinfer_jit_cache; do
-            if [[ " ${prebuilt_wheel_urls} " != *"${required_wheel}"* ]]; then
-              echo "GB10 prebuilt wheel URLs must include ${required_wheel}." >&2
-              exit 1
-            fi
-          done
-
-          image_tag="${release_tag:-gb10-${GITHUB_SHA::12}}"
-          if [ "$preflight_only" != "true" ] && [ -n "$release_tag" ]; then
-            if [[ "$image_name" != ghcr.io/* ]]; then
-              echo "GB10 full release publication requires a GHCR image-name, got ${image_name}." >&2
-              exit 1
-            fi
-            if [[ "$image_name" == *:* || "$image_name" == *@* ]]; then
-              echo "GB10 full release image-name must not include a tag or digest, got ${image_name}." >&2
-              exit 1
-            fi
-            image_repository="${image_name#ghcr.io/}"
-            IFS=/ read -r -a image_repository_parts <<< "$image_repository"
-            if [ "${#image_repository_parts[@]}" -lt 2 ]; then
-              echo "GB10 full release image-name must include owner and package components, got ${image_name}." >&2
-              exit 1
-            fi
-            for image_repository_part in "${image_repository_parts[@]}"; do
-              if [[ ! "$image_repository_part" =~ ^[a-z0-9]+([._-]+[a-z0-9]+)*$ ]]; then
-                echo "GB10 full release image-name must be a lowercase Docker repository name, got ${image_name}." >&2
-                exit 1
-              fi
-            done
-            if [[ ! "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
-              echo "GB10 full release runtime image tag must be a Docker-compatible tag, got ${image_tag}." >&2
-              exit 1
-            fi
-            if [ "$image_tag" != "$release_tag" ]; then
-              echo "GB10 full release runtime image tag must match the release tag." >&2
-              echo "  image-tag:   ${image_tag}" >&2
-              echo "  release-tag: ${release_tag}" >&2
-              exit 1
-            fi
-          fi
-
-          vllm_version_base="0.22.1rc0"
-          if [[ "${release_tag}" =~ ^gb10-vllm-v([^-]+)-[0-9a-f]{7,40}$ ]]; then
-            vllm_version_base="${BASH_REMATCH[1]}"
-          fi
-          vllm_version="${vllm_version_base}+gb10.${GITHUB_SHA::12}"
-          reject_multiline_env_value "release_tag" "$release_tag"
-          reject_multiline_env_value "image_name" "$image_name"
-          reject_multiline_env_value "image_tag" "$image_tag"
-          reject_multiline_env_value "vllm_version" "$vllm_version"
-          reject_multiline_env_value "prebuilt_wheel_urls" "$prebuilt_wheel_urls"
-          reject_multiline_env_value "flash_attn_repo" "$flash_attn_repo"
-          reject_multiline_env_value "flash_attn_ref" "$flash_attn_ref"
-          reject_multiline_env_value "push_image" "$push_image"
-          reject_multiline_env_value "preflight_only" "$preflight_only"
-          reject_multiline_env_value "release_runner_labels" "$release_runner_labels"
-          reject_multiline_env_value "max_jobs" "$max_jobs"
-          reject_multiline_env_value "nvcc_threads" "$nvcc_threads"
-          {
-            echo "GB10_RELEASE_TAG=${release_tag}"
-            echo "GB10_IMAGE_NAME=${image_name}"
-            echo "GB10_IMAGE_TAG=${image_tag}"
-            echo "GB10_VLLM_VERSION=${vllm_version}"
-            echo "GB10_PREBUILT_WHEEL_URLS=${prebuilt_wheel_urls}"
-            echo "GB10_FLASH_ATTN_REPO=${flash_attn_repo}"
-            echo "GB10_FLASH_ATTN_REF=${flash_attn_ref}"
-            echo "GB10_PUSH_IMAGE=${push_image}"
-            echo "GB10_PREFLIGHT_ONLY=${preflight_only}"
-            echo "GB10_MAX_JOBS=${max_jobs}"
-            echo "GB10_NVCC_THREADS=${nvcc_threads}"
-            echo "GB10_RUNNER_LABELS<<GB10_RUNNER_LABELS_EOF"
-            echo "$release_runner_labels"
-            echo "GB10_RUNNER_LABELS_EOF"
-          } >> "$GITHUB_ENV"
+          python3 scripts/gb10-resolve-release-settings.py \
+            --gb10-output-env "$GITHUB_ENV"
 
       - name: Write GB10 release manifest
         run: |
