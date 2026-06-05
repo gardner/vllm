@@ -34,6 +34,18 @@ def gb10_quark_ocp_mx_unsupported_reason() -> str | None:
     )
 
 
+def gb10_quark_w4a8_mxfp4_fp8_unsupported_reason() -> str | None:
+    if not current_platform.is_device_capability_family(120):
+        return None
+    return (
+        "Quark W4A8 MXFP4+FP8 checkpoint loading is not supported on "
+        "GB10/SM12x until dense correctness evidence exists for a native GB10 "
+        "backend; current Quark W4A8 MXFP4+FP8 dense loading can use "
+        "high-precision emulation or ROCm/AITER-specific kernels instead of "
+        "validated native SM121A MXFP4 execution."
+    )
+
+
 def deep_compare(dict1: Any, dict2: Any) -> bool:
     if type(dict1) is not type(dict2):
         return False

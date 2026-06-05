@@ -391,6 +391,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "quark_w4a8_mxfp4_fp8_checkpoint_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark W4A8 MXFP4+FP8 checkpoint loading is not "
+                    "validated on GB10/SM12x and must reject before dense "
+                    "emulation or AITER-specific backend use until native "
+                    "GB10 MXFP4 correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w4a16_nvfp4_loading": {
                 "status": "not_supported",
                 "release_contract": (

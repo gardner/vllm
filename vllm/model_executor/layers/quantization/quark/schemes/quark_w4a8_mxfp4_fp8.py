@@ -10,6 +10,9 @@ import torch.nn.functional as F
 
 from vllm._aiter_ops import is_aiter_found_and_supported, rocm_aiter_ops
 from vllm.logger import init_logger
+from vllm.model_executor.layers.quantization.quark.utils import (
+    gb10_quark_w4a8_mxfp4_fp8_unsupported_reason,
+)
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     get_fp8_min_max,
 )
@@ -43,6 +46,10 @@ class QuarkW4A8_MXFP4_FP8(QuarkScheme):
         weight_quant_spec: dict[str, Any],
         input_quant_spec: dict[str, Any],
     ):
+        unsupported_reason = gb10_quark_w4a8_mxfp4_fp8_unsupported_reason()
+        if unsupported_reason:
+            raise ValueError(unsupported_reason)
+
         self.out_dtype = None
 
         self.weight_dtype = "mxfp4"

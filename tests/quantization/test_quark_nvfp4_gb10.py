@@ -16,6 +16,9 @@ from vllm.model_executor.layers.quantization.quark.schemes.quark_nvfp4 import (
 from vllm.model_executor.layers.quantization.quark.schemes.quark_ocp_mx import (
     QuarkOCP_MX,
 )
+from vllm.model_executor.layers.quantization.quark.schemes.quark_w4a8_mxfp4_fp8 import (
+    QuarkW4A8_MXFP4_FP8,
+)
 
 
 class Sm12xPlatform:
@@ -61,6 +64,15 @@ def _ocp_mx_weight_quant() -> dict:
     }
 
 
+def _w4a8_mxfp4_fp8_input_quant() -> dict:
+    return {
+        "dtype": "fp8_e4m3",
+        "qscheme": "per_tensor",
+        "is_dynamic": False,
+        "symmetric": True,
+    }
+
+
 def test_quark_ocp_mx_dense_rejects_checkpoint_loading_on_sm12x(
     sm12x_platform,
 ) -> None:
@@ -68,6 +80,16 @@ def test_quark_ocp_mx_dense_rejects_checkpoint_loading_on_sm12x(
         QuarkOCP_MX(
             weight_quant_spec=_ocp_mx_weight_quant(),
             input_quant_spec=None,
+        )
+
+
+def test_quark_w4a8_mxfp4_fp8_dense_rejects_checkpoint_loading_on_sm12x(
+    sm12x_platform,
+) -> None:
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        QuarkW4A8_MXFP4_FP8(
+            weight_quant_spec=_ocp_mx_weight_quant(),
+            input_quant_spec=_w4a8_mxfp4_fp8_input_quant(),
         )
 
 
