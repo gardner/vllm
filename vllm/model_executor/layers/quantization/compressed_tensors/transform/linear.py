@@ -43,12 +43,18 @@ class CompressedTensorsLinearTransformMethod(LinearMethodBase):
     ) -> "CompressedTensorsLinearTransformMethod":
         from vllm.model_executor.layers.quantization.compressed_tensors.transform.schemes.linear_qutlass_nvfp4 import (  # noqa: E501
             QutlassNvFP4LinearMethod,
+            _gb10_qutlass_nvfp4_transform_unsupported_reason,
             is_qutlass_fp4_scheme,
         )
 
         assert input_tfms or output_tfms
 
         if is_qutlass_fp4_scheme(quant_scheme, input_tfms):
+            unsupported_reason = (
+                _gb10_qutlass_nvfp4_transform_unsupported_reason()
+            )
+            if unsupported_reason is not None:
+                raise ValueError(unsupported_reason)
             return QutlassNvFP4LinearMethod(quant_method, input_tfms, output_tfms)
 
         # hadacore or dense gemm is selected by Transform module

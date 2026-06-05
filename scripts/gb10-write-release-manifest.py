@@ -287,6 +287,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "NVFP4 MoE evidence."
                 ),
             },
+            "compressed_tensors_qutlass_nvfp4_transform_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors Qutlass NVFP4 transform loading can "
+                    "select QutlassNvFP4LinearMethod, whose apply path is not "
+                    "implemented today, and must reject on GB10/SM12x until "
+                    "native GB10 transformed NVFP4 correctness evidence "
+                    "exists."
+                ),
+            },
             "flashinfer_attention_fa2": {
                 "status": "supported_native",
                 "release_contract": (

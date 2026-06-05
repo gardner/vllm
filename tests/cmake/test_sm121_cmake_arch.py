@@ -127,6 +127,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_int_moe_loading": "not_supported",
     "compressed_tensors_w4a4_nvfp4_dense_loading": "supported_native",
     "compressed_tensors_w4a4_nvfp4_moe_loading": "supported_native",
+    "compressed_tensors_qutlass_nvfp4_transform_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_moe_loading": "not_supported",
@@ -2357,6 +2358,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["compressed_tensors_w4a4_nvfp4_moe_loading"][
         "status"
     ] == "supported_native"
+    assert support_matrix["entries"][
+        "compressed_tensors_qutlass_nvfp4_transform_loading"
+    ]["status"] == "not_supported"
     assert support_matrix["entries"]["flashmla_attention"]["status"] == (
         "supported_native"
     )
@@ -5102,6 +5106,15 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
         "compressed_tensors_moe_w4a4_nvfp4.py"
     ).read_text()
+    compressed_tensors_transform_linear = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "transform" / "linear.py"
+    ).read_text()
+    compressed_tensors_qutlass_nvfp4_transform = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "transform" / "schemes" /
+        "linear_qutlass_nvfp4.py"
+    ).read_text()
     compressed_tensors_w4a8_int = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "compressed_tensors" / "schemes" /
@@ -5468,6 +5481,16 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "CompressedTensors W4A16 NVFP4 MoE loading" in compressed_tensors_moe
     assert "weight-only NVFP4 MoE handling" in compressed_tensors_moe
     assert "not supported on GB10/SM12x" in compressed_tensors_moe
+    assert "_gb10_qutlass_nvfp4_transform_unsupported_reason" in (
+        compressed_tensors_transform_linear
+    )
+    assert "_gb10_qutlass_nvfp4_transform_unsupported_reason" in (
+        compressed_tensors_qutlass_nvfp4_transform
+    )
+    assert "CompressedTensors Qutlass NVFP4 transform loading" in (
+        compressed_tensors_qutlass_nvfp4_transform
+    )
+    assert "not supported on GB10/SM12x" in compressed_tensors_qutlass_nvfp4_transform
     assert "_gb10_w4a4_mxfp4_dense_unsupported_reason" in (
         compressed_tensors_w4a4_mxfp4
     )
@@ -8195,6 +8218,64 @@ def test_gb10_compressed_tensors_w4a16_nvfp4_moe_rejects_sm12x(monkeypatch):
     )
 
 
+def test_gb10_compressed_tensors_qutlass_nvfp4_transform_rejects_sm12x(
+    monkeypatch,
+):
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors import (  # noqa: E501
+        CompressedTensorsLinearTransformMethod,
+    )
+    from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
+        CompressedTensorsW4A4Fp4,
+    )
+    from vllm.model_executor.layers.quantization.compressed_tensors.transform.schemes import (  # noqa: E501
+        linear_qutlass_nvfp4,
+    )
+
+    quant_scheme = object.__new__(CompressedTensorsW4A4Fp4)
+    quant_scheme.group_size = 16
+    input_tfms = {0: SimpleNamespace(scheme=SimpleNamespace(head_dim=16))}
+
+    monkeypatch.setattr(
+        linear_qutlass_nvfp4,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        CompressedTensorsLinearTransformMethod.from_schemes(
+            SimpleNamespace(),
+            quant_scheme,
+            input_tfms,
+            {},
+        )
+
+    reason = str(exc_info.value)
+    assert "CompressedTensors Qutlass NVFP4 transform loading" in reason
+    assert "QutlassNvFP4LinearMethod.apply" in reason
+    assert "native GB10 transformed NVFP4 correctness evidence" in reason
+
+    monkeypatch.setattr(
+        linear_qutlass_nvfp4,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert (
+        linear_qutlass_nvfp4._gb10_qutlass_nvfp4_transform_unsupported_reason()
+        is None
+    )
+    assert isinstance(
+        CompressedTensorsLinearTransformMethod.from_schemes(
+            SimpleNamespace(),
+            quant_scheme,
+            input_tfms,
+            {},
+        ),
+        linear_qutlass_nvfp4.QutlassNvFP4LinearMethod,
+    )
+
+
 def test_gb10_nvfp4_moe_fallbacks_are_reported():
     nvfp4_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
@@ -10370,6 +10451,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "weight-only NVFP4 MoE handling"
                     ),
                 },
+                "compressed_tensors_qutlass_nvfp4_transform_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors Qutlass NVFP4 transform loading "
+                        "has no implemented apply path"
+                    ),
+                },
             },
             "deferred_paths": {
                 "deepseek_v4_deep_gemm_mega_moe": {
@@ -10551,6 +10640,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
                 "compressed_tensors_w4a4_nvfp4_moe_loading": {
                     "status": "supported_native"
+                },
+                "compressed_tensors_qutlass_nvfp4_transform_loading": {
+                    "status": "not_supported"
                 },
                 "flashinfer_attention_fa2": {"status": "supported_native"},
                 "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
@@ -10747,6 +10839,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     ] == [
         "awq_quantization",
         "bitsandbytes_quantization",
+        "compressed_tensors_qutlass_nvfp4_transform_loading",
         "compressed_tensors_w4a16_nvfp4_loading",
         "compressed_tensors_w4a16_nvfp4_moe_loading",
         "compressed_tensors_w4a4_mxfp4_dense_loading",

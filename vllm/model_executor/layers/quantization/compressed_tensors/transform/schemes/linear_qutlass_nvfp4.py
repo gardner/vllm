@@ -11,8 +11,27 @@ from vllm.model_executor.layers.quantization.compressed_tensors.transform.linear
     CompressedTensorsLinearTransformMethod,
     TransformTuple,
 )
+from vllm.model_executor.layers.quantization.compressed_tensors.utils import (
+    _is_sm12x_device,
+)
 
-__all__ = ["is_qutlass_fp4_scheme", "QutlassNvFP4LinearMethod"]
+__all__ = [
+    "_gb10_qutlass_nvfp4_transform_unsupported_reason",
+    "is_qutlass_fp4_scheme",
+    "QutlassNvFP4LinearMethod",
+]
+
+
+def _gb10_qutlass_nvfp4_transform_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors Qutlass NVFP4 transform loading is "
+        "not supported on GB10/SM12x. QutlassNvFP4LinearMethod.apply is "
+        "not implemented today, "
+        "so the transformed NVFP4 path can prove reachability but not native "
+        "GB10 transformed NVFP4 correctness evidence."
+    )
 
 
 def is_qutlass_fp4_scheme(

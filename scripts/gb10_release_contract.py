@@ -101,6 +101,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "compressed_tensors_w8a8_int_moe_loading": "not_supported",
     "compressed_tensors_w4a4_nvfp4_dense_loading": "supported_native",
     "compressed_tensors_w4a4_nvfp4_moe_loading": "supported_native",
+    "compressed_tensors_qutlass_nvfp4_transform_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_moe_loading": "not_supported",
@@ -425,6 +426,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CompressedTensors W4A4 MXFP4 dense loading is not validated on "
         "GB10/SM12x; reject it until native GB10 MXFP4 dense correctness "
         "evidence exists."
+    ),
+    "compressed_tensors_qutlass_nvfp4_transform_loading": (
+        "CompressedTensors Qutlass NVFP4 transform loading can select "
+        "QutlassNvFP4LinearMethod, whose apply path is not implemented today; "
+        "reject it until native GB10 transformed NVFP4 correctness evidence "
+        "exists."
     ),
     "compressed_tensors_w4a16_nvfp4_loading": (
         "CompressedTensors W4A16 NVFP4 loading selects FP4 Marlin today; reject "
