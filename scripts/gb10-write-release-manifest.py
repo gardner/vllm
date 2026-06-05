@@ -884,10 +884,17 @@ def write_manifest(
     env: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     manifest = build_manifest(env)
+    write_manifest_file(output_path, manifest)
+    return manifest
+
+
+def write_manifest_file(
+    output_path: str | Path,
+    manifest: Mapping[str, object],
+) -> None:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    return manifest
 
 
 def parse_args() -> argparse.Namespace:
@@ -903,7 +910,7 @@ def parse_args() -> argparse.Namespace:
         "--gb10-validate-release-inputs",
         action="store_true",
         help=(
-            "Validate durable GB10 release inputs after writing the manifest. "
+            "Validate durable GB10 release inputs before writing the manifest. "
             "Fails on local dependency checkouts, non-SHA refs, missing "
             "FlashInfer release wheels, or tagged full releases without an "
             "image push."
@@ -915,11 +922,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     try:
-        manifest = write_manifest(args.gb10_output_json)
+        manifest = build_manifest()
     except ValueError as exc:
         print(f"GB10 release manifest input error: {exc}")
         raise SystemExit(1) from exc
-    print(f"GB10 release manifest written to {args.gb10_output_json}")
     if args.gb10_validate_release_inputs:
         errors = validate_manifest(manifest)
         if errors:
@@ -928,6 +934,8 @@ def main() -> None:
                 print(f"- {error}")
             raise SystemExit(1)
         print("GB10 release manifest validation passed.")
+    write_manifest_file(args.gb10_output_json, manifest)
+    print(f"GB10 release manifest written to {args.gb10_output_json}")
 
 
 if __name__ == "__main__":

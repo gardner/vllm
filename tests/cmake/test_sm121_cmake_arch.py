@@ -2348,6 +2348,56 @@ def test_gb10_release_manifest_cli_rejects_invalid_boolean_without_traceback(
     assert not output_path.exists()
 
 
+def test_gb10_release_manifest_cli_validates_release_inputs_before_write(
+    tmp_path,
+):
+    manifest_script = REPO_ROOT / "scripts" / "gb10-write-release-manifest.py"
+    output_path = tmp_path / "gb10-release-manifest.json"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(manifest_script),
+            "--gb10-output-json",
+            str(output_path),
+            "--gb10-validate-release-inputs",
+        ],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+            "GB10_RELEASE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+            "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+            "GB10_IMAGE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+            "GB10_VLLM_VERSION": "0.22.1rc0+gb10.abcdef123456",
+            "GB10_PREBUILT_WHEEL_URLS": " ".join(
+                f"https://github.com/gardner/flashinfer/releases/download/"
+                f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+                for wheel in FLASHINFER_RELEASE_WHEELS
+            ),
+            "GB10_FLASH_ATTN_REPO": (
+                "https://github.com/gardner/vllm-flash-attention.git"
+            ),
+            "GB10_FLASH_ATTN_REF": "main",
+            "GB10_PUSH_IMAGE": "true",
+            "GB10_PREFLIGHT_ONLY": "false",
+            "GB10_NATIVE_CUDA_ARCHS_ONLY": "1",
+            **GB10_RELEASE_CACHE_REF_ENV,
+            "VLLM_USE_LOCAL_GB10_DEPS": "0",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10 release manifest validation failed" in proc.stdout
+    assert "vLLM flash-attn ref must be a full Git SHA" in proc.stdout
+    assert not output_path.exists()
+
+
 def test_gb10_required_support_matrix_contract_is_shared():
     smoke = _load_gb10_smoke_module()
     manifest = _load_gb10_release_manifest_module()
