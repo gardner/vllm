@@ -4333,6 +4333,57 @@ def test_gb10_local_cached_build_rejects_output_push_image_mismatch_before_manif
     assert not cache_dir.exists()
 
 
+@pytest.mark.parametrize(
+    ("image_env", "expected_error"),
+    (
+        (
+            {"GB10_IMAGE_TAG": "bad tag"},
+            "GB10 local runtime image tag must be a Docker-compatible tag",
+        ),
+        (
+            {"GB10_IMAGE_NAME": "bad image"},
+            "GB10 local runtime image name must be a Docker-compatible repository name",
+        ),
+    ),
+)
+def test_gb10_local_cached_runtime_rejects_invalid_local_image_ref_before_manifest(
+    tmp_path,
+    image_env,
+    expected_error,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_OUTPUT": "load",
+            **image_env,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert expected_error in proc.stdout
+    assert next(iter(image_env.values())) in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not manifest_dir.exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_invalid_native_arch_flag_before_manifest(
     tmp_path,
 ):

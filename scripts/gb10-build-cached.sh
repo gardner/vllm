@@ -209,6 +209,24 @@ gb10_validate_buildx_builder_name() {
     fi
 }
 
+gb10_validate_local_runtime_image_ref() {
+    local image_name_re='^([a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?/)?[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$'
+    local image_tag_re='^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
+
+    if [ "$docker_target" != "vllm-openai" ]; then
+        return 0
+    fi
+
+    if ! [[ "$GB10_IMAGE_NAME" =~ $image_name_re ]]; then
+        echo "GB10 local runtime image name must be a Docker-compatible repository name without a tag or digest, got $GB10_IMAGE_NAME." >&2
+        return 2
+    fi
+    if ! [[ "$GB10_IMAGE_TAG" =~ $image_tag_re ]]; then
+        echo "GB10 local runtime image tag must be a Docker-compatible tag, got $GB10_IMAGE_TAG." >&2
+        return 2
+    fi
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
@@ -356,6 +374,7 @@ if [ "$resolve_status" -ne 0 ]; then
     exit "$resolve_status"
 fi
 eval "$resolved_settings"
+gb10_validate_local_runtime_image_ref
 
 export GB10_NATIVE_CUDA_ARCHS_ONLY
 export GB10_PREFLIGHT_CACHE_REF GB10_RUNTIME_CACHE_REF GB10_WHEEL_CACHE_REF
