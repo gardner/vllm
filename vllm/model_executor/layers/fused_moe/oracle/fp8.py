@@ -133,6 +133,44 @@ def _gb10_deep_gemm_fp8_moe_unsupported_reason(
     )
 
 
+_FP8_MOE_TRITON_BACKENDS = (
+    Fp8MoeBackend.TRITON,
+    Fp8MoeBackend.BATCHED_TRITON,
+)
+
+
+def _gb10_triton_fp8_moe_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend not in _FP8_MOE_TRITON_BACKENDS or not _is_sm12x_device():
+        return None
+    return (
+        f"Triton FP8 MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x until native GB10 Triton FP8 MoE correctness and runtime "
+        "evidence exists. Use a validated GB10-safe MoE backend such as "
+        "flashinfer_cutlass."
+    )
+
+
+_FP8_MOE_VLLM_CUTLASS_BACKENDS = (
+    Fp8MoeBackend.VLLM_CUTLASS,
+    Fp8MoeBackend.BATCHED_VLLM_CUTLASS,
+)
+
+
+def _gb10_vllm_cutlass_fp8_moe_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend not in _FP8_MOE_VLLM_CUTLASS_BACKENDS or not _is_sm12x_device():
+        return None
+    return (
+        f"vLLM CUTLASS FP8 MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x until native GB10 vLLM CUTLASS FP8 MoE artifact, "
+        "correctness, and runtime evidence exists. Use a validated GB10-safe "
+        "MoE backend such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(
     moe_config: FusedMoEConfig,
     weight_key: QuantKey | None,
@@ -384,6 +422,10 @@ def select_fp8_moe_backend(
             raise ValueError(reason)
         if reason := _gb10_deep_gemm_fp8_moe_unsupported_reason(requested_backend):
             raise ValueError(reason)
+        if reason := _gb10_triton_fp8_moe_unsupported_reason(requested_backend):
+            raise ValueError(reason)
+        if reason := _gb10_vllm_cutlass_fp8_moe_unsupported_reason(requested_backend):
+            raise ValueError(reason)
         if reason := _gb10_fp8_moe_fallback_unsupported_reason(requested_backend):
             raise ValueError(reason)
 
@@ -410,6 +452,10 @@ def select_fp8_moe_backend(
         ) or _gb10_aiter_fp8_moe_unsupported_reason(
             backend
         ) or _gb10_deep_gemm_fp8_moe_unsupported_reason(
+            backend
+        ) or _gb10_triton_fp8_moe_unsupported_reason(
+            backend
+        ) or _gb10_vllm_cutlass_fp8_moe_unsupported_reason(
             backend
         ) or _gb10_fp8_moe_fallback_unsupported_reason(backend)
         if reason:
@@ -502,7 +548,8 @@ def select_fp8_moe_backend(
     # Handle explicit AITER FP8 configuration.
     if envs.is_set("VLLM_ROCM_USE_AITER") or envs.is_set("VLLM_ROCM_USE_AITER_MOE"):
         if not envs.VLLM_ROCM_USE_AITER or not envs.VLLM_ROCM_USE_AITER_MOE:
-            AVAILABLE_BACKENDS.remove(Fp8MoeBackend.AITER)
+            if Fp8MoeBackend.AITER in AVAILABLE_BACKENDS:
+                AVAILABLE_BACKENDS.remove(Fp8MoeBackend.AITER)
         else:
             backend = Fp8MoeBackend.AITER
             if reason := _gb10_aiter_fp8_moe_unsupported_reason(backend):
@@ -512,8 +559,9 @@ def select_fp8_moe_backend(
             )
 
     if not allow_vllm_cutlass:
-        AVAILABLE_BACKENDS.remove(Fp8MoeBackend.VLLM_CUTLASS)
-        AVAILABLE_BACKENDS.remove(Fp8MoeBackend.BATCHED_VLLM_CUTLASS)
+        for backend in _FP8_MOE_VLLM_CUTLASS_BACKENDS:
+            if backend in AVAILABLE_BACKENDS:
+                AVAILABLE_BACKENDS.remove(backend)
 
     # Select kernels in order of backend.
     for backend in AVAILABLE_BACKENDS:

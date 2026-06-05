@@ -413,6 +413,25 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exist."
                 ),
             },
+            "triton_fp8_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Generic Triton FP8 MoE is selectable through "
+                    "moe_backend='triton' and auto-selection, but it cannot "
+                    "satisfy native GB10 release evidence until GB10 Triton "
+                    "FP8 MoE correctness and runtime evidence exist."
+                ),
+            },
+            "vllm_cutlass_fp8_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "vLLM CUTLASS FP8 MoE is selectable through "
+                    "moe_backend='cutlass' and allow_vllm_cutlass=True call "
+                    "sites, but it cannot satisfy native GB10 release "
+                    "evidence until GB10 vLLM CUTLASS FP8 MoE artifacts, "
+                    "correctness, and runtime evidence exist."
+                ),
+            },
             "rocm_aiter_mxfp4_moe": {
                 "status": "not_supported",
                 "release_contract": (

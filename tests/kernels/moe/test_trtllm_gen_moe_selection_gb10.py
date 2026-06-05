@@ -377,6 +377,87 @@ def test_gb10_auto_fp8_moe_reports_deep_gemm_rejection(monkeypatch):
         )
 
 
+@pytest.mark.parametrize(
+    ("moe_backend", "backend", "reason"),
+    [
+        ("triton", Fp8MoeBackend.TRITON, "Triton FP8 MoE"),
+        ("cutlass", Fp8MoeBackend.VLLM_CUTLASS, "vLLM CUTLASS FP8 MoE"),
+    ],
+)
+def test_gb10_explicit_generic_fp8_moe_backends_rejected(
+    monkeypatch,
+    moe_backend,
+    backend,
+    reason,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {backend})
+    config = make_dummy_moe_config()
+    config.moe_backend = moe_backend
+
+    with pytest.raises(ValueError, match=rf"{reason}.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            config,
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+            allow_vllm_cutlass=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("moe_backend", "backend", "reason"),
+    [
+        ("triton", Fp8MoeBackend.BATCHED_TRITON, "Triton FP8 MoE"),
+        ("cutlass", Fp8MoeBackend.BATCHED_VLLM_CUTLASS, "vLLM CUTLASS FP8 MoE"),
+    ],
+)
+def test_gb10_explicit_batched_generic_fp8_moe_backends_rejected(
+    monkeypatch,
+    moe_backend,
+    backend,
+    reason,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {backend})
+    config = make_dummy_moe_config()
+    config.moe_backend = moe_backend
+    config.moe_parallel_config.use_ep = True
+    config.moe_parallel_config.dp_size = 2
+    config.moe_parallel_config.all2all_backend = "nixl_ep"
+
+    with pytest.raises(ValueError, match=rf"{reason}.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            config,
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+            allow_vllm_cutlass=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("backend", "reason"),
+    [
+        (Fp8MoeBackend.TRITON, "Triton FP8 MoE"),
+        (Fp8MoeBackend.VLLM_CUTLASS, "vLLM CUTLASS FP8 MoE"),
+    ],
+)
+def test_gb10_auto_fp8_moe_reports_generic_backend_rejection(
+    monkeypatch,
+    backend,
+    reason,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {backend})
+
+    with pytest.raises(NotImplementedError, match=rf"{reason}.*not supported"):
+        select_fp8_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+            allow_vllm_cutlass=True,
+        )
+
+
 def test_gb10_explicit_fp8_marlin_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.MARLIN})

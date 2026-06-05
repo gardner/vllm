@@ -59,6 +59,8 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "deep_gemm_fp8_moe": "not_supported",
+    "triton_fp8_moe": "not_supported",
+    "vllm_cutlass_fp8_moe": "not_supported",
     "rocm_aiter_mxfp4_moe": "not_supported",
     "gpt_oss_triton_mxfp4_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -173,6 +175,17 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "DeepGEMM env flags, but it is not native GB10 release evidence until "
         "GB10 DeepGEMM FP8 MoE artifacts, correctness, and runtime evidence "
         "exist."
+    ),
+    "triton_fp8_moe": (
+        "Generic Triton FP8 MoE is selectable through moe_backend='triton' and "
+        "auto-selection, but it is not native GB10 release evidence until GB10 "
+        "Triton FP8 MoE correctness and runtime evidence exist."
+    ),
+    "vllm_cutlass_fp8_moe": (
+        "vLLM CUTLASS FP8 MoE is selectable through moe_backend='cutlass' and "
+        "allow_vllm_cutlass=True call sites, but it is not native GB10 release "
+        "evidence until GB10 vLLM CUTLASS FP8 MoE artifacts, correctness, and "
+        "runtime evidence exist."
     ),
     "rocm_aiter_unquantized_moe": (
         "AITER unquantized MoE is a ROCm-specific backend and is not a "
