@@ -49,6 +49,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "turboquant_attention": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
+    "mm_encoder_fp8_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -194,6 +195,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "GDN prefill CuteDSL is SM100-family evidence today and must not "
         "satisfy GB10 GDN prefill release evidence; use the native FlashInfer "
         "SM12x GDN prefill backend or keep GDN models unselected."
+    ),
+    "mm_encoder_fp8_attention": (
+        "MM encoder FP8 attention uses FlashInfer cuDNN FP8 ViT attention "
+        "today, but it is not native GB10 MM encoder attention correctness, "
+        "artifact, or runtime evidence; keep mm_encoder_attn_dtype unset "
+        "until native SM12x evidence exists."
     ),
     "trtllm_gen_moe": (
         "TRTLLM Gen MoE rejects SM121 today and must not satisfy GB10 MoE "

@@ -439,6 +439,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "native FlashInfer SM12x GDN prefill."
                 ),
             },
+            "mm_encoder_fp8_attention": {
+                "status": "not_supported",
+                "release_contract": (
+                    "MM encoder FP8 attention uses FlashInfer cuDNN FP8 ViT "
+                    "attention today, but it cannot satisfy native GB10 MM "
+                    "encoder attention release evidence until native SM12x "
+                    "correctness, artifact, and runtime evidence exist."
+                ),
+            },
             "trtllm_gen_moe": {
                 "status": "not_supported",
                 "release_contract": (

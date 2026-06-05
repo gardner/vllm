@@ -24,6 +24,7 @@ from vllm.model_executor.models.vision import (
     get_multimodal_config,
     get_vit_attn_backend,
 )
+from vllm.platforms import current_platform
 from vllm.utils.flashinfer import (
     is_flashinfer_cudnn_fp8_prefill_attn_supported,
 )
@@ -168,6 +169,40 @@ FLASHINFER_MAX_SEQLEN_BUCKETS = [
 # Workspace buffer for FlashInfer CuDNN backend
 FLASHINFER_CUDNN_WORKSPACE_SIZE_BYTES = 128 * 1024 * 1024
 _flashinfer_workspace_buffer: torch.Tensor | None = None
+
+
+def _is_sm12x_cuda_platform() -> bool:
+    is_cuda = getattr(current_platform, "is_cuda", None)
+    if callable(is_cuda) and not is_cuda():
+        return False
+
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family) and is_family(120):
+        return True
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if major is None and isinstance(capability, tuple):
+            major = capability[0]
+        return major == 12
+
+    return False
+
+
+def _gb10_mm_encoder_fp8_attention_unsupported_reason() -> str | None:
+    if not _is_sm12x_cuda_platform():
+        return None
+
+    return (
+        "MM encoder FP8 attention is not supported on GB10/SM12x. The "
+        "FlashInfer cuDNN FP8 ViT attention path can prove reachability, but "
+        "it is not native GB10 MM encoder attention correctness, artifact, "
+        "and runtime evidence. Keep mm_encoder_attn_dtype unset, or use a "
+        "validated GB10 multimodal attention path after native SM12x evidence "
+        "exists."
+    )
 
 
 def _get_flashinfer_workspace_buffer() -> torch.Tensor:
@@ -391,6 +426,9 @@ class MMEncoderAttention(CustomOp):
         mm_cfg = get_multimodal_config()
         if mm_cfg is None or mm_cfg.mm_encoder_attn_dtype != "fp8":
             return
+
+        if reason := _gb10_mm_encoder_fp8_attention_unsupported_reason():
+            raise ValueError(reason)
 
         # FP8 path
         if not is_flashinfer_cudnn_fp8_prefill_attn_supported():

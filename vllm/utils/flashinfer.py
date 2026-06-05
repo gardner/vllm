@@ -956,6 +956,26 @@ def should_use_flashinfer_for_blockscale_fp8_gemm(
 _MIN_CUDNN_FP8 = 91701  # cuDNN >= 9.17.1 required for FP8 attention
 
 
+def _is_sm12x_cuda_platform() -> bool:
+    is_cuda = getattr(current_platform, "is_cuda", None)
+    if callable(is_cuda) and not is_cuda():
+        return False
+
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family) and is_family(120):
+        return True
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if major is None and isinstance(capability, tuple):
+            major = capability[0]
+        return major == 12
+
+    return False
+
+
 @functools.cache
 def is_flashinfer_cudnn_fp8_prefill_attn_supported() -> bool:
     """Check if FP8 ViT attention is supported on this platform.
@@ -964,6 +984,11 @@ def is_flashinfer_cudnn_fp8_prefill_attn_supported() -> bool:
     and cuDNN >= 9.17.1.
     """
     from vllm.v1.attention.backends.registry import AttentionBackendEnum
+
+    # GB10/SM12x must not opt into this selectable path until native
+    # correctness, artifact, and runtime evidence exists.
+    if _is_sm12x_cuda_platform():
+        return False
 
     # cuDNN SDPA FP8 requires Hopper (SM 90) or newer.
     if not current_platform.has_device_capability(90):

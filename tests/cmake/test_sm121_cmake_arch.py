@@ -75,6 +75,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "turboquant_attention": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
+    "mm_encoder_fp8_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -2398,6 +2399,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["gdn_prefill_cutedsl_backend"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["mm_encoder_fp8_attention"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["public_fp8_quantization"]["status"] == (
@@ -8572,6 +8576,27 @@ def test_gb10_gdn_prefill_fallbacks_are_reported():
     assert "not native GB10 GDN prefill correctness evidence" in gdn_prefill
 
 
+def test_gb10_mm_encoder_fp8_attention_is_reported():
+    mm_encoder_attention = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "attention"
+        / "mm_encoder_attention.py"
+    ).read_text()
+
+    assert "_gb10_mm_encoder_fp8_attention_unsupported_reason" in (
+        mm_encoder_attention
+    )
+    assert "MM encoder FP8 attention is not supported on GB10/SM12x" in (
+        mm_encoder_attention
+    )
+    assert "FlashInfer cuDNN FP8 ViT attention path" in mm_encoder_attention
+    assert "not native GB10 MM encoder attention correctness" in mm_encoder_attention
+    assert "mm_encoder_attn_dtype unset" in mm_encoder_attention
+
+
 def test_gb10_compressed_tensors_qutlass_nvfp4_transform_rejects_sm12x(
     monkeypatch,
 ):
@@ -10378,6 +10403,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "GDN prefill CuteDSL lacks native GB10 evidence",
                 },
+                "mm_encoder_fp8_attention": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "MM encoder FP8 attention lacks native GB10 evidence"
+                    ),
+                },
                 "trtllm_gen_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11112,6 +11144,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "turboquant_attention": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
+                "mm_encoder_fp8_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
@@ -11340,6 +11373,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "int8_moe_triton_fallback",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
+        "mm_encoder_fp8_attention",
         "modelopt_fp8_quantization",
         "modelopt_mixed_quantization",
         "modelopt_mxfp8_quantization",
