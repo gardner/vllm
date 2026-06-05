@@ -79,6 +79,13 @@ _GB10_LORA_RUNTIME_MESSAGE = (
     "first-path NVFP4 release. Disable LoRA for GB10, or add SM12x "
     "correctness and runtime evidence before enabling it."
 )
+_GB10_NVFP4_KV_CACHE_MESSAGE = (
+    "NVFP4 KV cache is not supported on GB10/SM12x in this fork: the native "
+    "first-path NVFP4 release currently validates FP8 E4M3 KV cache, not "
+    "runtime NVFP4 KV-cache allocation, scale handling, attention dispatch, "
+    "or correctness. Use --kv-cache-dtype fp8_e4m3 or auto for GB10 until "
+    "native SM12x NVFP4 KV-cache evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -865,6 +872,12 @@ class VllmConfig:
 
         if self.lora_config is not None and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_LORA_RUNTIME_MESSAGE)
+
+        if (
+            self.cache_config.cache_dtype == "nvfp4"
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_NVFP4_KV_CACHE_MESSAGE)
 
         if self.model_config is not None:
             self.model_config.verify_with_parallel_config(self.parallel_config)

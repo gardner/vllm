@@ -18,6 +18,7 @@ import vllm.envs as envs
 import vllm.platforms as platforms
 from vllm.compilation.backends import VllmBackend
 from vllm.config import (
+    CacheConfig,
     CompilationConfig,
     KernelConfig,
     LoRAConfig,
@@ -136,6 +137,32 @@ def test_vllm_config_allows_lora_off_gb10(monkeypatch):
     config = VllmConfig(lora_config=lora_config)
 
     assert config.lora_config is lora_config
+
+
+def test_gb10_vllm_config_rejects_nvfp4_kv_cache_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="NVFP4 KV cache.*GB10/SM12x"):
+        VllmConfig(cache_config=CacheConfig(cache_dtype="nvfp4"))
+
+
+def test_vllm_config_allows_nvfp4_kv_cache_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    cache_config = CacheConfig(cache_dtype="nvfp4")
+    config = VllmConfig(cache_config=cache_config)
+
+    assert config.cache_config is cache_config
 
 
 def test_compile_config_repr_succeeds():

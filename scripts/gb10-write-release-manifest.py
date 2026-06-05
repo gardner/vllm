@@ -718,6 +718,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "nvfp4_kv_cache_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "User-selected vLLM kv_cache_dtype='nvfp4' is not "
+                    "validated on GB10/SM12x. It must reject until native "
+                    "SM12x NVFP4 KV-cache allocation, scale handling, "
+                    "attention dispatch, and correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (
