@@ -61,6 +61,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
     "compressed_tensors_w4a8_fp8_loading": "not_supported",
+    "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a4_mxfp4_dense_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
@@ -185,6 +186,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "compressed_tensors_w4a8_fp8_loading": (
         "CompressedTensors W4A8 FP8 loading uses exact-SM90 CUTLASS W4A8 "
         "kernels today and is not native GB10 evidence."
+    ),
+    "compressed_tensors_w4a8_int_dense_loading": (
+        "CompressedTensors W4A8 Int dense loading can select generic "
+        "mixed-precision W4A8/W4A16 kernels today; reject it until native "
+        "GB10 W4A8 Int dense correctness evidence exists."
     ),
     "compressed_tensors_w4a4_mxfp4_dense_loading": (
         "CompressedTensors W4A4 MXFP4 dense loading is not validated on "

@@ -10,6 +10,9 @@ from vllm.model_executor.kernels.linear import (
     MPLinearLayerConfig,
     choose_mp_linear_kernel,
 )
+from vllm.model_executor.layers.quantization.compressed_tensors import (
+    utils as compressed_tensors_utils,
+)
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
     CompressedTensorsScheme,
 )
@@ -27,6 +30,24 @@ W4A8_SUPPORTED_TYPES_MAP = {
     4: scalar_types.int4,
 }
 W4A8_SUPPORTED_BITS = list(W4A8_SUPPORTED_TYPES_MAP.keys())
+
+
+def _is_sm12x_device() -> bool:
+    return compressed_tensors_utils._is_sm12x_device()
+
+
+def _gb10_w4a8_int_dense_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors W4A8 Int dense loading is "
+        "not supported on GB10/SM12x. The generic mixed-precision "
+        "W4A8/W4A16 kernels can prove reachability, but they are not "
+        "native GB10 W4A8 Int dense "
+        "evidence. Use a native SM12x W4A8 Int dense backend after "
+        "correctness evidence exists, or keep this checkpoint format "
+        "unselected."
+    )
 
 
 class CompressedTensorsW4A8Int(CompressedTensorsScheme):
@@ -50,6 +71,11 @@ class CompressedTensorsW4A8Int(CompressedTensorsScheme):
                 f"Unsupported num_bits = {num_bits}."
                 f"Supported num_bits = {W4A8_SUPPORTED_TYPES_MAP.keys()}"
             )
+
+        unsupported_reason = _gb10_w4a8_int_dense_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.quant_type = W4A8_SUPPORTED_TYPES_MAP[num_bits]
 
     @classmethod

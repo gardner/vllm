@@ -501,6 +501,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "GB10 dense or MoE release evidence."
                 ),
             },
+            "compressed_tensors_w4a8_int_dense_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W4A8 Int dense loading can select "
+                    "generic mixed-precision W4A8/W4A16 kernels today and "
+                    "must reject on GB10/SM12x until native GB10 W4A8 Int "
+                    "dense correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w4a4_mxfp4_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (
