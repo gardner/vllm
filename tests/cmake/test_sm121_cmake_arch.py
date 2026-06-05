@@ -77,6 +77,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "mxfp4_moe_fallback": "not_supported",
     "fp8_w8a16_marlin_fallback": "not_supported",
     "fp8_w8a16_moe_fallback": "not_supported",
+    "wna16_moe_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -2335,6 +2336,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["fp8_w8a16_moe_fallback"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["wna16_moe_fallback"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["mxfp8_dense_fallback"]["status"] == (
@@ -4925,6 +4929,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "mxfp8.py"
     ).read_text()
+    wna16_moe_oracle = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
+        "oracle" / "int_wna16.py"
+    ).read_text()
     unquantized_moe_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "unquantized.py"
@@ -5010,6 +5018,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "_MXFP8_MOE_FALLBACK_BACKENDS" in mxfp8_moe_oracle
     assert "MXFP8 MoE fallback backend" in mxfp8_moe_oracle
     assert "not supported on GB10/SM12x" in mxfp8_moe_oracle
+    assert "_gb10_wna16_moe_fallback_unsupported_reason" in wna16_moe_oracle
+    assert "_WNA16_MOE_FALLBACK_BACKENDS" in wna16_moe_oracle
+    assert (
+        "if reason := _gb10_wna16_moe_fallback_unsupported_reason(backend)"
+        in wna16_moe_oracle
+    )
+    assert "WNA16 MoE fallback backend" in wna16_moe_oracle
+    assert "not supported on GB10/SM12x" in wna16_moe_oracle
     assert "_gb10_fp8_moe_fallback_unsupported_reason" in fp8_moe_oracle
     assert "_gb10_aiter_fp8_moe_unsupported_reason" in fp8_moe_oracle
     assert "_FP8_MOE_FALLBACK_BACKENDS" in fp8_moe_oracle
@@ -5026,6 +5042,37 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "not supported on GB10/SM12x" in unquantized_moe_oracle
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
+
+
+def test_gb10_wna16_moe_fallbacks_reject_sm12x(monkeypatch):
+    from vllm.model_executor.layers.fused_moe.oracle import int_wna16
+
+    monkeypatch.setattr(int_wna16, "_is_sm12x_device", lambda: True)
+
+    for backend in (
+        int_wna16.WNA16MoEBackend.MARLIN,
+        int_wna16.WNA16MoEBackend.BATCHED_MARLIN,
+    ):
+        reason = int_wna16._gb10_wna16_moe_fallback_unsupported_reason(backend)
+        assert reason is not None
+        assert backend.value in reason
+        assert "not supported on GB10/SM12x" in reason
+        assert "not native GB10 WNA16/MXINT MoE evidence" in reason
+
+    assert (
+        int_wna16._gb10_wna16_moe_fallback_unsupported_reason(
+            int_wna16.WNA16MoEBackend.FLASHINFER_TRTLLM
+        )
+        is None
+    )
+
+    monkeypatch.setattr(int_wna16, "_is_sm12x_device", lambda: False)
+    assert (
+        int_wna16._gb10_wna16_moe_fallback_unsupported_reason(
+            int_wna16.WNA16MoEBackend.MARLIN
+        )
+        is None
+    )
 
 
 def test_gb10_nvfp4_moe_fallbacks_are_reported():
@@ -6777,6 +6824,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "FP8 MoE W8A16 fallback paths are not native GB10 evidence"
                     ),
                 },
+                "wna16_moe_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "WNA16 MoE fallback paths are not native GB10 evidence",
+                },
                 "rocm_aiter_fp8_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -7027,6 +7079,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
+                "wna16_moe_fallback": {"status": "not_supported"},
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
@@ -7131,6 +7184,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_unquantized_moe",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
+        "wna16_moe_fallback",
     ]
     assert checks_by_name["supported_routed_paths_reported"]["details"][
         "reported_supported_routed_entries"

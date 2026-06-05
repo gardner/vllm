@@ -48,6 +48,12 @@ class WNA16MoEBackend(Enum):
     XPU = "XPU"
 
 
+_WNA16_MOE_FALLBACK_BACKENDS = (
+    WNA16MoEBackend.MARLIN,
+    WNA16MoEBackend.BATCHED_MARLIN,
+)
+
+
 def _is_sm12x_device() -> bool:
     is_family = getattr(current_platform, "is_device_capability_family", None)
     if callable(is_family):
@@ -76,6 +82,20 @@ def _gb10_trtllm_gen_moe_unsupported_reason(
         f"TRTLLM Gen MoE backend '{backend.value}' is not supported on "
         "GB10/SM12x. TRTLLM Gen MoE kernels are SM100-family paths today; "
         "use a validated GB10-safe MoE backend."
+    )
+
+
+def _gb10_wna16_moe_fallback_unsupported_reason(
+    backend: WNA16MoEBackend,
+) -> str | None:
+    if backend not in _WNA16_MOE_FALLBACK_BACKENDS or not _is_sm12x_device():
+        return None
+    return (
+        f"WNA16 MoE fallback backend '{backend.value}' is not supported on GB10/SM12x. "
+        "Marlin and batched Marlin WNA16 MoE fallbacks can prove "
+        "reachability, but they are not native GB10 WNA16/MXINT MoE evidence. "
+        "Use a native SM12x WNA16/MXINT MoE backend after correctness evidence "
+        "exists, or keep the path unselected."
     )
 
 
@@ -180,6 +200,10 @@ def select_wna16_moe_backend(
     unavailable_gb10_reasons: list[str] = []
     for backend in list(AVAILABLE_BACKENDS):
         if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            AVAILABLE_BACKENDS.remove(backend)
+            _append_unique_reason(unavailable_gb10_reasons, reason)
+            continue
+        if reason := _gb10_wna16_moe_fallback_unsupported_reason(backend):
             AVAILABLE_BACKENDS.remove(backend)
             _append_unique_reason(unavailable_gb10_reasons, reason)
 
