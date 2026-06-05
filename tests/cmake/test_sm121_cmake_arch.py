@@ -84,6 +84,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
+    "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
@@ -2371,6 +2372,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["mxfp8_moe_fallback"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["compressed_tensors_w8a8_mxfp8_dense_loading"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
         "not_supported"
     )
@@ -4966,6 +4970,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "schemes" /
         "compressed_tensors_w8a8_int8.py"
     ).read_text()
+    compressed_tensors_w8a8_mxfp8 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "compressed_tensors" / "schemes" /
+        "compressed_tensors_w8a8_mxfp8.py"
+    ).read_text()
     compressed_tensors_wna16 = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "compressed_tensors" / "schemes" /
@@ -5057,6 +5066,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "FP8 W8A16 Marlin fallback" in linear_selector
     assert "non-native MXFP4 dense fallback" in linear_selector
     assert "non-native MXFP8 dense fallback" in linear_selector
+    assert "_gb10_w8a8_mxfp8_dense_unsupported_reason" in (
+        compressed_tensors_w8a8_mxfp8
+    )
+    assert "CompressedTensors W8A8 MXFP8 dense loading" in (
+        compressed_tensors_w8a8_mxfp8
+    )
+    assert "MXFP8 dense kernel selection" in compressed_tensors_w8a8_mxfp8
+    assert "not supported on GB10/SM12x" in compressed_tensors_w8a8_mxfp8
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -5475,6 +5492,38 @@ def test_gb10_compressed_tensors_w4a8_int_rejects_dense_sm12x(monkeypatch):
             input_symmetric=True,
         ),
         compressed_tensors_w4a8_int.CompressedTensorsW4A8Int,
+    )
+
+
+def test_gb10_compressed_tensors_w8a8_mxfp8_rejects_dense_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
+        compressed_tensors_w8a8_mxfp8,
+    )
+
+    monkeypatch.setattr(
+        compressed_tensors_w8a8_mxfp8,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        compressed_tensors_w8a8_mxfp8.CompressedTensorsW8A8Mxfp8()
+
+    reason = str(exc_info.value)
+    assert "CompressedTensors W8A8 MXFP8 dense loading" in reason
+    assert "MXFP8 dense kernel selection" in reason
+    assert "native GB10 W8A8 MXFP8 dense correctness evidence" in reason
+
+    monkeypatch.setattr(
+        compressed_tensors_w8a8_mxfp8,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert (
+        compressed_tensors_w8a8_mxfp8._gb10_w8a8_mxfp8_dense_unsupported_reason()
+        is None
     )
 
 
@@ -7940,6 +7989,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "MXFP8 MoE fallback paths are not native GB10 evidence",
                 },
+                "compressed_tensors_w8a8_mxfp8_dense_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors W8A8 MXFP8 dense loading can select "
+                        "MXFP8 dense kernel selection without native GB10 evidence"
+                    ),
+                },
                 "quark_nvfp4_checkpoint_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -8243,6 +8300,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "moe_wna16_legacy_fallback": {"status": "not_supported"},
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
+                "compressed_tensors_w8a8_mxfp8_dense_loading": {
+                    "status": "not_supported"
+                },
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
                 "quark_ocp_mx_checkpoint_loading": {"status": "not_supported"},
                 "quark_w4a8_mxfp4_fp8_checkpoint_loading": {
@@ -8359,6 +8419,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w8a8_fp8_moe_loading",
         "compressed_tensors_w8a8_int_dense_loading",
         "compressed_tensors_w8a8_int_moe_loading",
+        "compressed_tensors_w8a8_mxfp8_dense_loading",
         "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
         "flashinfer_trtllm_mxfp4_moe",

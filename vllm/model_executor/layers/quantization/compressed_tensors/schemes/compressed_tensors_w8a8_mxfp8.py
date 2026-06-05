@@ -8,6 +8,9 @@ from vllm.model_executor.kernels.linear import init_mxfp8_linear_kernel
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
     CompressedTensorsScheme,
 )
+from vllm.model_executor.layers.quantization.compressed_tensors.utils import (
+    _is_sm12x_device,
+)
 from vllm.model_executor.layers.quantization.utils.mxfp8_utils import (
     MXFP8_BLOCK_SIZE,
     MXFP8_SCALE_DTYPE,
@@ -19,6 +22,19 @@ from vllm.model_executor.parameter import (
 )
 
 __all__ = ["CompressedTensorsW8A8Mxfp8"]
+
+
+def _gb10_w8a8_mxfp8_dense_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors W8A8 MXFP8 dense loading is "
+        "not supported on GB10/SM12x. The available "
+        "MXFP8 dense kernel selection can prove reachability, but it cannot "
+        "satisfy native GB10 W8A8 MXFP8 dense correctness evidence. Use a "
+        "native SM12x W8A8 MXFP8 dense backend after correctness evidence "
+        "exists, or keep this checkpoint format unselected."
+    )
 
 
 class CompressedTensorsW8A8Mxfp8(CompressedTensorsScheme):
@@ -35,6 +51,10 @@ class CompressedTensorsW8A8Mxfp8(CompressedTensorsScheme):
     """
 
     def __init__(self):
+        unsupported_reason = _gb10_w8a8_mxfp8_dense_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.kernel = init_mxfp8_linear_kernel()
 
     @classmethod
