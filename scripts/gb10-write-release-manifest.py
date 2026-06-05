@@ -322,7 +322,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                 "status": "supported_native",
                 "release_contract": (
                     "FlashMLA source provenance is required and vLLM may route "
-                    "to native SM121A FlashMLA kernels where selected."
+                    "to native SM121A FlashMLA dense kernels where selected."
+                ),
+            },
+            "flashmla_sparse_attention": {
+                "status": "supported_native",
+                "release_contract": (
+                    "FlashMLA source provenance is required and vLLM may route "
+                    "to native SM121A FlashMLA sparse kernels where selected."
                 ),
             },
             "flashinfer_gdn_prefill": {
@@ -421,6 +428,58 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "but it cannot satisfy native GB10 attention or KV-cache "
                     "release evidence until native SM12x TurboQuant "
                     "correctness and runtime evidence exist."
+                ),
+            },
+            "triton_mla_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Triton MLA can prove fallback reachability, but it "
+                    "cannot satisfy native GB10 MLA release evidence. GB10 "
+                    "MLA must use native FlashMLA dense or sparse kernels."
+                ),
+            },
+            "flashinfer_trtllm_mla_attention": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FlashInfer TRT-LLM MLA is an SM100-family MLA path today "
+                    "and must reject before dispatch on GB10/SM12x until "
+                    "native SM121A correctness, artifact, and runtime "
+                    "evidence exists."
+                ),
+            },
+            "flashinfer_trtllm_sparse_mla_attention": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FlashInfer TRT-LLM Sparse MLA is an SM100-family sparse "
+                    "MLA path today and must reject before dispatch on "
+                    "GB10/SM12x until native SM121A correctness, artifact, "
+                    "and runtime evidence exists."
+                ),
+            },
+            "public_flashattention_mla_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Public FlashAttention MLA is not validated on GB10/SM12x "
+                    "and must reject before dispatch until native SM121A MLA "
+                    "correctness, artifact, and runtime evidence exists."
+                ),
+            },
+            "cutlass_mla_sm100_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "SM100 CUTLASS MLA can prove Blackwell-family "
+                    "reachability, but it cannot satisfy native GB10 MLA "
+                    "release evidence until native SM121A correctness, "
+                    "artifact, and runtime evidence exists."
+                ),
+            },
+            "tokenspeed_mla_cutedsl_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "TokenSpeed CuTe DSL MLA can prove SM100-family "
+                    "reachability, but it cannot satisfy native GB10 MLA "
+                    "release evidence until native SM121A correctness, "
+                    "artifact, and runtime evidence exists."
                 ),
             },
             "gdn_prefill_triton_fallback": {

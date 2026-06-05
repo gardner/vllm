@@ -33,6 +33,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
+    "flashmla_sparse_attention": "supported_native",
     "flashinfer_gdn_prefill": "supported_native",
     "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
     "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
@@ -47,6 +48,12 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "triton_attention_fallback": "not_supported",
     "flex_attention_fallback": "not_supported",
     "turboquant_attention": "not_supported",
+    "triton_mla_fallback": "not_supported",
+    "flashinfer_trtllm_mla_attention": "not_supported",
+    "flashinfer_trtllm_sparse_mla_attention": "not_supported",
+    "public_flashattention_mla_runtime": "not_supported",
+    "cutlass_mla_sm100_fallback": "not_supported",
+    "tokenspeed_mla_cutedsl_fallback": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -188,6 +195,33 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "native GB10 attention or KV-cache correctness evidence; route GB10 "
         "attention through FlashInfer with validated FP8 KV cache until native "
         "SM12x TurboQuant runtime evidence exists."
+    ),
+    "triton_mla_fallback": (
+        "Triton MLA can prove fallback reachability, but it is not native "
+        "GB10 MLA correctness, artifact, or runtime evidence; use native "
+        "FlashMLA dense or sparse MLA on SM12x."
+    ),
+    "flashinfer_trtllm_mla_attention": (
+        "FlashInfer TRT-LLM MLA is an SM100-family MLA path today and must not "
+        "satisfy GB10 MLA release evidence until native SM121A correctness, "
+        "artifact, and runtime evidence exist."
+    ),
+    "flashinfer_trtllm_sparse_mla_attention": (
+        "FlashInfer TRT-LLM Sparse MLA is an SM100-family sparse MLA path today "
+        "and must not satisfy GB10 sparse MLA release evidence until native "
+        "SM121A correctness, artifact, and runtime evidence exist."
+    ),
+    "public_flashattention_mla_runtime": (
+        "Public FlashAttention MLA is not validated for GB10/SM12x and must "
+        "not satisfy GB10 MLA release evidence; use native FlashMLA MLA."
+    ),
+    "cutlass_mla_sm100_fallback": (
+        "SM100 CUTLASS MLA can prove Blackwell-family reachability, but it is "
+        "not native GB10 MLA correctness, artifact, or runtime evidence."
+    ),
+    "tokenspeed_mla_cutedsl_fallback": (
+        "TokenSpeed CuTe DSL MLA can prove SM100-family MLA reachability, but "
+        "it is not native GB10 MLA correctness, artifact, or runtime evidence."
     ),
     "gdn_prefill_triton_fallback": (
         "GDN prefill Triton/FLA fallback can prove reachability, but it is not "

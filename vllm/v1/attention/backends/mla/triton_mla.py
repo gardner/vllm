@@ -77,6 +77,28 @@ class TritonMLABackend(MLACommonBackend):
     def supports_compute_capability(cls, capability: DeviceCapability) -> bool:
         return True
 
+    @classmethod
+    def supports_combination(
+        cls,
+        head_size: int,
+        dtype: torch.dtype,
+        kv_cache_dtype: CacheDType | None,
+        block_size: int | None,
+        use_mla: bool,
+        has_sink: bool,
+        use_sparse: bool,
+        device_capability: DeviceCapability,
+    ) -> str | None:
+        if device_capability.major == 12:
+            return (
+                "Triton MLA backend is not supported on GB10/SM12x. It can "
+                "prove MLA fallback reachability, but it is not native GB10 "
+                "MLA correctness, artifact, and runtime evidence. Use native "
+                "FlashMLA MLA after SM12x evidence exists, or keep the MLA "
+                "attention backend unset."
+            )
+        return None
+
 
 class TritonMLAImpl(MLACommonImpl[MLACommonMetadata]):
     can_return_lse_for_decode: bool = True

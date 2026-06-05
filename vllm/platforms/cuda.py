@@ -44,6 +44,15 @@ _R = TypeVar("_R")
 
 pynvml = import_pynvml()
 
+_GB10_UNVALIDATED_MLA_BACKEND_NAMES = {
+    AttentionBackendEnum.TRITON_MLA: "Triton MLA",
+    AttentionBackendEnum.FLASHINFER_MLA: "FlashInfer TRT-LLM MLA",
+    AttentionBackendEnum.FLASHINFER_MLA_SPARSE: "FlashInfer TRT-LLM Sparse MLA",
+    AttentionBackendEnum.FLASH_ATTN_MLA: "public FlashAttention MLA",
+    AttentionBackendEnum.CUTLASS_MLA: "SM100 CUTLASS MLA",
+    AttentionBackendEnum.TOKENSPEED_MLA: "TokenSpeed CuTe DSL MLA",
+}
+
 # pytorch 2.5 uses cudnn sdpa by default, which will cause crash on some models
 # see https://github.com/huggingface/diffusers/issues/9704 for details
 torch.backends.cuda.enable_cudnn_sdp(False)
@@ -87,8 +96,6 @@ def _get_backend_priorities(
         if device_capability.major == 12:
             return [
                 AttentionBackendEnum.FLASHMLA,
-                AttentionBackendEnum.FLASHINFER_MLA,
-                AttentionBackendEnum.TRITON_MLA,
                 AttentionBackendEnum.FLASHMLA_SPARSE,
             ]
         if device_capability.major == 10:
@@ -171,6 +178,23 @@ def with_nvml_context(fn: Callable[_P, _R]) -> Callable[_P, _R]:
             pynvml.nvmlShutdown()
 
     return wrapper
+
+
+def _gb10_mla_backend_unsupported_reason(
+    device_capability: DeviceCapability,
+    backend: AttentionBackendEnum,
+) -> str | None:
+    if device_capability.major != 12:
+        return None
+    backend_name = _GB10_UNVALIDATED_MLA_BACKEND_NAMES.get(backend)
+    if backend_name is None:
+        return None
+    return (
+        f"{backend_name} backend is not supported on GB10/SM12x. It can prove "
+        "MLA reachability, but it is not native GB10 MLA correctness, artifact, "
+        "and runtime evidence. Use native FlashMLA dense or sparse MLA after "
+        "SM12x evidence exists, or keep the MLA attention backend unset."
+    )
 
 
 class CudaPlatformBase(Platform):
@@ -288,6 +312,12 @@ class CudaPlatformBase(Platform):
             attn_selector_config.kv_cache_dtype,
         )
         for priority, backend in enumerate(backend_priorities):
+            if reason := _gb10_mla_backend_unsupported_reason(
+                device_capability,
+                backend,
+            ):
+                invalid_reasons[backend] = (priority, [reason])
+                continue
             try:
                 backend_class = backend.get_class()
                 invalid_reasons_i = backend_class.validate_configuration(
@@ -315,6 +345,11 @@ class CudaPlatformBase(Platform):
 
         # First try checking just the selected backend, if there is one.
         if selected_backend is not None:
+            if reason := _gb10_mla_backend_unsupported_reason(
+                device_capability,
+                selected_backend,
+            ):
+                raise ValueError(reason)
             try:
                 backend_class = selected_backend.get_class()
                 invalid_reasons = backend_class.validate_configuration(
