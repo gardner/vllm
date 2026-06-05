@@ -951,6 +951,20 @@ def test_gb10_release_settings_resolver_rejects_hosted_full_build():
         )
 
 
+def test_gb10_release_settings_resolver_rejects_invalid_boolean_inputs():
+    resolver = _load_gb10_release_settings_resolver_module()
+
+    with pytest.raises(ValueError, match="GB10_INPUT_PUSH_IMAGE=ture"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(GB10_INPUT_PUSH_IMAGE="ture")
+        )
+
+    with pytest.raises(ValueError, match="GB10_INPUT_PREFLIGHT_ONLY=maybe"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(GB10_INPUT_PREFLIGHT_ONLY="maybe")
+        )
+
+
 def test_gb10_release_settings_resolver_rejects_invalid_parallelism():
     resolver = _load_gb10_release_settings_resolver_module()
 

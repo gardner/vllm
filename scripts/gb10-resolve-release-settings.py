@@ -63,8 +63,16 @@ def _env_nonempty(env: Mapping[str, str], name: str, default: str = "") -> str:
     return default if value is None or value == "" else value
 
 
-def _bool_string(value: str) -> str:
-    return "true" if value.strip().lower() in {"1", "true", "yes", "on"} else "false"
+def _bool_string(name: str, value: str) -> str:
+    normalized_value = value.strip().lower()
+    if normalized_value in {"1", "true", "yes", "on"}:
+        return "true"
+    if normalized_value in {"", "0", "false", "no", "off"}:
+        return "false"
+    raise ValueError(
+        f"Unsupported GB10 boolean setting {name}={value}. "
+        "Use 1, 0, true, false, yes, no, on, or off."
+    )
 
 
 def _is_positive_integer(value: str) -> bool:
@@ -195,8 +203,14 @@ def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, 
             "GB10_INPUT_FLASH_ATTN_REF",
             DEFAULT_FLASH_ATTN_REF,
         )
-        push_image = _bool_string(_env(env, "GB10_INPUT_PUSH_IMAGE", "true"))
-        preflight_only = _bool_string(_env(env, "GB10_INPUT_PREFLIGHT_ONLY"))
+        push_image = _bool_string(
+            "GB10_INPUT_PUSH_IMAGE",
+            _env(env, "GB10_INPUT_PUSH_IMAGE", "true"),
+        )
+        preflight_only = _bool_string(
+            "GB10_INPUT_PREFLIGHT_ONLY",
+            _env(env, "GB10_INPUT_PREFLIGHT_ONLY"),
+        )
         release_runner_labels = _env(
             env,
             "GB10_INPUT_RUNNER_LABELS",
