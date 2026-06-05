@@ -188,15 +188,27 @@ fi
 
 if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; then
     runtime_wheel_count=0
+    runtime_wheel_path=""
     if [ -d "$GB10_LOCAL_DIST_DIR" ]; then
         runtime_wheel_count="$(
             find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -type f \
                 | wc -l
         )"
+        runtime_wheel_path="$(
+            find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -type f \
+                -print -quit
+        )"
     fi
     if [ "$runtime_wheel_count" -ne 1 ]; then
         echo "GB10 local runtime build requires exactly one vLLM wheel in $GB10_LOCAL_DIST_DIR before Docker/Buildx starts." >&2
         echo "Run scripts/gb10-build-cached.sh wheel first, or set GB10_LOCAL_DIST_DIR to a directory with one vLLM wheel." >&2
+        exit 1
+    fi
+    expected_wheel_prefix="vllm-${GB10_VLLM_VERSION}-"
+    runtime_wheel_name="$(basename "$runtime_wheel_path")"
+    if [[ "$runtime_wheel_name" != "$expected_wheel_prefix"* ]]; then
+        echo "GB10 local runtime wheel $runtime_wheel_name does not match GB10_VLLM_VERSION=$GB10_VLLM_VERSION." >&2
+        echo "Run scripts/gb10-build-cached.sh wheel first so runtime checksums use the current vLLM wheel." >&2
         exit 1
     fi
 fi
