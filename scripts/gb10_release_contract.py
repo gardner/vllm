@@ -90,8 +90,9 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "route GB10 attention through FlashInfer or FlashMLA."
     ),
     "trtllm_gen_moe": (
-        "TRTLLM Gen MoE rejects SM121 today and must not satisfy native NVFP4 "
-        "MoE release evidence."
+        "TRTLLM Gen MoE rejects SM121 today and must not satisfy GB10 MoE "
+        "release evidence unless native SM121A TRTLLM fused-MoE artifacts "
+        "and runtime evidence exist."
     ),
     "marlin_nvfp4_fallback": (
         "Marlin can prove fallback serving reachability, but it is not native "

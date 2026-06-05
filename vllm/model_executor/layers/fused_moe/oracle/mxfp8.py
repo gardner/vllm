@@ -12,6 +12,7 @@ from vllm.model_executor.layers.quantization.utils.quant_utils import (
     kMxfp8Dynamic,
     kMxfp8Static,
 )
+from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
 
@@ -26,6 +27,48 @@ _BACKEND_NAME_MAP: dict[str, Fp8MoeBackend] = {
     "marlin": Fp8MoeBackend.MARLIN,
     "xpu": Fp8MoeBackend.XPU,
 }
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_trtllm_gen_moe_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend != Fp8MoeBackend.FLASHINFER_TRTLLM or not _is_sm12x_device():
+        return None
+    return (
+        f"TRTLLM Gen MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x. TRTLLM Gen MoE kernels are SM100-family paths today; "
+        "use a validated GB10-safe MoE backend."
+    )
+
+
+def _append_unique_reason(reasons: list[str], reason: str) -> None:
+    if reason not in reasons:
+        reasons.append(reason)
+
+
+def _unsupported_suffix(reasons: list[str]) -> str:
+    if not reasons:
+        return ""
+    return " " + " ".join(reasons)
 
 
 def _select_kernel_cls(
@@ -73,6 +116,8 @@ def select_mxfp8_moe_backend(
                 f"MXFP8 MoE. Expected one of "
                 f"{list(_BACKEND_NAME_MAP.keys())}."
             )
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            raise ValueError(reason)
         logger.info_once(
             "Using '%s' MxFp8 MoE backend (user-requested).",
             backend.value,
@@ -80,7 +125,11 @@ def select_mxfp8_moe_backend(
         return backend, _select_kernel_cls(backend, config)
 
     # Auto-select: pick the first supported backend.
+    unavailable_gb10_reasons: list[str] = []
     for backend in _SUPPORTED_BACKENDS:
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            _append_unique_reason(unavailable_gb10_reasons, reason)
+            continue
         try:
             experts_cls = _select_kernel_cls(backend, config)
         except ValueError:
@@ -88,4 +137,7 @@ def select_mxfp8_moe_backend(
         logger.info_once("Using '%s' MxFp8 MoE backend.", backend.value)
         return backend, experts_cls
 
-    raise ValueError("No MXFP8 MoE backends available.")
+    raise ValueError(
+        "No MXFP8 MoE backends available."
+        + _unsupported_suffix(unavailable_gb10_reasons)
+    )

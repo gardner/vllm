@@ -347,7 +347,8 @@ def _gb10_support_matrix() -> dict[str, object]:
                 "status": "not_supported",
                 "release_contract": (
                     "TRTLLM Gen MoE rejects SM121 today and must not satisfy "
-                    "native NVFP4 MoE release evidence."
+                    "GB10 MoE release evidence unless native SM121A TRTLLM "
+                    "fused-MoE artifacts and runtime evidence exist."
                 ),
             },
             "marlin_nvfp4_fallback": {

@@ -41,6 +41,37 @@ class UnquantizedMoeBackend(Enum):
     OOT = "OOT"
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_trtllm_gen_moe_unsupported_reason(
+    backend: UnquantizedMoeBackend,
+) -> str | None:
+    if backend != UnquantizedMoeBackend.FLASHINFER_TRTLLM or not _is_sm12x_device():
+        return None
+    return (
+        f"TRTLLM Gen MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x. TRTLLM Gen MoE kernels are SM100-family paths today; "
+        "use a validated GB10-safe MoE backend such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(moe_config: FusedMoEConfig) -> list[UnquantizedMoeBackend]:
     """
     Get available backends in priority order based on platform and config.
@@ -199,6 +230,15 @@ def select_unquantized_moe_backend(
             "deployment configuration."
         )
 
+    def _append_unique_reason(reasons: list[str], reason: str) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+
+    def _unsupported_suffix(reasons: list[str]) -> str:
+        if not reasons:
+            return ""
+        return " " + " ".join(reasons)
+
     def _return_or_raise(
         backend: UnquantizedMoeBackend,
         config: FusedMoEConfig,
@@ -221,8 +261,16 @@ def select_unquantized_moe_backend(
             and requested_backend == UnquantizedMoeBackend.TRITON
         ):
             requested_backend = UnquantizedMoeBackend.BATCHED_TRITON
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(requested_backend):
+            raise ValueError(reason)
 
         return _return_or_raise(requested_backend, moe_config, activation_format)
+
+    unavailable_gb10_reasons: list[str] = []
+    for backend in list(AVAILABLE_BACKENDS):
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            AVAILABLE_BACKENDS.remove(backend)
+            _append_unique_reason(unavailable_gb10_reasons, reason)
 
     # Handle explicit FlashInfer FP16 configuration.
     if envs.is_set("VLLM_USE_FLASHINFER_MOE_FP16"):
@@ -244,7 +292,8 @@ def select_unquantized_moe_backend(
                     f"FlashInfer MOE backend {fi_backend} "
                     "does not support unquantized MoE."
                 )
-            k_cls = backend_to_kernel_cls(backend)
+            if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+                raise ValueError(reason)
             return _return_or_raise(backend, moe_config, activation_format)
         else:
             # If the user is not explicit about the backend, try both.
@@ -252,6 +301,10 @@ def select_unquantized_moe_backend(
                 UnquantizedMoeBackend.FLASHINFER_TRTLLM,
                 UnquantizedMoeBackend.FLASHINFER_CUTLASS,
             ]:
+                if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+                    logger.debug_once(_make_log_unsupported(backend, reason))
+                    _append_unique_reason(unavailable_gb10_reasons, reason)
+                    continue
                 k_cls = backend_to_kernel_cls(backend)
                 supported, reason = k_cls.is_supported_config(
                     k_cls, moe_config, None, None, activation_format
@@ -265,6 +318,7 @@ def select_unquantized_moe_backend(
             raise NotImplementedError(
                 "Found VLLM_USE_FLASHINFER_MOE_FP16=1, but no "
                 "FlashInfer unquantized MoE backend supports the configuration."
+                + _unsupported_suffix(unavailable_gb10_reasons)
             )
 
     # Handle explicit AITER FP8 configuration.
@@ -289,6 +343,7 @@ def select_unquantized_moe_backend(
 
     raise NotImplementedError(
         "No Unquantized MoE backend supports the deployment configuration."
+        + _unsupported_suffix(unavailable_gb10_reasons)
     )
 
 

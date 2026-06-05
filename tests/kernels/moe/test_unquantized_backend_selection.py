@@ -132,6 +132,11 @@ def test_select_cuda_flashinfer_trtllm_backend(mock_is_supported_trtllm, monkeyp
         patch.object(current_platform, "is_xpu", return_value=False),
         patch.object(current_platform, "is_tpu", return_value=False),
         patch.object(current_platform, "is_out_of_tree", return_value=False),
+        patch.object(
+            current_platform,
+            "is_device_capability_family",
+            side_effect=lambda capability: capability == 100,
+        ),
         patch.object(current_platform, "has_device_capability", return_value=True),
     ):
         monkeypatch.setenv("VLLM_USE_FLASHINFER_MOE_FP16", "1")

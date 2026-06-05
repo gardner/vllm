@@ -55,6 +55,37 @@ class Fp8MoeBackend(Enum):
     CPU = "CPU"
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_trtllm_gen_moe_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend != Fp8MoeBackend.FLASHINFER_TRTLLM or not _is_sm12x_device():
+        return None
+    return (
+        f"TRTLLM Gen MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x. TRTLLM Gen MoE kernels are SM100-family paths today; "
+        "use a validated GB10-safe MoE backend such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(
     moe_config: FusedMoEConfig,
     weight_key: QuantKey | None,
@@ -262,6 +293,15 @@ def select_fp8_moe_backend(
                 "deployment configuration."
             )
 
+    def _append_unique_reason(reasons: list[str], reason: str) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+
+    def _unsupported_suffix(reasons: list[str]) -> str:
+        if not reasons:
+            return ""
+        return " " + " ".join(reasons)
+
     def _return_or_raise(
         backend: Fp8MoeBackend,
         config: FusedMoEConfig,
@@ -291,6 +331,9 @@ def select_fp8_moe_backend(
             elif requested_backend == Fp8MoeBackend.VLLM_CUTLASS:
                 requested_backend = Fp8MoeBackend.BATCHED_VLLM_CUTLASS
 
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(requested_backend):
+            raise ValueError(reason)
+
         if (
             requested_backend
             in [
@@ -307,12 +350,20 @@ def select_fp8_moe_backend(
             requested_backend, config, weight_key, activation_key, activation_format
         )
 
+    unavailable_gb10_reasons: list[str] = []
+    for backend in list(AVAILABLE_BACKENDS):
+        if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+            AVAILABLE_BACKENDS.remove(backend)
+            _append_unique_reason(unavailable_gb10_reasons, reason)
+
     # Handle explicit FlashInfer FP8 configuration.
     if envs.is_set("VLLM_USE_FLASHINFER_MOE_FP8"):
         if not envs.VLLM_USE_FLASHINFER_MOE_FP8:
             # If the user rejects FlashInfer remove those backends.
-            AVAILABLE_BACKENDS.remove(Fp8MoeBackend.FLASHINFER_TRTLLM)
-            AVAILABLE_BACKENDS.remove(Fp8MoeBackend.FLASHINFER_CUTLASS)
+            if Fp8MoeBackend.FLASHINFER_TRTLLM in AVAILABLE_BACKENDS:
+                AVAILABLE_BACKENDS.remove(Fp8MoeBackend.FLASHINFER_TRTLLM)
+            if Fp8MoeBackend.FLASHINFER_CUTLASS in AVAILABLE_BACKENDS:
+                AVAILABLE_BACKENDS.remove(Fp8MoeBackend.FLASHINFER_CUTLASS)
 
         elif envs.is_set("VLLM_FLASHINFER_MOE_BACKEND"):
             # If user is explicit about backend, validate it.
@@ -325,7 +376,8 @@ def select_fp8_moe_backend(
                 raise ValueError(
                     f"FlashInfer MOE backend {fi_backend} does not support FP8 MoE."
                 )
-            k_cls = backend_to_kernel_cls(backend)[0]
+            if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+                raise ValueError(reason)
             return _return_or_raise(
                 backend, config, weight_key, activation_key, activation_format
             )
@@ -335,6 +387,10 @@ def select_fp8_moe_backend(
                 Fp8MoeBackend.FLASHINFER_TRTLLM,
                 Fp8MoeBackend.FLASHINFER_CUTLASS,
             ]:
+                if reason := _gb10_trtllm_gen_moe_unsupported_reason(backend):
+                    logger.debug_once(_make_log_unsupported(backend, reason))
+                    _append_unique_reason(unavailable_gb10_reasons, reason)
+                    continue
                 for k_cls in backend_to_kernel_cls(backend):
                     supported, reason = k_cls.is_supported_config(
                         k_cls,
@@ -353,6 +409,7 @@ def select_fp8_moe_backend(
             raise NotImplementedError(
                 "Found VLLM_USE_FLASHINFER_MOE_FP8=1, but no "
                 "FlashInfer FP8 MoE backend supports the configuration."
+                + _unsupported_suffix(unavailable_gb10_reasons)
             )
 
     # Handle explicit DeepGEMM FP8 configuration.
@@ -414,6 +471,7 @@ def select_fp8_moe_backend(
     if current_platform.is_cuda() or current_platform.is_rocm():
         raise NotImplementedError(
             "No FP8 MoE backend supports the deployment configuration."
+            + _unsupported_suffix(unavailable_gb10_reasons)
         )
 
     return Fp8MoeBackend.NONE, None
