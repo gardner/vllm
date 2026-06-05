@@ -27,6 +27,38 @@ from vllm.platforms import current_platform
 from vllm.utils.torch_utils import direct_register_custom_op
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_fp_quant_fp4_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "FPQuant FP4 quantization is not supported on GB10/SM12x. The "
+        "deprecated public quantization method can reach "
+        "MXFP4/NVFP4 FPQuant linear kernels today, but this is not native "
+        "GB10 FPQuant FP4 correctness evidence. Use a validated GB10 FPQuant "
+        "FP4 path after native SM12x correctness evidence exists, or keep "
+        "--quantization fp_quant unselected."
+    )
+
+
 class FPQuantConfig(QuantizationConfig):
     """Config class for FPQuant."""
 
@@ -39,6 +71,9 @@ class FPQuantConfig(QuantizationConfig):
         modules_to_not_convert: list[str] | None = None,
     ) -> None:
         super().__init__()
+        if reason := _gb10_fp_quant_fp4_quantization_unsupported_reason():
+            raise ValueError(reason)
+
         self.hadamard_group_size = hadamard_group_size
         self.forward_dtype = forward_dtype
         self.forward_method = forward_method

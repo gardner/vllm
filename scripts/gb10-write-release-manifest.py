@@ -485,6 +485,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "until native GB10 FBGEMM FP8 correctness evidence exists."
                 ),
             },
+            "fp_quant_fp4_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FPQuant FP4 quantization is a deprecated public "
+                    "quantization method that can reach MXFP4/NVFP4 FPQuant "
+                    "linear kernels today and must reject on GB10/SM12x until "
+                    "native GB10 FPQuant FP4 correctness evidence exists."
+                ),
+            },
             "online_fp8_quantization": {
                 "status": "not_supported",
                 "release_contract": (
