@@ -288,6 +288,32 @@ def test_vllm_config_allows_kv_offload_off_gb10(monkeypatch):
     assert config.kv_transfer_config.kv_role == "kv_both"
 
 
+def test_gb10_vllm_config_rejects_kv_sharing_fast_prefill_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="KV sharing fast prefill.*GB10/SM12x"):
+        VllmConfig(cache_config=CacheConfig(kv_sharing_fast_prefill=True))
+
+
+def test_vllm_config_allows_kv_sharing_fast_prefill_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    cache_config = CacheConfig(kv_sharing_fast_prefill=True)
+    config = VllmConfig(cache_config=cache_config)
+
+    assert config.cache_config is cache_config
+
+
 @pytest.mark.parametrize(
     "parallel_config",
     [

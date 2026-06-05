@@ -132,6 +132,13 @@ _GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE = (
     "GB10 worker for this release until native SM12x distributed correctness "
     "and runtime evidence exists."
 )
+_GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE = (
+    "KV sharing fast prefill runtime is not supported on GB10/SM12x in this "
+    "fork: this WIP path overrides attention metadata and logits indexing for "
+    "KV-sharing models such as Gemma, and is outside the validated native "
+    "first-path NVFP4 release. Disable --kv-sharing-fast-prefill on GB10 until "
+    "native SM12x correctness and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -940,6 +947,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE)
+
+        if (
+            self.cache_config.kv_sharing_fast_prefill
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

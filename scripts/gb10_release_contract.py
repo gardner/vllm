@@ -98,6 +98,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
+    "kv_sharing_fast_prefill_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -396,6 +397,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "multi-node multiprocessing, and external launcher process topologies "
         "are outside the validated GB10 first release path; reject them until "
         "native SM12x distributed correctness evidence exists."
+    ),
+    "kv_sharing_fast_prefill_runtime": (
+        "KV sharing fast prefill overrides attention metadata and logits "
+        "indexing for KV-sharing models and is outside the validated GB10 "
+        "first release path; reject it until native SM12x correctness evidence "
+        "exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "

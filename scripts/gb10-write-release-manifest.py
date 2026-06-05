@@ -776,6 +776,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "kv_sharing_fast_prefill_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "KV sharing fast prefill overrides attention metadata "
+                    "and logits indexing for KV-sharing models and is outside "
+                    "the validated GB10 first release path. It must reject "
+                    "until native SM12x correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

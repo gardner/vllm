@@ -124,6 +124,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
+    "kv_sharing_fast_prefill_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2557,6 +2558,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["distributed_parallel_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["kv_sharing_fast_prefill_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8835,6 +8839,18 @@ def test_gb10_distributed_parallel_runtime_is_reported():
     assert "distributed_executor_backend == \"external_launcher\"" in vllm_config
 
 
+def test_gb10_kv_sharing_fast_prefill_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE" in vllm_config
+    assert "KV sharing fast prefill runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--kv-sharing-fast-prefill" in vllm_config
+    assert "overrides attention metadata and logits indexing" in vllm_config
+    assert "cache_config.kv_sharing_fast_prefill" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10855,6 +10871,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "SM12x distributed correctness evidence"
                     ),
                 },
+                "kv_sharing_fast_prefill_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "KV sharing fast prefill lacks native SM12x attention "
+                        "metadata and logits-indexing correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11617,6 +11641,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "kv_transfer_runtime": {"status": "not_supported"},
                 "ubatching_runtime": {"status": "not_supported"},
                 "distributed_parallel_runtime": {"status": "not_supported"},
+                "kv_sharing_fast_prefill_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11834,6 +11859,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "inc_quantization",
         "int8_moe_triton_fallback",
         "kv_offload_runtime",
+        "kv_sharing_fast_prefill_runtime",
         "kv_transfer_runtime",
         "linear_attention_triton_runtime",
         "lora_runtime",
