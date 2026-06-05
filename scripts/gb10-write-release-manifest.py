@@ -472,6 +472,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "GPTQ correctness evidence exists."
                 ),
             },
+            "inc_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "INC/AutoRound quantization can select AWQ or GPTQ Marlin "
+                    "dense kernels, AWQ/GPTQ MoE, and Moe WNA16 fallback "
+                    "handling today and must reject on GB10/SM12x until "
+                    "native GB10 INC/AutoRound correctness evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

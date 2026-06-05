@@ -35,6 +35,40 @@ if TYPE_CHECKING:
 logger = init_logger(__name__)
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_inc_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "INC/AutoRound quantization is not supported on GB10/SM12x. The "
+        "inc and auto-round quantization methods can select "
+        "apply_awq_quant_layer, apply_gptq_quant_layer, AWQMarlinLinearMethod, "
+        "AutoGPTQLinearMethod, or MoeWNA16Config fallback handling today, but "
+        "this is not native GB10 INC/AutoRound correctness evidence. Use a "
+        "validated GB10 INC/AutoRound path after native SM12x correctness "
+        "evidence exists, or keep --quantization inc and auto-round checkpoint "
+        "selection unselected."
+    )
+
+
 class INCConfig(QuantizationConfig):
     """Config class for Intel Neural Compressor (INC).
     Repo: https://github.com/intel/neural-compressor
@@ -64,6 +98,8 @@ class INCConfig(QuantizationConfig):
         backend: str = "auto",
     ) -> None:
         super().__init__()
+        if reason := _gb10_inc_quantization_unsupported_reason():
+            raise ValueError(reason)
         if weight_bits not in self.SUPPORTED_BITS:
             raise ValueError(
                 f"Unsupported weight_bits: {weight_bits}, "
