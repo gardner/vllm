@@ -7169,6 +7169,110 @@ def test_gb10_compressed_tensors_w4a8_fp8_moe_rejects_sm12x(monkeypatch):
     assert "exact-SM90 CUTLASS W4A8" in str(exc_info.value)
 
 
+def test_gb10_compressed_tensors_w4a8_fp8_sm90_moe_rejects_first(monkeypatch):
+    from compressed_tensors import CompressionFormat
+    from compressed_tensors.quantization import (
+        QuantizationArgs,
+        QuantizationStrategy,
+        QuantizationType,
+    )
+
+    from vllm.model_executor.layers.quantization.compressed_tensors import utils
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa: E501
+        compressed_tensors_moe,
+        compressed_tensors_moe_w4a8_fp8,
+    )
+
+    class FakeCompressedTensorsConfig:
+        def _add_fused_moe_to_target_scheme_map(self):
+            return None
+
+        @staticmethod
+        def _is_mxfp4(weight_quant):
+            return False
+
+        @staticmethod
+        def _is_mxfp8(weight_quant):
+            return False
+
+        @staticmethod
+        def _is_wNa16_group_channel(weight_quant, input_quant):
+            return False
+
+        @staticmethod
+        def _is_nvfp4_format(quant):
+            return False
+
+        @staticmethod
+        def _is_fp8_w8a8_sm90(weight_quant, input_quant):
+            return False
+
+        @staticmethod
+        def _is_fp8_w8a8_sm100(weight_quant, input_quant):
+            return False
+
+        @staticmethod
+        def _is_fp8_w8a8(weight_quant, input_quant):
+            return False
+
+        @staticmethod
+        def _is_dynamic_token_w8a8(weight_quant, input_quant):
+            return False
+
+        @staticmethod
+        def _is_fp8_w4a8_sm90(weight_quant, input_quant):
+            return True
+
+        @staticmethod
+        def _is_dynamic_token_w4a8_int(weight_quant, input_quant):
+            return False
+
+        def get_scheme_dict(self, layer, name):
+            return {
+                "weights": QuantizationArgs(
+                    num_bits=4,
+                    type=QuantizationType.FLOAT,
+                    strategy=QuantizationStrategy.GROUP,
+                    symmetric=True,
+                    dynamic=False,
+                    group_size=128,
+                ),
+                "input_activations": QuantizationArgs(
+                    num_bits=8,
+                    type=QuantizationType.FLOAT,
+                    strategy=QuantizationStrategy.TOKEN,
+                    symmetric=True,
+                    dynamic=True,
+                ),
+                "format": CompressionFormat.float_quantized.value,
+            }
+
+    constructed = []
+
+    class ConstructedW4A8Fp8MoEMethod:
+        def __init__(self, *args):
+            constructed.append(args)
+
+    monkeypatch.setattr(utils, "_is_sm12x_device", lambda: True, raising=False)
+    monkeypatch.setattr(
+        compressed_tensors_moe_w4a8_fp8,
+        "CompressedTensorsW4A8Fp8MoEMethod",
+        ConstructedW4A8Fp8MoEMethod,
+    )
+    layer = SimpleNamespace(moe_config=SimpleNamespace())
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        compressed_tensors_moe.CompressedTensorsMoEMethod.get_moe_method(
+            FakeCompressedTensorsConfig(),
+            layer,
+            "model.layers.0.mlp.experts",
+        )
+
+    assert not constructed
+    assert "CompressedTensors W4A8 FP8 checkpoint loading" in str(exc_info.value)
+    assert "exact-SM90 CUTLASS W4A8" in str(exc_info.value)
+
+
 def test_gb10_compressed_tensors_w8a8_fp8_moe_rejects_sm12x(monkeypatch):
     from compressed_tensors import CompressionFormat
     from compressed_tensors.quantization import (

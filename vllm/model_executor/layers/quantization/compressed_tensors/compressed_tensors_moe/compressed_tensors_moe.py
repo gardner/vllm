@@ -243,6 +243,10 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
             return CompressedTensorsW8A8Int8MoEMethod(
                 weight_quant, input_quant, layer.moe_config
             )
+        elif reason := gb10_compressed_tensors_w4a8_fp8_unsupported_reason(
+            weight_quant, input_quant
+        ):
+            raise ValueError(reason)
         elif quant_config._is_fp8_w4a8_sm90(weight_quant, input_quant):
             from .compressed_tensors_moe_w4a8_fp8 import (
                 CompressedTensorsW4A8Fp8MoEMethod,
@@ -252,10 +256,6 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
             return CompressedTensorsW4A8Fp8MoEMethod(
                 weight_quant, input_quant, layer.moe_config
             )
-        elif reason := gb10_compressed_tensors_w4a8_fp8_unsupported_reason(
-            weight_quant, input_quant
-        ):
-            raise ValueError(reason)
         elif quant_config._is_dynamic_token_w4a8_int(weight_quant, input_quant):
             if reason := _gb10_w4a8_int_moe_loading_unsupported_reason():
                 raise ValueError(reason)
