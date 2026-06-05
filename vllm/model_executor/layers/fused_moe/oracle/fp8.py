@@ -102,6 +102,18 @@ def _gb10_fp8_moe_fallback_unsupported_reason(
     )
 
 
+def _gb10_aiter_fp8_moe_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend != Fp8MoeBackend.AITER or not _is_sm12x_device():
+        return None
+    return (
+        "AITER FP8 MoE backend is not supported on GB10/SM12x. AITER is a "
+        "ROCm-specific backend, not a native GB10 CUDA path. Use a validated "
+        "GB10-safe MoE backend such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(
     moe_config: FusedMoEConfig,
     weight_key: QuantKey | None,
@@ -349,6 +361,8 @@ def select_fp8_moe_backend(
 
         if reason := _gb10_trtllm_gen_moe_unsupported_reason(requested_backend):
             raise ValueError(reason)
+        if reason := _gb10_aiter_fp8_moe_unsupported_reason(requested_backend):
+            raise ValueError(reason)
         if reason := _gb10_fp8_moe_fallback_unsupported_reason(requested_backend):
             raise ValueError(reason)
 
@@ -371,6 +385,8 @@ def select_fp8_moe_backend(
     unavailable_gb10_reasons: list[str] = []
     for backend in list(AVAILABLE_BACKENDS):
         reason = _gb10_trtllm_gen_moe_unsupported_reason(
+            backend
+        ) or _gb10_aiter_fp8_moe_unsupported_reason(
             backend
         ) or _gb10_fp8_moe_fallback_unsupported_reason(backend)
         if reason:
@@ -463,6 +479,8 @@ def select_fp8_moe_backend(
             AVAILABLE_BACKENDS.remove(Fp8MoeBackend.AITER)
         else:
             backend = Fp8MoeBackend.AITER
+            if reason := _gb10_aiter_fp8_moe_unsupported_reason(backend):
+                raise ValueError(reason)
             return _return_or_raise(
                 backend, config, weight_key, activation_key, activation_format
             )

@@ -43,6 +43,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
+    "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
@@ -101,6 +102,10 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "TRTLLM Gen MoE rejects SM121 today and must not satisfy GB10 MoE "
         "release evidence unless native SM121A TRTLLM fused-MoE artifacts "
         "and runtime evidence exist."
+    ),
+    "rocm_aiter_fp8_moe": (
+        "AITER FP8 MoE is a ROCm-specific backend and is not a native GB10 "
+        "CUDA path."
     ),
     "marlin_nvfp4_fallback": (
         "Marlin can prove fallback serving reachability, but it is not native "

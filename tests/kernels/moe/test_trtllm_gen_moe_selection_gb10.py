@@ -272,6 +272,34 @@ def test_gb10_auto_fp8_moe_skips_trtllm_for_cutlass(monkeypatch):
     assert experts_cls is kernel_by_backend[Fp8MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_explicit_fp8_aiter_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.AITER})
+    config = make_dummy_moe_config()
+    config.moe_backend = "aiter"
+
+    with pytest.raises(ValueError, match="AITER FP8 MoE.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            config,
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
+def test_gb10_env_explicit_fp8_aiter_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_ROCM_USE_AITER", "1")
+    monkeypatch.setenv("VLLM_ROCM_USE_AITER_MOE", "1")
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.AITER})
+
+    with pytest.raises(ValueError, match="AITER FP8 MoE.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
 def test_gb10_explicit_fp8_marlin_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.MARLIN})
