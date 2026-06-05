@@ -13,6 +13,9 @@ from vllm.model_executor.kernels.linear import (
     init_fp8_linear_kernel,
 )
 from vllm.model_executor.layers.quantization.quark.schemes import QuarkScheme
+from vllm.model_executor.layers.quantization.quark.utils import (
+    gb10_quark_w8a8_fp8_unsupported_reason,
+)
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     GroupShape,
     kFp8DynamicTokenSym,
@@ -39,6 +42,10 @@ class QuarkW8A8Fp8(QuarkScheme):
     def __init__(
         self, weight_config: dict[str, Any], input_config: dict[str, Any] | None
     ):
+        unsupported_reason = gb10_quark_w8a8_fp8_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.weight_qscheme = cast(str, weight_config.get("qscheme"))
         self.is_static_input_scheme: bool = False
         self.input_qscheme: str | None = None

@@ -86,6 +86,8 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
+    "quark_w8a8_fp8_checkpoint_loading": "not_supported",
+    "quark_w8a8_int8_checkpoint_loading": "not_supported",
     "compressed_tensors_w4a8_fp8_loading": "not_supported",
     "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a8_int_moe_loading": "not_supported",
@@ -348,6 +350,16 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Quark W4A8 MXFP4+FP8 checkpoint loading is not validated on "
         "GB10/SM12x; reject it until dense correctness evidence exists for a "
         "native GB10 MXFP4 backend."
+    ),
+    "quark_w8a8_fp8_checkpoint_loading": (
+        "Quark W8A8 FP8 checkpoint loading can select FP8 scaled-mm dense "
+        "kernel selection today; reject it until native GB10 W8A8 FP8 dense "
+        "correctness evidence exists."
+    ),
+    "quark_w8a8_int8_checkpoint_loading": (
+        "Quark W8A8 Int8 checkpoint loading can select Int8 scaled-mm dense "
+        "kernel selection today; reject it until native GB10 W8A8 Int8 dense "
+        "correctness evidence exists."
     ),
     "compressed_tensors_w4a8_fp8_loading": (
         "CompressedTensors W4A8 FP8 loading uses exact-SM90 CUTLASS W4A8 "

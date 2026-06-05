@@ -10,6 +10,9 @@ from vllm.model_executor.kernels.linear import (
     init_int8_linear_kernel,
 )
 from vllm.model_executor.layers.quantization.quark.schemes import QuarkScheme
+from vllm.model_executor.layers.quantization.quark.utils import (
+    gb10_quark_w8a8_int8_unsupported_reason,
+)
 from vllm.model_executor.parameter import (
     BasevLLMParameter,
     ChannelQuantScaleParameter,
@@ -27,6 +30,10 @@ class QuarkW8A8Int8(QuarkScheme):
         is_static_input_scheme: bool | None,
         input_symmetric: bool | None,
     ):
+        unsupported_reason = gb10_quark_w8a8_int8_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.qscheme = qscheme
         self.is_static_input_scheme = is_static_input_scheme
         self.input_symmetric = input_symmetric

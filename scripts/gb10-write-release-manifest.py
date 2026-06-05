@@ -729,6 +729,24 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "GB10 MXFP4 correctness evidence exists."
                 ),
             },
+            "quark_w8a8_fp8_checkpoint_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark W8A8 FP8 checkpoint loading can reach FP8 "
+                    "scaled-mm dense kernel selection today and must reject "
+                    "on GB10/SM12x until native GB10 W8A8 FP8 dense "
+                    "correctness evidence exists."
+                ),
+            },
+            "quark_w8a8_int8_checkpoint_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Quark W8A8 Int8 checkpoint loading can reach Int8 "
+                    "scaled-mm dense kernel selection today and must reject "
+                    "on GB10/SM12x until native GB10 W8A8 Int8 dense "
+                    "correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w4a8_fp8_loading": {
                 "status": "not_supported",
                 "release_contract": (

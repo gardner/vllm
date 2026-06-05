@@ -112,6 +112,8 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
+    "quark_w8a8_fp8_checkpoint_loading": "not_supported",
+    "quark_w8a8_int8_checkpoint_loading": "not_supported",
     "compressed_tensors_w4a8_fp8_loading": "not_supported",
     "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a8_int_moe_loading": "not_supported",
@@ -2479,6 +2481,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["quark_w4a8_mxfp4_fp8_checkpoint_loading"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["quark_w8a8_fp8_checkpoint_loading"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["quark_w8a8_int8_checkpoint_loading"][
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_w4a8_fp8_loading"][
@@ -5175,6 +5183,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "quark" / "schemes" / "quark_w4a8_mxfp4_fp8.py"
     ).read_text()
+    quark_w8a8_fp8 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "quark" / "schemes" / "quark_w8a8_fp8.py"
+    ).read_text()
+    quark_w8a8_int8 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "quark" / "schemes" / "quark_w8a8_int8.py"
+    ).read_text()
     quark_utils = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "quark" / "utils.py"
@@ -5430,6 +5446,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         quark_w4a8_mxfp4_fp8
     )
     assert "gb10_quark_w4a8_mxfp4_fp8_unsupported_reason" in quark_utils
+    assert "gb10_quark_w8a8_fp8_unsupported_reason" in quark_w8a8_fp8
+    assert "gb10_quark_w8a8_fp8_unsupported_reason" in quark_utils
+    assert "gb10_quark_w8a8_int8_unsupported_reason" in quark_w8a8_int8
+    assert "gb10_quark_w8a8_int8_unsupported_reason" in quark_utils
+    assert "Quark W8A8 FP8 checkpoint loading" in quark_utils
+    assert "Quark W8A8 Int8 checkpoint loading" in quark_utils
     assert "not supported on GB10/SM12x" in quark_utils
     assert "gb10_compressed_tensors_w4a8_fp8_unsupported_reason" in (
         compressed_tensors
@@ -6784,6 +6806,100 @@ def test_gb10_humming_mxfp4_moe_backend_rejects_sm12x(monkeypatch):
     )
     assert mxfp4._gb10_unsupported_backend_reason(backend) is None
     assert mxfp4.map_mxfp4_backend("humming") == [backend]
+
+
+def test_gb10_quark_w8a8_checkpoint_loading_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization.quark import quark, utils
+
+    monkeypatch.setattr(
+        utils.current_platform,
+        "is_device_capability_family",
+        lambda family: family == 120,
+        raising=False,
+    )
+
+    config = quark.QuarkConfig(
+        {
+            "global_quant_config": {},
+            "layer_quant_config": {},
+            "layer_type_quant_config": {},
+            "exclude": [],
+        }
+    )
+    monkeypatch.setattr(
+        config,
+        "_check_scheme_supported",
+        lambda min_capability, error=True: True,
+        raising=False,
+    )
+
+    fp8_w8a8_config = {
+        "weight": {
+            "dtype": "fp8_e4m3",
+            "qscheme": "per_tensor",
+            "is_dynamic": False,
+        },
+        "input_tensors": {
+            "dtype": "fp8_e4m3",
+            "qscheme": "per_tensor",
+            "is_dynamic": False,
+        },
+        "output_tensors": None,
+        "bias": None,
+    }
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+        exc_info
+    ):
+        config._get_scheme_from_config(fp8_w8a8_config)
+
+    reason = str(exc_info.value)
+    assert "Quark W8A8 FP8 checkpoint loading" in reason
+    assert "FP8 scaled-mm dense kernel selection" in reason
+    assert "native GB10 W8A8 FP8 dense correctness evidence" in reason
+
+    int8_w8a8_static_config = {
+        "weight": {
+            "dtype": "int8",
+            "qscheme": "per_channel",
+            "is_dynamic": False,
+            "symmetric": True,
+        },
+        "input_tensors": {
+            "dtype": "int8",
+            "qscheme": "per_tensor",
+            "is_dynamic": False,
+            "symmetric": True,
+        },
+        "output_tensors": None,
+        "bias": None,
+    }
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+        exc_info
+    ):
+        config._get_scheme_from_config(int8_w8a8_static_config)
+
+    reason = str(exc_info.value)
+    assert "Quark W8A8 Int8 checkpoint loading" in reason
+    assert "Int8 scaled-mm dense kernel selection" in reason
+    assert "native GB10 W8A8 Int8 dense correctness evidence" in reason
+
+    int8_w8a8_dynamic_config = copy.deepcopy(int8_w8a8_static_config)
+    int8_w8a8_dynamic_config["input_tensors"]["qscheme"] = "per_channel"
+    int8_w8a8_dynamic_config["input_tensors"]["is_dynamic"] = True
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+        exc_info
+    ):
+        config._get_scheme_from_config(int8_w8a8_dynamic_config)
+    assert "Quark W8A8 Int8 checkpoint loading" in str(exc_info.value)
+
+    monkeypatch.setattr(
+        utils.current_platform,
+        "is_device_capability_family",
+        lambda family: False,
+        raising=False,
+    )
+    assert utils.gb10_quark_w8a8_fp8_unsupported_reason() is None
+    assert utils.gb10_quark_w8a8_int8_unsupported_reason() is None
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -9809,6 +9925,24 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Quark W4A8 MXFP4+FP8 checkpoint loading is not validated"
                     ),
                 },
+                "quark_w8a8_fp8_checkpoint_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Quark W8A8 FP8 checkpoint loading can select FP8 "
+                        "scaled-mm dense kernel selection without native GB10 "
+                        "evidence"
+                    ),
+                },
+                "quark_w8a8_int8_checkpoint_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Quark W8A8 Int8 checkpoint loading can select Int8 "
+                        "scaled-mm dense kernel selection without native GB10 "
+                        "evidence"
+                    ),
+                },
                 "compressed_tensors_w4a8_fp8_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10134,6 +10268,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "quark_w4a8_mxfp4_fp8_checkpoint_loading": {
                     "status": "not_supported"
                 },
+                "quark_w8a8_fp8_checkpoint_loading": {
+                    "status": "not_supported"
+                },
+                "quark_w8a8_int8_checkpoint_loading": {
+                    "status": "not_supported"
+                },
                 "compressed_tensors_w4a8_fp8_loading": {
                     "status": "not_supported"
                 },
@@ -10287,6 +10427,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "quark_nvfp4_checkpoint_loading",
         "quark_ocp_mx_checkpoint_loading",
         "quark_w4a8_mxfp4_fp8_checkpoint_loading",
+        "quark_w8a8_fp8_checkpoint_loading",
+        "quark_w8a8_int8_checkpoint_loading",
         "rocm_aiter_fp8_moe",
         "rocm_aiter_unquantized_moe",
         "torchao_fp8_activation_quantization",
