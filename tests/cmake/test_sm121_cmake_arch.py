@@ -4028,6 +4028,43 @@ def test_gb10_local_cached_build_rejects_duplicate_release_output_paths(
     assert not cache_dir.exists()
 
 
+def test_gb10_local_cached_build_rejects_release_output_directory(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    metadata_dir = manifest_dir / "buildx-runtime-image-metadata.json"
+    metadata_dir.mkdir(parents=True)
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_RUNTIME_IMAGE_METADATA_JSON": str(metadata_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10 generated release output path GB10_RUNTIME_IMAGE_METADATA_JSON" in (
+        proc.stdout
+    )
+    assert "must be a file path" in proc.stdout
+    assert "existing target is a directory" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert metadata_dir.is_dir()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_pushed_non_ghcr_image_before_manifest(
     tmp_path,
 ):

@@ -135,6 +135,12 @@ for name, raw_path in output_paths.items():
             f"GB10_LOCAL_RELEASE_MANIFEST_DIR ({manifest_dir}), got {output_path}."
         )
         continue
+    if output_path.is_dir():
+        errors.append(
+            f"GB10 generated release output path {name} must be a file path; "
+            f"existing target is a directory: {output_path}."
+        )
+        continue
     resolved_output_paths.setdefault(output_path, []).append(name)
 
 for output_path, names in sorted(
