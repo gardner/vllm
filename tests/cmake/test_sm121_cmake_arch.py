@@ -3599,6 +3599,70 @@ def test_gb10_local_cached_build_rejects_invalid_registry_cache_flag_before_mani
     assert not cache_dir.exists()
 
 
+def test_gb10_local_cached_build_rejects_invalid_native_arch_flag_before_manifest(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_NATIVE_CUDA_ARCHS_ONLY": "maybe",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "Unsupported GB10_NATIVE_CUDA_ARCHS_ONLY=maybe" in proc.stdout
+    assert "Use 1, 0, true, false, yes, no, on, or off" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+    assert not cache_dir.exists()
+
+
+def test_gb10_local_cached_build_rejects_disabled_native_arch_flag_before_manifest(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_NATIVE_CUDA_ARCHS_ONLY": "false",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10_NATIVE_CUDA_ARCHS_ONLY must be enabled" in proc.stdout
+    assert "got false" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_accepts_boolean_flag_aliases(tmp_path):
     script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
     manifest_dir = tmp_path / "manifest"
