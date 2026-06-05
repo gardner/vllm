@@ -541,9 +541,10 @@ def _gb10_support_matrix() -> dict[str, object]:
                 "release_contract": (
                     "Speculative decoding changes scheduler, attention "
                     "metadata, sampler/rejection, and drafter runtime paths "
-                    "across MTP, EAGLE, draft-model, and ngram methods; "
-                    "reject it on GB10/SM12x until native SM12x correctness "
-                    "and runtime evidence exists."
+                    "across direct draft runner selection, MTP, EAGLE, "
+                    "draft-model, and ngram methods; reject it on GB10/SM12x "
+                    "until native SM12x correctness and runtime evidence "
+                    "exists."
                 ),
             },
             "lora_runtime": {

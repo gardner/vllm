@@ -276,9 +276,10 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     ),
     "speculative_decoding_runtime": (
         "Speculative decoding changes scheduling, attention metadata, "
-        "sampling/rejection, and drafter runtime paths across MTP, EAGLE, "
-        "draft-model, and ngram methods; reject it on GB10/SM12x until native "
-        "SM12x correctness and runtime evidence exists."
+        "sampling/rejection, and drafter runtime paths across direct draft "
+        "runner selection, MTP, EAGLE, draft-model, and ngram methods; reject "
+        "it on GB10/SM12x until native SM12x correctness and runtime evidence "
+        "exists."
     ),
     "lora_runtime": (
         "LoRA runtime uses CUDA Punica and Triton LoRA adapter kernels, "

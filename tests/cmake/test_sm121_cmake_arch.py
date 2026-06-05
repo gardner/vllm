@@ -8786,6 +8786,7 @@ def test_gb10_speculative_decoding_runtime_is_reported():
 
     assert "_GB10_SPECULATIVE_DECODING_MESSAGE" in vllm_config
     assert "_is_gb10_sm12x_cuda_platform" in vllm_config
+    assert 'self.model_config.runner_type == "draft"' in vllm_config
     assert "speculative decoding is not supported on GB10/SM12x" in vllm_config
     assert "MTP/EAGLE/draft/ngram speculative runtime paths" in vllm_config
     assert "native first-path NVFP4 release" in vllm_config

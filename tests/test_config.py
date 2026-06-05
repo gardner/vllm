@@ -116,6 +116,36 @@ def test_vllm_config_allows_speculative_decoding_off_gb10(monkeypatch):
     assert config.speculative_config is speculative_config
 
 
+def test_gb10_vllm_config_rejects_draft_runner_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("Qwen/Qwen2.5-1.5B-Instruct", runner="draft")
+
+    with pytest.raises(ValueError, match="speculative decoding.*GB10/SM12x"):
+        VllmConfig(model_config=model_config)
+
+
+def test_vllm_config_allows_draft_runner_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("Qwen/Qwen2.5-1.5B-Instruct", runner="draft")
+
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert config.model_config.runner_type == "draft"
+
+
 def test_gb10_vllm_config_rejects_lora_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

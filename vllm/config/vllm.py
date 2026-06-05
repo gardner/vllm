@@ -1073,6 +1073,13 @@ class VllmConfig:
         ):
             raise ValueError(_GB10_MAMBA_ALIGN_CACHE_RUNTIME_MESSAGE)
 
+        if (
+            self.model_config is not None
+            and self.model_config.runner_type == "draft"
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_SPECULATIVE_DECODING_MESSAGE)
+
         self.try_verify_and_update_config()
 
         if self.speculative_config is not None and _is_gb10_sm12x_cuda_platform():
