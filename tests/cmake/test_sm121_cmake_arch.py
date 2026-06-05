@@ -76,6 +76,9 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
+    "mm_encoder_public_flashattention_backend": "not_supported",
+    "mm_encoder_triton_attention_fallback": "not_supported",
+    "mm_encoder_torch_sdpa_attention_fallback": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -2404,6 +2407,15 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["mm_encoder_fp8_attention"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["mm_encoder_public_flashattention_backend"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["mm_encoder_triton_attention_fallback"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["mm_encoder_torch_sdpa_attention_fallback"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["public_fp8_quantization"]["status"] == (
         "not_supported"
     )
@@ -8597,6 +8609,20 @@ def test_gb10_mm_encoder_fp8_attention_is_reported():
     assert "mm_encoder_attn_dtype unset" in mm_encoder_attention
 
 
+def test_gb10_mm_encoder_attention_fallbacks_are_reported():
+    cuda_platform = (REPO_ROOT / "vllm" / "platforms" / "cuda.py").read_text()
+
+    assert "_gb10_vit_attn_backend_unsupported_reason" in cuda_platform
+    assert "MM encoder attention backend" in cuda_platform
+    assert "is not supported" in cuda_platform
+    assert "on GB10/SM12x" in cuda_platform
+    assert "public FlashAttention" in cuda_platform
+    assert "Triton" in cuda_platform
+    assert "Torch SDPA" in cuda_platform
+    assert "requires FlashInfer on GB10/SM12x" in cuda_platform
+    assert "not native GB10 MM encoder attention evidence" in cuda_platform
+
+
 def test_gb10_compressed_tensors_qutlass_nvfp4_transform_rejects_sm12x(
     monkeypatch,
 ):
@@ -10410,6 +10436,29 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "MM encoder FP8 attention lacks native GB10 evidence"
                     ),
                 },
+                "mm_encoder_public_flashattention_backend": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "public FlashAttention MM encoder attention lacks "
+                        "native GB10 evidence"
+                    ),
+                },
+                "mm_encoder_triton_attention_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Triton MM encoder attention lacks native GB10 evidence"
+                    ),
+                },
+                "mm_encoder_torch_sdpa_attention_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Torch SDPA MM encoder attention lacks native GB10 "
+                        "evidence"
+                    ),
+                },
                 "trtllm_gen_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11145,6 +11194,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
                 "mm_encoder_fp8_attention": {"status": "not_supported"},
+                "mm_encoder_public_flashattention_backend": {
+                    "status": "not_supported"
+                },
+                "mm_encoder_triton_attention_fallback": {
+                    "status": "not_supported"
+                },
+                "mm_encoder_torch_sdpa_attention_fallback": {
+                    "status": "not_supported"
+                },
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
@@ -11374,6 +11432,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "mm_encoder_fp8_attention",
+        "mm_encoder_public_flashattention_backend",
+        "mm_encoder_torch_sdpa_attention_fallback",
+        "mm_encoder_triton_attention_fallback",
         "modelopt_fp8_quantization",
         "modelopt_mixed_quantization",
         "modelopt_mxfp8_quantization",

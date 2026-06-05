@@ -448,6 +448,33 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness, artifact, and runtime evidence exist."
                 ),
             },
+            "mm_encoder_public_flashattention_backend": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Public FlashAttention MM encoder attention is not "
+                    "validated on GB10/SM12x and must reject before dispatch "
+                    "until native SM12x correctness, artifact, and runtime "
+                    "evidence exists."
+                ),
+            },
+            "mm_encoder_triton_attention_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Triton MM encoder attention fallback can prove "
+                    "reachability, but it cannot satisfy native GB10 MM "
+                    "encoder attention release evidence until native SM12x "
+                    "correctness, artifact, and runtime evidence exist."
+                ),
+            },
+            "mm_encoder_torch_sdpa_attention_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Torch SDPA MM encoder attention fallback can prove "
+                    "reachability, but it cannot satisfy native GB10 MM "
+                    "encoder attention release evidence until native SM12x "
+                    "correctness, artifact, and runtime evidence exist."
+                ),
+            },
             "trtllm_gen_moe": {
                 "status": "not_supported",
                 "release_contract": (

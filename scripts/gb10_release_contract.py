@@ -50,6 +50,9 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
+    "mm_encoder_public_flashattention_backend": "not_supported",
+    "mm_encoder_triton_attention_fallback": "not_supported",
+    "mm_encoder_torch_sdpa_attention_fallback": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -201,6 +204,23 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "today, but it is not native GB10 MM encoder attention correctness, "
         "artifact, or runtime evidence; keep mm_encoder_attn_dtype unset "
         "until native SM12x evidence exists."
+    ),
+    "mm_encoder_public_flashattention_backend": (
+        "Public FlashAttention MM encoder attention is not validated for "
+        "GB10/SM12x; use FlashInfer MM encoder attention after native SM12x "
+        "correctness, artifact, and runtime evidence exists."
+    ),
+    "mm_encoder_triton_attention_fallback": (
+        "Triton MM encoder attention fallback can prove reachability, but it "
+        "is not native GB10 MM encoder attention correctness, artifact, or "
+        "runtime evidence; use FlashInfer MM encoder attention after native "
+        "SM12x evidence exists."
+    ),
+    "mm_encoder_torch_sdpa_attention_fallback": (
+        "Torch SDPA MM encoder attention fallback can prove reachability, but "
+        "it is not native GB10 MM encoder attention correctness, artifact, or "
+        "runtime evidence; use FlashInfer MM encoder attention after native "
+        "SM12x evidence exists."
     ),
     "trtllm_gen_moe": (
         "TRTLLM Gen MoE rejects SM121 today and must not satisfy GB10 MoE "

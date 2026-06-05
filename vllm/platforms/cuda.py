@@ -422,6 +422,39 @@ class CudaPlatformBase(Platform):
             ]
 
     @classmethod
+    def _is_sm12x_device(cls) -> bool:
+        device_capability = cls.get_device_capability()
+        return device_capability is not None and device_capability.major == 12
+
+    @classmethod
+    def _gb10_vit_attn_backend_unsupported_reason(
+        cls,
+        backend: AttentionBackendEnum,
+    ) -> str | None:
+        if not cls._is_sm12x_device():
+            return None
+        if backend == AttentionBackendEnum.FLASHINFER:
+            return None
+
+        if backend == AttentionBackendEnum.FLASH_ATTN:
+            backend_name = "public FlashAttention"
+        elif backend == AttentionBackendEnum.TRITON_ATTN:
+            backend_name = "Triton"
+        elif backend == AttentionBackendEnum.TORCH_SDPA:
+            backend_name = "Torch SDPA"
+        else:
+            backend_name = backend.name
+
+        return (
+            f"MM encoder attention backend {backend_name} is not supported "
+            "on GB10/SM12x. It can prove reachability for ViT attention, but "
+            "it is not native GB10 MM encoder attention correctness, artifact, "
+            "and runtime evidence. Use the FlashInfer MM encoder attention "
+            "backend after native SM12x evidence exists, or keep the "
+            "multimodal encoder attention backend unset."
+        )
+
+    @classmethod
     def get_vit_attn_backend(
         cls,
         head_size: int,
@@ -429,6 +462,8 @@ class CudaPlatformBase(Platform):
         backend: AttentionBackendEnum | None = None,
     ) -> AttentionBackendEnum:
         if backend is not None:
+            if reason := cls._gb10_vit_attn_backend_unsupported_reason(backend):
+                raise ValueError(reason)
             assert backend in cls.get_supported_vit_attn_backends(), (
                 f"Backend {backend} is not supported for vit attention. "
                 f"Supported backends are: {cls.get_supported_vit_attn_backends()}"
@@ -437,8 +472,26 @@ class CudaPlatformBase(Platform):
             return backend
 
         cc = cls.get_device_capability()
-        for vit_attn_backend in cls.get_supported_vit_attn_backends():
+        supported_vit_backends = cls.get_supported_vit_attn_backends()
+        if (
+            cls._is_sm12x_device()
+            and AttentionBackendEnum.FLASHINFER not in supported_vit_backends
+        ):
+            raise ValueError(
+                "MM encoder attention requires FlashInfer on GB10/SM12x. Triton, "
+                "Torch SDPA, and public FlashAttention ViT attention fallbacks "
+                "are not native GB10 MM encoder attention evidence."
+            )
+
+        for vit_attn_backend in supported_vit_backends:
             if vit_attn_backend == AttentionBackendEnum.TORCH_SDPA:
+                if cls._is_sm12x_device():
+                    raise ValueError(
+                        "MM encoder attention requires FlashInfer on GB10/SM12x. "
+                        "Triton, Torch SDPA, and public FlashAttention ViT "
+                        "attention fallbacks are not native GB10 MM encoder "
+                        "attention evidence."
+                    )
                 return vit_attn_backend
             try:
                 backend_class = vit_attn_backend.get_class()
@@ -451,6 +504,10 @@ class CudaPlatformBase(Platform):
                         and backend_class.supports_compute_capability(cc)
                     )
                 if is_backend_supported:
+                    if reason := cls._gb10_vit_attn_backend_unsupported_reason(
+                        vit_attn_backend
+                    ):
+                        raise ValueError(reason)
                     logger.info_once(
                         f"Using backend {vit_attn_backend} for vit attention",
                     )
@@ -458,6 +515,12 @@ class CudaPlatformBase(Platform):
             except ImportError:
                 pass
 
+        if cls._is_sm12x_device():
+            raise ValueError(
+                "MM encoder attention requires FlashInfer on GB10/SM12x. Triton, "
+                "Torch SDPA, and public FlashAttention ViT attention fallbacks "
+                "are not native GB10 MM encoder attention evidence."
+            )
         return AttentionBackendEnum.TORCH_SDPA
 
     @classmethod
