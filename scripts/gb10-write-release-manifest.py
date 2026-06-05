@@ -547,6 +547,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "pooling_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Pooling runtime changes model runner outputs, pooling "
+                    "heads, embedding, classification, reward, and scoring "
+                    "APIs outside the validated GB10 first release serving "
+                    "path. It must reject on GB10/SM12x until native SM12x "
+                    "pooling correctness and runtime evidence exists."
+                ),
+            },
             "lora_runtime": {
                 "status": "not_supported",
                 "release_contract": (

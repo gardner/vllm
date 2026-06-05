@@ -73,6 +73,14 @@ _GB10_SPECULATIVE_DECODING_MESSAGE = (
     "the native first-path NVFP4 release. Disable speculative decoding for "
     "GB10, or add SM12x correctness and runtime evidence before enabling it."
 )
+_GB10_POOLING_RUNTIME_MESSAGE = (
+    "pooling runtime is not supported on GB10/SM12x in this fork: "
+    "--runner pooling and auto-resolved pooling models use pooling heads, "
+    "embedding, classification, reward, and scoring outputs outside the "
+    "validated native first-path NVFP4 serving release. Use generation "
+    "models on GB10 until native SM12x pooling correctness and runtime "
+    "evidence exists."
+)
 _GB10_LORA_RUNTIME_MESSAGE = (
     "LoRA runtime is not supported on GB10/SM12x in this fork: CUDA Punica "
     "and Triton LoRA adapter runtime paths are not validated for the native "
@@ -1079,6 +1087,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_SPECULATIVE_DECODING_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.runner_type == "pooling"
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_POOLING_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 
