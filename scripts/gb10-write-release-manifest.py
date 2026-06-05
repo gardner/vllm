@@ -485,6 +485,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "compressed_tensors_w8a8_mxfp8_moe_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W8A8 MXFP8 MoE loading can reach "
+                    "generic MXFP8 MoE backend selection today and must reject "
+                    "on GB10/SM12x until native GB10 W8A8 MXFP8 MoE "
+                    "correctness evidence exists."
+                ),
+            },
             "quark_nvfp4_checkpoint_loading": {
                 "status": "not_supported",
                 "release_contract": (

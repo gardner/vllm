@@ -59,6 +59,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
+    "compressed_tensors_w8a8_mxfp8_moe_loading": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
@@ -185,6 +186,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CompressedTensors W8A8 MXFP8 dense loading can reach MXFP8 dense "
         "kernel selection today; reject it until native GB10 W8A8 MXFP8 dense "
         "correctness evidence exists."
+    ),
+    "compressed_tensors_w8a8_mxfp8_moe_loading": (
+        "CompressedTensors W8A8 MXFP8 MoE loading can reach generic MXFP8 "
+        "MoE backend selection today; reject it until native GB10 W8A8 "
+        "MXFP8 MoE correctness evidence exists."
     ),
     "quark_nvfp4_checkpoint_loading": (
         "Quark NVFP4 checkpoint loading is not validated on GB10/SM12x; reject "

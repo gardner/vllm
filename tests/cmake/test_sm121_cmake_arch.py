@@ -85,6 +85,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
+    "compressed_tensors_w8a8_mxfp8_moe_loading": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "quark_ocp_mx_checkpoint_loading": "not_supported",
     "quark_w4a8_mxfp4_fp8_checkpoint_loading": "not_supported",
@@ -2373,6 +2374,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["compressed_tensors_w8a8_mxfp8_dense_loading"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["compressed_tensors_w8a8_mxfp8_moe_loading"][
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
@@ -5140,6 +5144,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "CompressedTensors W8A8 FP8 MoE loading" in compressed_tensors_moe
     assert "generic FP8 W8A8 MoE backend selection" in compressed_tensors_moe
     assert "not supported on GB10/SM12x" in compressed_tensors_moe
+    assert "_gb10_w8a8_mxfp8_moe_loading_unsupported_reason" in (
+        compressed_tensors_moe
+    )
+    assert "CompressedTensors W8A8 MXFP8 MoE loading" in compressed_tensors_moe
+    assert "generic MXFP8 MoE backend selection" in compressed_tensors_moe
+    assert "not supported on GB10/SM12x" in compressed_tensors_moe
     assert "_gb10_w8a8_int_moe_loading_unsupported_reason" in (
         compressed_tensors_moe
     )
@@ -5972,6 +5982,78 @@ def test_gb10_compressed_tensors_w8a8_fp8_moe_rejects_sm12x(monkeypatch):
     )
     assert (
         compressed_tensors_moe._gb10_w8a8_fp8_moe_loading_unsupported_reason()
+        is None
+    )
+
+
+def test_gb10_compressed_tensors_w8a8_mxfp8_moe_rejects_sm12x(monkeypatch):
+    import torch
+    from compressed_tensors import CompressionFormat
+    from compressed_tensors.quantization import (
+        QuantizationArgs,
+        QuantizationStrategy,
+        QuantizationType,
+    )
+
+    from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa: E501
+        compressed_tensors_moe,
+    )
+
+    class FakeCompressedTensorsConfig:
+        def _add_fused_moe_to_target_scheme_map(self):
+            return None
+
+        @staticmethod
+        def _is_mxfp4(weight_quant):
+            return False
+
+        @staticmethod
+        def _is_mxfp8(weight_quant):
+            return True
+
+        def get_scheme_dict(self, layer, name):
+            return {
+                "weights": QuantizationArgs(
+                    num_bits=8,
+                    type=QuantizationType.FLOAT,
+                    strategy=QuantizationStrategy.GROUP,
+                    symmetric=True,
+                    dynamic=False,
+                    group_size=32,
+                    scale_dtype=torch.uint8,
+                ),
+                "input_activations": None,
+                "format": CompressionFormat.float_quantized.value,
+            }
+
+    monkeypatch.setattr(
+        compressed_tensors_moe,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+    layer = SimpleNamespace(moe_config=SimpleNamespace())
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        compressed_tensors_moe.CompressedTensorsMoEMethod.get_moe_method(
+            FakeCompressedTensorsConfig(),
+            layer,
+            "model.layers.0.mlp.experts",
+        )
+
+    reason = str(exc_info.value)
+    assert "CompressedTensors W8A8 MXFP8 MoE loading" in reason
+    assert "generic MXFP8 MoE backend selection" in reason
+    assert "native GB10 W8A8 MXFP8 MoE correctness evidence" in reason
+
+    monkeypatch.setattr(
+        compressed_tensors_moe,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert (
+        compressed_tensors_moe._gb10_w8a8_mxfp8_moe_loading_unsupported_reason()
         is None
     )
 
@@ -7997,6 +8079,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "MXFP8 dense kernel selection without native GB10 evidence"
                     ),
                 },
+                "compressed_tensors_w8a8_mxfp8_moe_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors W8A8 MXFP8 MoE loading can select "
+                        "generic MXFP8 MoE backend selection without native "
+                        "GB10 evidence"
+                    ),
+                },
                 "quark_nvfp4_checkpoint_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -8303,6 +8394,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "compressed_tensors_w8a8_mxfp8_dense_loading": {
                     "status": "not_supported"
                 },
+                "compressed_tensors_w8a8_mxfp8_moe_loading": {
+                    "status": "not_supported"
+                },
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
                 "quark_ocp_mx_checkpoint_loading": {"status": "not_supported"},
                 "quark_w4a8_mxfp4_fp8_checkpoint_loading": {
@@ -8420,6 +8514,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w8a8_int_dense_loading",
         "compressed_tensors_w8a8_int_moe_loading",
         "compressed_tensors_w8a8_mxfp8_dense_loading",
+        "compressed_tensors_w8a8_mxfp8_moe_loading",
         "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
         "flashinfer_trtllm_mxfp4_moe",
