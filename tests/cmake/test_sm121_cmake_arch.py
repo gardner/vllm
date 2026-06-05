@@ -903,6 +903,23 @@ def test_gb10_release_settings_resolver_supports_hosted_preflight():
     ]
 
 
+def test_gb10_release_settings_resolver_owns_default_flashinfer_wheel_urls():
+    resolver = _load_gb10_release_settings_resolver_module()
+
+    settings = resolver.resolve_release_settings(
+        _gb10_release_resolver_env(
+            GB10_DEFAULT_PREBUILT_WHEEL_URLS="",
+            GB10_INPUT_PREBUILT_WHEEL_URLS="",
+        )
+    )
+
+    assert settings["GB10_PREBUILT_WHEEL_URLS"].split() == [
+        f"https://github.com/gardner/flashinfer/releases/download/"
+        f"{FLASHINFER_RELEASE_TAG}/{wheel}"
+        for wheel in FLASHINFER_RELEASE_WHEELS
+    ]
+
+
 def test_gb10_release_settings_resolver_push_tag_uses_release_defaults():
     resolver = _load_gb10_release_settings_resolver_module()
     release_tag = "gb10-vllm-v0.22.1rc0-abcdef123"
@@ -1003,6 +1020,21 @@ def test_gb10_release_settings_resolver_writes_github_env_file(tmp_path):
     assert f"GB10_RUNNER_LABELS={json.dumps(['ubuntu-22.04-arm'])}" in lines
     assert any(line.startswith("GB10_PREBUILT_WHEEL_URLS=") for line in lines)
     assert not any("<<" in line for line in lines)
+
+
+def test_gb10_release_settings_resolver_writes_shell_safe_exports():
+    resolver = _load_gb10_release_settings_resolver_module()
+    settings = resolver.resolve_release_settings(_gb10_release_resolver_env())
+
+    lines = resolver.shell_env_lines(settings)
+
+    assert lines[0] == "export GB10_RELEASE_TAG=''"
+    assert any(line.startswith("export GB10_PREBUILT_WHEEL_URLS=") for line in lines)
+    assert any(
+        line == "export GB10_RUNNER_LABELS='[\"ubuntu-22.04-arm\"]'"
+        for line in lines
+    )
+    assert not any("\n" in line for line in lines)
 
 
 def test_gb10_release_workflow_resolves_settings_with_tested_script():
@@ -3151,6 +3183,7 @@ def test_gb10_local_cached_build_script_validates_manifest_before_buildx():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 
     assert 'GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"' in script
+    assert "scripts/gb10-resolve-release-settings.py" in script
     assert "GB10_LOCAL_RELEASE_MANIFEST_DIR" in script
     assert "scripts/gb10-write-release-manifest.py" in script
     assert "--gb10-validate-release-inputs" in script
@@ -3162,6 +3195,10 @@ def test_gb10_local_cached_build_script_validates_manifest_before_buildx():
     assert script.index("--gb10-validate-release-inputs") < script.index(
         "docker buildx inspect \"$GB10_BUILDX_BUILDER\" --bootstrap"
     )
+    assert script.index("scripts/gb10-resolve-release-settings.py") < script.index(
+        "scripts/gb10-write-release-manifest.py"
+    )
+    assert FLASHINFER_RELEASE_TAG not in script
 
 
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
@@ -3194,6 +3231,55 @@ def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker
     assert "GB10_PREFLIGHT_ONLY=true" in proc.stdout
     assert (manifest_dir / "gb10-release-manifest.json").is_file()
     assert not cache_dir.exists()
+
+
+def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    github_sha = "abcdef1234567890abcdef1234567890abcdef12"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": github_sha,
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    assert "docker_target=vllm-openai" in proc.stdout
+    assert "cache_key=runtime" in proc.stdout
+    assert "GB10_PREFLIGHT_ONLY=false" in proc.stdout
+    assert "GB10_PUSH_IMAGE=false" in proc.stdout
+    assert "GB10_IMAGE_NAME=vllm-gb10" in proc.stdout
+    assert "GB10_IMAGE_TAG=gb10-abcdef123456" in proc.stdout
+    assert "GB10_VLLM_VERSION=0.22.1rc0+gb10.abcdef123456" in proc.stdout
+    assert not cache_dir.exists()
+
+    manifest_path = manifest_dir / "gb10-release-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["git"]["commit"] == github_sha
+    assert manifest["image"] == {
+        "name": "vllm-gb10",
+        "tag": "gb10-abcdef123456",
+        "push": False,
+    }
+    assert manifest["release"]["preflight_only"] is False
+    assert manifest["vllm"]["version"] == "0.22.1rc0+gb10.abcdef123456"
 
 
 def test_gb10_local_cached_build_script_preserves_failed_cache_exports():

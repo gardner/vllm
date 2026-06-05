@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -16,6 +17,21 @@ DEFAULT_IMAGE_NAME = "ghcr.io/gardner/vllm-gb10"
 DEFAULT_FLASH_ATTN_REPO = "https://github.com/gardner/vllm-flash-attention.git"
 DEFAULT_FLASH_ATTN_REF = "de3849e75d07edd1c00aec02c92ec852ba757adc"
 DEFAULT_VLLM_VERSION_BASE = "0.22.1rc0"
+DEFAULT_FLASHINFER_RELEASE_TAG = "gb10-flashinfer-v0.6.12-1c80efb3"
+DEFAULT_PREBUILT_WHEEL_URLS = " ".join(
+    (
+        "https://github.com/gardner/flashinfer/releases/download/"
+        f"{DEFAULT_FLASHINFER_RELEASE_TAG}/"
+        "flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl",
+        "https://github.com/gardner/flashinfer/releases/download/"
+        f"{DEFAULT_FLASHINFER_RELEASE_TAG}/"
+        "flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl",
+        "https://github.com/gardner/flashinfer/releases/download/"
+        f"{DEFAULT_FLASHINFER_RELEASE_TAG}/"
+        "flashinfer_jit_cache-0.6.12+cu130gb10-"
+        "cp39-abi3-manylinux_2_28_aarch64.whl",
+    )
+)
 DEFAULT_SELF_HOSTED_RUNNER_LABELS = (
     '["self-hosted","linux","aarch64","cuda13","dgx-spark","sm121"]'
 )
@@ -40,6 +56,11 @@ RESOLVED_ENV_KEYS = (
 
 def _env(env: Mapping[str, str], name: str, default: str = "") -> str:
     return env.get(name, default)
+
+
+def _env_nonempty(env: Mapping[str, str], name: str, default: str = "") -> str:
+    value = env.get(name)
+    return default if value is None or value == "" else value
 
 
 def _bool_string(value: str) -> str:
@@ -144,7 +165,11 @@ def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, 
     if event_name == "push":
         release_tag = _release_tag_from_ref(_env(env, "GITHUB_REF"))
         image_name = DEFAULT_IMAGE_NAME
-        prebuilt_wheel_urls = _env(env, "GB10_DEFAULT_PREBUILT_WHEEL_URLS")
+        prebuilt_wheel_urls = _env_nonempty(
+            env,
+            "GB10_DEFAULT_PREBUILT_WHEEL_URLS",
+            DEFAULT_PREBUILT_WHEEL_URLS,
+        )
         flash_attn_repo = DEFAULT_FLASH_ATTN_REPO
         flash_attn_ref = DEFAULT_FLASH_ATTN_REF
         push_image = "true"
@@ -158,14 +183,14 @@ def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, 
         nvcc_threads = _env(env, "GB10_NVCC_THREADS", "1")
     else:
         release_tag = _env(env, "GB10_INPUT_RELEASE_TAG")
-        image_name = _env(env, "GB10_INPUT_IMAGE_NAME", DEFAULT_IMAGE_NAME)
-        prebuilt_wheel_urls = _env(env, "GB10_INPUT_PREBUILT_WHEEL_URLS")
-        flash_attn_repo = _env(
+        image_name = _env_nonempty(env, "GB10_INPUT_IMAGE_NAME", DEFAULT_IMAGE_NAME)
+        prebuilt_wheel_urls = _env_nonempty(env, "GB10_INPUT_PREBUILT_WHEEL_URLS")
+        flash_attn_repo = _env_nonempty(
             env,
             "GB10_INPUT_FLASH_ATTN_REPO",
             DEFAULT_FLASH_ATTN_REPO,
         )
-        flash_attn_ref = _env(
+        flash_attn_ref = _env_nonempty(
             env,
             "GB10_INPUT_FLASH_ATTN_REF",
             DEFAULT_FLASH_ATTN_REF,
@@ -185,9 +210,16 @@ def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, 
         )
 
     if not prebuilt_wheel_urls:
-        prebuilt_wheel_urls = _env(env, "GB10_DEFAULT_PREBUILT_WHEEL_URLS")
+        prebuilt_wheel_urls = _env_nonempty(
+            env,
+            "GB10_DEFAULT_PREBUILT_WHEEL_URLS",
+            DEFAULT_PREBUILT_WHEEL_URLS,
+        )
 
-    image_tag = release_tag or f"gb10-{github_sha[:12]}"
+    image_tag_override = ""
+    if event_name != "push":
+        image_tag_override = _env_nonempty(env, "GB10_INPUT_IMAGE_TAG")
+    image_tag = image_tag_override or release_tag or f"gb10-{github_sha[:12]}"
     vllm_version = f"{_vllm_version_base(release_tag)}+gb10.{github_sha[:12]}"
 
     settings = {
@@ -244,6 +276,12 @@ def write_github_env(path: Path, settings: Mapping[str, str]) -> None:
         env_file.write("\n".join(lines) + "\n")
 
 
+def shell_env_lines(settings: Mapping[str, str]) -> list[str]:
+    """Return shell-safe exports for resolved settings."""
+
+    return [f"export {key}={shlex.quote(settings[key])}" for key in RESOLVED_ENV_KEYS]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -252,12 +290,22 @@ def main() -> int:
         default=Path(os.environ["GITHUB_ENV"]) if "GITHUB_ENV" in os.environ else None,
         help="GitHub Actions env file to append resolved settings to.",
     )
+    parser.add_argument(
+        "--gb10-output-shell",
+        action="store_true",
+        help="Print shell-safe export statements for resolved settings.",
+    )
     args = parser.parse_args()
 
     try:
         settings = resolve_release_settings()
+        if args.gb10_output_env is not None and args.gb10_output_shell:
+            raise ValueError("Use only one GB10 release settings output mode.")
         if args.gb10_output_env is not None:
             write_github_env(args.gb10_output_env, settings)
+        elif args.gb10_output_shell:
+            for line in shell_env_lines(settings):
+                print(line)
         else:
             for key in RESOLVED_ENV_KEYS:
                 print(f"{key}={settings[key]}")

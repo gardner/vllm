@@ -50,9 +50,7 @@ case "$target_arg" in
     runtime|image|vllm-openai)
         docker_target="vllm-openai"
         cache_key="runtime"
-        image_name="${GB10_IMAGE_NAME:-vllm-gb10}"
-        image_tag="${GB10_IMAGE_TAG:-local}"
-        image_tags=(--tag "${image_name}:${image_tag}")
+        image_tags=()
         registry_cache_refs=(
             "$GB10_WHEEL_CACHE_REF"
             "$GB10_RUNTIME_CACHE_REF"
@@ -64,11 +62,6 @@ case "$target_arg" in
         ;;
 esac
 
-GB10_DEFAULT_PREBUILT_WHEEL_URLS="${GB10_DEFAULT_PREBUILT_WHEEL_URLS:-https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_python-0.6.12+cu130gb10-py3-none-any.whl https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_cubin-0.6.12+cu130gb10-py3-none-any.whl https://github.com/gardner/flashinfer/releases/download/gb10-flashinfer-v0.6.12-1c80efb3/flashinfer_jit_cache-0.6.12+cu130gb10-cp39-abi3-manylinux_2_28_aarch64.whl}"
-GB10_PREBUILT_WHEEL_URLS="${GB10_PREBUILT_WHEEL_URLS:-$GB10_DEFAULT_PREBUILT_WHEEL_URLS}"
-GB10_FLASH_ATTN_REPO="${GB10_FLASH_ATTN_REPO:-https://github.com/gardner/vllm-flash-attention.git}"
-GB10_FLASH_ATTN_REF="${GB10_FLASH_ATTN_REF:-de3849e75d07edd1c00aec02c92ec852ba757adc}"
-GB10_VLLM_VERSION="${GB10_VLLM_VERSION:-0.22.1rc0+gb10.local}"
 GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"
 GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"
 GB10_NATIVE_CUDA_ARCHS_ONLY="${GB10_NATIVE_CUDA_ARCHS_ONLY:-1}"
@@ -76,10 +69,11 @@ GB10_DRY_RUN="${GB10_DRY_RUN:-0}"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
-GB10_IMAGE_NAME="${GB10_IMAGE_NAME:-vllm-gb10}"
-GB10_IMAGE_TAG="${GB10_IMAGE_TAG:-local}"
-GB10_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+git_branch="$(git symbolic-ref -q --short HEAD || true)"
+GITHUB_EVENT_NAME="${GITHUB_EVENT_NAME:-workflow_dispatch}"
+GITHUB_REF="${GITHUB_REF:-refs/heads/${git_branch:-local}}"
+GB10_SELF_HOSTED_RUNNER_LABELS="${GB10_SELF_HOSTED_RUNNER_LABELS:-[\"self-hosted\",\"linux\",\"aarch64\",\"cuda13\",\"dgx-spark\",\"sm121\"]}"
 
 output_mode="${GB10_OUTPUT:-load}"
 
@@ -100,23 +94,40 @@ case "$output_mode" in
 esac
 
 if [ "$docker_target" = "gb10-flashinfer-preflight" ]; then
-    GB10_PREFLIGHT_ONLY="${GB10_PREFLIGHT_ONLY:-true}"
+    gb10_preflight_only_default="true"
 else
-    GB10_PREFLIGHT_ONLY="${GB10_PREFLIGHT_ONLY:-false}"
+    gb10_preflight_only_default="false"
 fi
 if [ "$output_mode" = "push" ]; then
-    GB10_PUSH_IMAGE="${GB10_PUSH_IMAGE:-true}"
+    gb10_push_image_default="true"
 else
-    GB10_PUSH_IMAGE="${GB10_PUSH_IMAGE:-false}"
+    gb10_push_image_default="false"
 fi
 
-export GITHUB_SHA
-export GB10_FLASH_ATTN_REF GB10_FLASH_ATTN_REPO
-export GB10_IMAGE_NAME GB10_IMAGE_TAG GB10_PUSH_IMAGE
-export GB10_MAX_JOBS GB10_NATIVE_CUDA_ARCHS_ONLY GB10_NVCC_THREADS
-export GB10_PREFLIGHT_CACHE_REF GB10_PREFLIGHT_ONLY
-export GB10_PREBUILT_WHEEL_URLS GB10_RELEASE_TAG GB10_VLLM_VERSION
-export GB10_RUNTIME_CACHE_REF GB10_WHEEL_CACHE_REF
+export GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA
+export GB10_INPUT_FLASH_ATTN_REF="${GB10_FLASH_ATTN_REF:-}"
+export GB10_INPUT_FLASH_ATTN_REPO="${GB10_FLASH_ATTN_REPO:-}"
+export GB10_INPUT_IMAGE_NAME="${GB10_IMAGE_NAME:-vllm-gb10}"
+if [ -n "${GB10_IMAGE_TAG:-}" ]; then
+    export GB10_INPUT_IMAGE_TAG="$GB10_IMAGE_TAG"
+fi
+export GB10_INPUT_MAX_JOBS="$GB10_MAX_JOBS"
+export GB10_INPUT_NVCC_THREADS="$GB10_NVCC_THREADS"
+export GB10_INPUT_PREFLIGHT_ONLY="${GB10_PREFLIGHT_ONLY:-$gb10_preflight_only_default}"
+export GB10_INPUT_PREBUILT_WHEEL_URLS="${GB10_PREBUILT_WHEEL_URLS:-}"
+export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
+export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
+export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
+
+resolved_settings="$(python3 scripts/gb10-resolve-release-settings.py --gb10-output-shell)"
+eval "$resolved_settings"
+
+export GB10_NATIVE_CUDA_ARCHS_ONLY
+export GB10_PREFLIGHT_CACHE_REF GB10_RUNTIME_CACHE_REF GB10_WHEEL_CACHE_REF
+
+if [ "$docker_target" = "vllm-openai" ]; then
+    image_tags=(--tag "${GB10_IMAGE_NAME}:${GB10_IMAGE_TAG}")
+fi
 
 mkdir -p "$GB10_LOCAL_RELEASE_MANIFEST_DIR"
 scripts/gb10-write-release-manifest.py \
@@ -131,6 +142,9 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     echo "output_mode=$output_mode"
     echo "GB10_PREFLIGHT_ONLY=$GB10_PREFLIGHT_ONLY"
     echo "GB10_PUSH_IMAGE=$GB10_PUSH_IMAGE"
+    echo "GB10_IMAGE_NAME=$GB10_IMAGE_NAME"
+    echo "GB10_IMAGE_TAG=$GB10_IMAGE_TAG"
+    echo "GB10_VLLM_VERSION=$GB10_VLLM_VERSION"
     echo "GB10_MAX_JOBS=$GB10_MAX_JOBS"
     echo "GB10_NVCC_THREADS=$GB10_NVCC_THREADS"
     echo "GB10_NATIVE_CUDA_ARCHS_ONLY=$GB10_NATIVE_CUDA_ARCHS_ONLY"
