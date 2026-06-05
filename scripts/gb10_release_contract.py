@@ -57,6 +57,8 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "rocm_aiter_unquantized_moe": "not_supported",
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
+    "rocm_aiter_mxfp4_moe": "not_supported",
+    "gpt_oss_triton_mxfp4_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "fbgemm_nvfp4_dense": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
@@ -200,6 +202,16 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "MXFP4 MoE Marlin, batched Marlin, emulation, and CPU fallbacks can "
         "prove reachability, but they are not native GB10 MXFP4 Tensor Core "
         "evidence."
+    ),
+    "rocm_aiter_mxfp4_moe": (
+        "AITER MXFP4 MoE backends are ROCm-specific paths today; reject them "
+        "on GB10/SM12x until native GB10 CUDA MXFP4 MoE correctness evidence "
+        "exists."
+    ),
+    "gpt_oss_triton_mxfp4_moe": (
+        "GPT-OSS Triton MXFP4 MoE can select triton_kernels OAI MXFP4/SwiGLU "
+        "kernels today; reject it on GB10/SM12x until native GB10 GPT-OSS "
+        "MXFP4 MoE correctness evidence exists."
     ),
     "public_mxfp4_quantization": (
         "Public MXFP4 quantization can reach unquantized linear/attention "

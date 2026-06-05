@@ -83,6 +83,8 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "rocm_aiter_unquantized_moe": "not_supported",
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
+    "rocm_aiter_mxfp4_moe": "not_supported",
+    "gpt_oss_triton_mxfp4_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "fbgemm_nvfp4_dense": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
@@ -2416,6 +2418,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["rocm_aiter_fp8_moe"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["rocm_aiter_mxfp4_moe"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["gpt_oss_triton_mxfp4_moe"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["modelopt_w4a16_nvfp4_checkpoint_loading"][
@@ -5626,12 +5634,25 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "_gb10_mxfp4_moe_fallback_unsupported_reason" in mxfp4_moe_oracle
     assert "_gb10_mxfp4_moe_trtllm_unsupported_reason" in mxfp4_moe_oracle
     assert "_gb10_mxfp4_moe_humming_unsupported_reason" in mxfp4_moe_oracle
+    assert "_gb10_mxfp4_moe_aiter_unsupported_reason" in mxfp4_moe_oracle
+    assert (
+        "_gb10_mxfp4_moe_gpt_oss_triton_unsupported_reason"
+        in mxfp4_moe_oracle
+    )
     assert "_MXFP4_MOE_FALLBACK_BACKENDS" in mxfp4_moe_oracle
     assert "_MXFP4_MOE_TRTLLM_BACKENDS" in mxfp4_moe_oracle
     assert "_MXFP4_MOE_HUMMING_BACKENDS" in mxfp4_moe_oracle
+    assert "_MXFP4_MOE_AITER_BACKENDS" in mxfp4_moe_oracle
+    assert "_MXFP4_MOE_GPT_OSS_TRITON_BACKENDS" in mxfp4_moe_oracle
     assert "FlashInfer TRTLLM MXFP4 MoE backend" in mxfp4_moe_oracle
     assert "Humming MXFP4 MoE backend" in mxfp4_moe_oracle
+    assert "AITER MXFP4 MoE backend" in mxfp4_moe_oracle
+    assert "GPT-OSS Triton MXFP4 MoE backend" in mxfp4_moe_oracle
     assert "Humming Mixed Precision kernels" in mxfp4_moe_oracle
+    assert "ROCm-specific paths" in mxfp4_moe_oracle
+    assert "triton_kernels MXFP4/SwiGLU" in mxfp4_moe_oracle
+    assert "not native GB10 " in mxfp4_moe_oracle
+    assert "GPT-OSS MXFP4 MoE correctness evidence" in mxfp4_moe_oracle
     assert "CPU fallback" in mxfp4_moe_oracle
     assert "not supported on GB10/SM12x" in mxfp4_moe_oracle
     assert "_gb10_mxfp8_moe_fallback_unsupported_reason" in mxfp8_moe_oracle
@@ -10216,6 +10237,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "MXFP4 MoE fallback paths are not native GB10 evidence",
                 },
+                "gpt_oss_triton_mxfp4_moe": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "GPT-OSS Triton MXFP4 MoE is not native GB10 evidence"
+                    ),
+                },
                 "public_mxfp4_quantization": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10371,6 +10399,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "AITER FP8 MoE is not a native GB10 CUDA path",
+                },
+                "rocm_aiter_mxfp4_moe": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "AITER MXFP4 MoE is not a native GB10 CUDA path",
                 },
                 "rocm_aiter_unquantized_moe": {
                     "status": "not_supported",
@@ -10871,6 +10904,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
                 "rocm_aiter_fp8_moe": {"status": "not_supported"},
+                "rocm_aiter_mxfp4_moe": {"status": "not_supported"},
+                "gpt_oss_triton_mxfp4_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
                 "fbgemm_nvfp4_dense": {"status": "not_supported"},
                 "modelopt_w4a16_nvfp4_checkpoint_loading": {
@@ -11077,6 +11112,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "fp8_w8a16_moe_fallback",
         "fp_quant_fp4_quantization",
         "gguf_quantization",
+        "gpt_oss_triton_mxfp4_moe",
         "gptq_quantization",
         "humming_mxfp4_moe_backend",
         "humming_quantization",
@@ -11109,6 +11145,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "quark_w8a8_int8_checkpoint_loading",
         "quark_w8a8_int8_moe_loading",
         "rocm_aiter_fp8_moe",
+        "rocm_aiter_mxfp4_moe",
         "rocm_aiter_unquantized_moe",
         "torchao_fp8_activation_quantization",
         "trtllm_gen_attention",

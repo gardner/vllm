@@ -247,6 +247,68 @@ def test_gb10_env_forced_trtllm_mxfp4_moe_rejected(monkeypatch):
         select_mxfp4_moe_backend(_make_mxfp4_moe_config())
 
 
+@pytest.mark.parametrize(
+    "moe_backend",
+    ["aiter", "aiter_mxfp4_fp8", "aiter_mxfp4_mxfp4"],
+)
+def test_gb10_explicit_aiter_mxfp4_moe_rejected(monkeypatch, moe_backend):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {
+            Mxfp4MoeBackend.AITER_MXFP4_BF16,
+            Mxfp4MoeBackend.AITER_MXFP4_FP8,
+            Mxfp4MoeBackend.AITER_MXFP4_MXFP4,
+        },
+    )
+
+    with pytest.raises(ValueError, match="AITER MXFP4 MoE.*not supported"):
+        select_mxfp4_moe_backend(
+            _make_mxfp4_moe_config(moe_backend=moe_backend),
+        )
+
+
+def test_gb10_auto_mxfp4_moe_reports_aiter_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    _mock_backend_support(monkeypatch, {Mxfp4MoeBackend.AITER_MXFP4_BF16})
+
+    with pytest.raises(NotImplementedError, match="AITER MXFP4 MoE.*not supported"):
+        select_mxfp4_moe_backend(_make_mxfp4_moe_config())
+
+
+@pytest.mark.parametrize("moe_backend", ["triton", "triton_unfused"])
+def test_gb10_explicit_gpt_oss_triton_mxfp4_moe_rejected(
+    monkeypatch,
+    moe_backend,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    _mock_backend_support(
+        monkeypatch,
+        {Mxfp4MoeBackend.TRITON, Mxfp4MoeBackend.TRITON_UNFUSED},
+    )
+
+    with pytest.raises(
+        ValueError, match="GPT-OSS Triton MXFP4 MoE.*not supported on GB10/SM12x"
+    ):
+        select_mxfp4_moe_backend(
+            _make_mxfp4_moe_config(moe_backend=moe_backend),
+        )
+
+
+def test_gb10_auto_mxfp4_moe_reports_gpt_oss_triton_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_vllm_config(monkeypatch)
+    _mock_backend_support(monkeypatch, {Mxfp4MoeBackend.TRITON})
+
+    with pytest.raises(
+        NotImplementedError, match="GPT-OSS Triton MXFP4 MoE.*not supported"
+    ):
+        select_mxfp4_moe_backend(_make_mxfp4_moe_config())
+
+
 def test_gb10_auto_mxfp4_moe_skips_trtllm_for_flashinfer_cutlass(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_vllm_config(monkeypatch)
@@ -330,6 +392,30 @@ def test_gb10_explicit_deepseek_v4_trtllm_mxfp4_moe_rejected(monkeypatch):
     with pytest.raises(ValueError, match="TRTLLM.*not supported on GB10/SM12x"):
         select_deepseek_v4_mxfp4_moe_backend(
             _make_mxfp4_moe_config(moe_backend="flashinfer_trtllm_afp8"),
+        )
+
+
+def test_gb10_explicit_deepseek_v4_aiter_mxfp4_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(monkeypatch, {Mxfp4MoeBackend.AITER_MXFP4_BF16})
+
+    with pytest.raises(ValueError, match="AITER MXFP4 MoE.*not supported"):
+        select_deepseek_v4_mxfp4_moe_backend(
+            _make_mxfp4_moe_config(moe_backend="aiter"),
+        )
+
+
+def test_gb10_explicit_deepseek_v4_gpt_oss_triton_mxfp4_moe_rejected(
+    monkeypatch,
+):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_backend_support(monkeypatch, {Mxfp4MoeBackend.TRITON})
+
+    with pytest.raises(
+        ValueError, match="GPT-OSS Triton MXFP4 MoE.*not supported on GB10/SM12x"
+    ):
+        select_deepseek_v4_mxfp4_moe_backend(
+            _make_mxfp4_moe_config(moe_backend="triton"),
         )
 
 

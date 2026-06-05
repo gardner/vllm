@@ -403,6 +403,23 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "satisfy native GB10 CUDA MoE release evidence."
                 ),
             },
+            "rocm_aiter_mxfp4_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "AITER MXFP4 MoE backends are ROCm-specific paths today "
+                    "and must reject on GB10/SM12x until native GB10 CUDA "
+                    "MXFP4 MoE correctness evidence exists."
+                ),
+            },
+            "gpt_oss_triton_mxfp4_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "GPT-OSS Triton MXFP4 MoE can select triton_kernels OAI "
+                    "MXFP4/SwiGLU kernels today and must reject on "
+                    "GB10/SM12x until native GB10 GPT-OSS MXFP4 MoE "
+                    "correctness evidence exists."
+                ),
+            },
             "rocm_aiter_unquantized_moe": {
                 "status": "not_supported",
                 "release_contract": (

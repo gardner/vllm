@@ -124,6 +124,13 @@ _MXFP4_MOE_HUMMING_BACKENDS = {
     Mxfp4MoeBackend.HUMMING,
 }
 
+_MXFP4_MOE_AITER_BACKENDS = set(AITER_BACKENDS)
+
+_MXFP4_MOE_GPT_OSS_TRITON_BACKENDS = {
+    Mxfp4MoeBackend.TRITON,
+    Mxfp4MoeBackend.TRITON_UNFUSED,
+}
+
 
 def _is_sm12x_device() -> bool:
     return (
@@ -172,6 +179,33 @@ def _gb10_mxfp4_moe_humming_unsupported_reason(
     )
 
 
+def _gb10_mxfp4_moe_aiter_unsupported_reason(
+    backend: Mxfp4MoeBackend,
+) -> str:
+    return (
+        "AITER MXFP4 MoE backend "
+        f"'{backend.value}' is not supported on GB10/SM12x. "
+        "AITER MXFP4 MoE kernels are ROCm-specific paths today, not native "
+        "GB10 CUDA MXFP4 correctness evidence. Use a validated native SM12x "
+        "MXFP4 MoE backend after correctness evidence exists, or keep the "
+        "AITER MXFP4 MoE backend unselected."
+    )
+
+
+def _gb10_mxfp4_moe_gpt_oss_triton_unsupported_reason(
+    backend: Mxfp4MoeBackend,
+) -> str:
+    return (
+        "GPT-OSS Triton MXFP4 MoE backend "
+        f"'{backend.value}' is not supported on GB10/SM12x. "
+        "The OAI Triton MoE path depends on triton_kernels MXFP4/SwiGLU "
+        "kernels and can prove reachability, but it is not native GB10 "
+        "GPT-OSS MXFP4 MoE correctness evidence. Use a validated native "
+        "SM12x GPT-OSS MXFP4 MoE backend after correctness evidence exists, "
+        "or keep the Triton GPT-OSS MXFP4 MoE backend unselected."
+    )
+
+
 def _gb10_unsupported_backend_reason(
     backend: Mxfp4MoeBackend,
 ) -> str | None:
@@ -181,6 +215,10 @@ def _gb10_unsupported_backend_reason(
         return _gb10_mxfp4_moe_trtllm_unsupported_reason(backend)
     if backend in _MXFP4_MOE_HUMMING_BACKENDS:
         return _gb10_mxfp4_moe_humming_unsupported_reason(backend)
+    if backend in _MXFP4_MOE_AITER_BACKENDS:
+        return _gb10_mxfp4_moe_aiter_unsupported_reason(backend)
+    if backend in _MXFP4_MOE_GPT_OSS_TRITON_BACKENDS:
+        return _gb10_mxfp4_moe_gpt_oss_triton_unsupported_reason(backend)
     if backend in _MXFP4_MOE_FALLBACK_BACKENDS:
         return _gb10_mxfp4_moe_fallback_unsupported_reason(backend)
     return None
