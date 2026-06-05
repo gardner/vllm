@@ -19,6 +19,9 @@ from vllm.model_executor.layers.fused_moe.config import (
     int4_w4a16_moe_quant_config,
     int8_w8a16_moe_quant_config,
 )
+from vllm.model_executor.layers.fused_moe.oracle.int_wna16 import (
+    _is_sm12x_device,
+)
 from vllm.model_executor.layers.fused_moe.unquantized_fused_moe_method import (
     UnquantizedFusedMoEMethod,
 )
@@ -33,6 +36,18 @@ from vllm.model_executor.layers.quantization.utils.marlin_utils import (
 )
 from vllm.model_executor.utils import set_weight_attrs
 from vllm.platforms import current_platform
+
+
+def _gb10_moe_wna16_legacy_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "MoeWNA16 legacy fused-experts fallback is not supported on GB10/SM12x. "
+        "The generic CUDA/Triton WNA16 fused-experts path can prove "
+        "reachability, but it is not native GB10 WNA16/MXINT MoE evidence. "
+        "Use a native SM12x WNA16/MXINT MoE backend after correctness evidence "
+        "exists, or keep the path unselected."
+    )
 
 
 class MoeWNA16Config(QuantizationConfig):
@@ -197,6 +212,8 @@ class MoeWNA16Config(QuantizationConfig):
             else:
                 raise ValueError("moe_wna16 only support gptq and awq.")
         elif isinstance(layer, RoutedExperts):
+            if reason := _gb10_moe_wna16_legacy_unsupported_reason():
+                raise ValueError(reason)
             return MoeWNA16Method(self, layer.moe_config)
         return None
 
@@ -214,6 +231,8 @@ class MoeWNA16Method(FusedMoEMethodBase):
 
     def __init__(self, quant_config: MoeWNA16Config, moe: "FusedMoEConfig") -> None:
         super().__init__(moe)
+        if reason := _gb10_moe_wna16_legacy_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
 
     def create_weights(

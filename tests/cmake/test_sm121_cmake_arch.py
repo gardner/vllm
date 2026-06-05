@@ -79,6 +79,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "fp8_w8a16_moe_fallback": "not_supported",
     "wna16_moe_fallback": "not_supported",
     "compressed_tensors_wna16_moe_fallback": "not_supported",
+    "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -2345,6 +2346,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["compressed_tensors_wna16_moe_fallback"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["moe_wna16_legacy_fallback"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["mxfp8_dense_fallback"]["status"] == (
         "not_supported"
     )
@@ -4922,6 +4926,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
         "compressed_tensors_moe.py"
     ).read_text()
+    moe_wna16 = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "moe_wna16.py"
+    ).read_text()
     quark_w4a8_mxfp4_fp8 = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "quark" / "schemes" / "quark_w4a8_mxfp4_fp8.py"
@@ -5018,6 +5026,9 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_moe
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_moe
+    assert "_gb10_moe_wna16_legacy_unsupported_reason" in moe_wna16
+    assert "MoeWNA16 legacy fused-experts fallback" in moe_wna16
+    assert "not supported on GB10/SM12x" in moe_wna16
     assert "gb10_quark_w4a8_mxfp4_fp8_unsupported_reason" in (
         quark_w4a8_mxfp4_fp8
     )
@@ -5143,6 +5154,31 @@ def test_gb10_compressed_tensors_wna16_moe_rejects_legacy_sm12x(monkeypatch):
     assert "CompressedTensors WNA16 MoE legacy fused-experts fallback" in str(
         exc_info.value
     )
+
+
+def test_gb10_moe_wna16_rejects_legacy_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import moe_wna16
+
+    class FakeRoutedExperts:
+        def __init__(self):
+            self.moe_config = SimpleNamespace()
+
+    monkeypatch.setattr(moe_wna16, "_is_sm12x_device", lambda: True, raising=False)
+    monkeypatch.setattr(moe_wna16, "RoutedExperts", FakeRoutedExperts)
+
+    config = moe_wna16.MoeWNA16Config.from_config(
+        {
+            "quant_method": "gptq",
+            "bits": 4,
+            "group_size": 64,
+            "sym": True,
+        }
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        config.get_quant_method(FakeRoutedExperts(), "model.layers.0.mlp.experts")
+
+    assert "MoeWNA16 legacy fused-experts fallback" in str(exc_info.value)
 
 
 def test_gb10_nvfp4_moe_fallbacks_are_reported():
@@ -6907,6 +6943,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "fallback is not native GB10 evidence"
                     ),
                 },
+                "moe_wna16_legacy_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "MoeWNA16 legacy fused-experts fallback is not native "
+                        "GB10 evidence"
+                    ),
+                },
                 "rocm_aiter_fp8_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -7161,6 +7205,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "compressed_tensors_wna16_moe_fallback": {
                     "status": "not_supported"
                 },
+                "moe_wna16_legacy_fallback": {"status": "not_supported"},
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
@@ -7255,6 +7300,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
         "modelopt_w4a16_nvfp4_checkpoint_loading",
+        "moe_wna16_legacy_fallback",
         "mxfp4_moe_fallback",
         "mxfp8_dense_fallback",
         "mxfp8_moe_fallback",
