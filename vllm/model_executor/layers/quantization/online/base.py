@@ -45,6 +45,7 @@ from vllm.model_executor.layers.quantization.utils.quant_utils import (
     kInt8StaticChannelSym,
     kMxfp8Dynamic,
 )
+from vllm.platforms import current_platform
 
 logger = init_logger(__name__)
 
@@ -66,6 +67,48 @@ _ONLINE_MOE_METHODS: dict[QuantKey, type] = {
 }
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _spec_uses_mxfp8_weight(spec: QuantSpec | None) -> bool:
+    return spec is not None and spec.weight == kMxfp8Dynamic
+
+
+def _gb10_online_mxfp8_quantization_unsupported_reason(
+    args: QuantizationConfigArgs,
+) -> str | None:
+    if not _is_sm12x_device():
+        return None
+    if not (
+        _spec_uses_mxfp8_weight(args.linear) or _spec_uses_mxfp8_weight(args.moe)
+    ):
+        return None
+    return (
+        "Online MXFP8 quantization is not supported on GB10/SM12x. The "
+        "online dense path can select FlashInfer CUTLASS MXFP8 dense and the "
+        "online MoE path can reach generic MXFP8 MoE backend selection, but "
+        "this is not native GB10 online MXFP8 correctness evidence. Use a "
+        "native SM12x online MXFP8 dense/MoE path after correctness evidence "
+        "exists, or keep --quantization mxfp8 unselected."
+    )
+
+
 class OnlineQuantizationConfig(QuantizationConfig):
     """Model-level config for online quantization (quantize fp16/bf16 weights
     during model loading, without requiring a pre-quantized checkpoint)."""
@@ -81,6 +124,8 @@ class OnlineQuantizationConfig(QuantizationConfig):
                 "quantization_config.linear or quantization_config.moe "
                 "to be set."
             )
+        if reason := _gb10_online_mxfp8_quantization_unsupported_reason(args):
+            raise ValueError(reason)
         self.args = args
         self.ignored_layers: list[str] = args.ignore
 

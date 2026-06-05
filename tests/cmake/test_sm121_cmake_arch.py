@@ -84,6 +84,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
+    "online_mxfp8_quantization": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
     "compressed_tensors_w8a8_mxfp8_moe_loading": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
@@ -2371,6 +2372,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["mxfp8_moe_fallback"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["online_mxfp8_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["compressed_tensors_w8a8_mxfp8_dense_loading"][
@@ -5012,6 +5016,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "compressed_tensors" / "utils.py"
     ).read_text()
+    online_quant_base = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "online" / "base.py"
+    ).read_text()
     moe_wna16 = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "moe_wna16.py"
@@ -5078,6 +5086,13 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     )
     assert "MXFP8 dense kernel selection" in compressed_tensors_w8a8_mxfp8
     assert "not supported on GB10/SM12x" in compressed_tensors_w8a8_mxfp8
+    assert "_gb10_online_mxfp8_quantization_unsupported_reason" in (
+        online_quant_base
+    )
+    assert "Online MXFP8 quantization" in online_quant_base
+    assert "FlashInfer CUTLASS MXFP8 dense" in online_quant_base
+    assert "generic MXFP8 MoE backend selection" in online_quant_base
+    assert "not supported on GB10/SM12x" in online_quant_base
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -5534,6 +5549,49 @@ def test_gb10_compressed_tensors_w8a8_mxfp8_rejects_dense_sm12x(monkeypatch):
     assert (
         compressed_tensors_w8a8_mxfp8._gb10_w8a8_mxfp8_dense_unsupported_reason()
         is None
+    )
+
+
+def test_gb10_online_mxfp8_quantization_rejects_sm12x(monkeypatch):
+    from vllm.config.quantization import QuantizationConfigArgs, QuantSpec
+    from vllm.model_executor.layers.quantization.online import base as online_base
+    from vllm.model_executor.layers.quantization.utils.quant_utils import (
+        kFp8StaticTensorSym,
+        kMxfp8Dynamic,
+    )
+
+    monkeypatch.setattr(
+        online_base,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    args = QuantizationConfigArgs(
+        linear=QuantSpec(weight=kMxfp8Dynamic),
+        moe=QuantSpec(weight=kMxfp8Dynamic),
+    )
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        online_base.OnlineQuantizationConfig(args)
+
+    reason = str(exc_info.value)
+    assert "Online MXFP8 quantization" in reason
+    assert "FlashInfer CUTLASS MXFP8 dense" in reason
+    assert "generic MXFP8 MoE backend selection" in reason
+    assert "native GB10 online MXFP8 correctness evidence" in reason
+
+    monkeypatch.setattr(
+        online_base,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert online_base._gb10_online_mxfp8_quantization_unsupported_reason(args) is None
+    assert isinstance(
+        online_base.OnlineQuantizationConfig(
+            QuantizationConfigArgs(linear=QuantSpec(weight=kFp8StaticTensorSym))
+        ),
+        online_base.OnlineQuantizationConfig,
     )
 
 
@@ -8071,6 +8129,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "MXFP8 MoE fallback paths are not native GB10 evidence",
                 },
+                "online_mxfp8_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Online MXFP8 quantization can select FlashInfer "
+                        "CUTLASS MXFP8 dense and generic MXFP8 MoE paths "
+                        "without native GB10 evidence"
+                    ),
+                },
                 "compressed_tensors_w8a8_mxfp8_dense_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -8391,6 +8458,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "moe_wna16_legacy_fallback": {"status": "not_supported"},
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
+                "online_mxfp8_quantization": {"status": "not_supported"},
                 "compressed_tensors_w8a8_mxfp8_dense_loading": {
                     "status": "not_supported"
                 },
@@ -8529,6 +8597,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "mxfp4_moe_fallback",
         "mxfp8_dense_fallback",
         "mxfp8_moe_fallback",
+        "online_mxfp8_quantization",
         "public_flashattention_runtime",
         "quark_nvfp4_checkpoint_loading",
         "quark_ocp_mx_checkpoint_loading",

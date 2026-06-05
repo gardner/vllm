@@ -476,6 +476,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP8 MoE release evidence."
                 ),
             },
+            "online_mxfp8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Online MXFP8 quantization can reach FlashInfer CUTLASS "
+                    "MXFP8 dense and generic MXFP8 MoE backend selection today "
+                    "and must reject on GB10/SM12x until native GB10 online "
+                    "MXFP8 dense and MoE correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w8a8_mxfp8_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (
