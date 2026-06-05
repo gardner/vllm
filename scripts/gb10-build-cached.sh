@@ -115,6 +115,12 @@ output_paths = {
 }
 
 errors = []
+if manifest_dir.exists() and not manifest_dir.is_dir():
+    errors.append(
+        "GB10_LOCAL_RELEASE_MANIFEST_DIR must be a directory path; "
+        f"existing target is not a directory: {manifest_dir}."
+    )
+
 resolved_output_paths = {}
 for name, raw_path in output_paths.items():
     if not raw_path:
