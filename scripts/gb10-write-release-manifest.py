@@ -424,6 +424,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "GB10 public FP8 correctness evidence exists."
                 ),
             },
+            "deepseek_v4_fp8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "DeepSeek V4 FP8 quantization can reach FP8 block-"
+                    "quantized linear/attention layers and FP8, MXFP4, or "
+                    "ModelOpt NVFP4 MoE dispatch today and must reject on "
+                    "GB10/SM12x until native GB10 DeepSeek V4 correctness "
+                    "evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

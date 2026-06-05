@@ -70,6 +70,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
+    "deepseek_v4_fp8_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2342,6 +2343,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["public_fp8_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["deepseek_v4_fp8_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
@@ -5060,6 +5064,9 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fp8.py"
     ).read_text()
+    deepseek_v4_quant = (
+        REPO_ROOT / "vllm" / "models" / "deepseek_v4" / "quant_config.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5185,6 +5192,14 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "FP8 MoE backend selection" in fp8_quant
     assert "online FP8 quantization path" in fp8_quant
     assert "not supported on GB10/SM12x" in fp8_quant
+    assert "_gb10_deepseek_v4_fp8_quantization_unsupported_reason" in (
+        deepseek_v4_quant
+    )
+    assert "DeepSeek V4 FP8 quantization" in deepseek_v4_quant
+    assert "deepseek_v4_fp8 quantization method" in deepseek_v4_quant
+    assert "FP8 block-quantized linear/attention layers" in deepseek_v4_quant
+    assert "FP8, MXFP4, or ModelOpt NVFP4 MoE dispatch" in deepseek_v4_quant
+    assert "not supported on GB10/SM12x" in deepseek_v4_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -5946,6 +5961,69 @@ def test_gb10_public_fp8_quantization_rejects_sm12x(monkeypatch):
     )
     assert fp8._gb10_public_fp8_quantization_unsupported_reason() is None
     assert isinstance(fp8.Fp8Config(), fp8.Fp8Config)
+
+
+def test_gb10_deepseek_v4_fp8_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import fp8
+    from vllm.models.deepseek_v4 import quant_config
+
+    monkeypatch.setattr(
+        quant_config,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        quant_config.DeepseekV4FP8Config(
+            is_checkpoint_fp8_serialized=True,
+            activation_scheme="dynamic",
+            weight_block_size=[128, 128],
+        )
+
+    reason = str(exc_info.value)
+    assert "DeepSeek V4 FP8 quantization" in reason
+    assert "deepseek_v4_fp8 quantization method" in reason
+    assert "FP8 block-quantized linear/attention layers" in reason
+    assert "FP8, MXFP4, or ModelOpt NVFP4 MoE dispatch" in reason
+    assert "native GB10 DeepSeek V4 correctness evidence" in reason
+    assert "Public FP8 quantization" not in reason
+
+    assert quant_config.DeepseekV4FP8Config.override_quantization_method(
+        {"quant_method": "fp8"},
+        None,
+        type("DeepseekV4HfConfig", (), {"model_type": "deepseek_v4"})(),
+    ) == "deepseek_v4_fp8"
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        quant_config.DeepseekV4FP8Config.from_config(
+            {
+                "quant_method": "deepseek_v4_fp8",
+                "activation_scheme": "dynamic",
+                "weight_block_size": [128, 128],
+            }
+        )
+
+    monkeypatch.setattr(
+        quant_config,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        fp8,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert quant_config._gb10_deepseek_v4_fp8_quantization_unsupported_reason() is None
+    assert isinstance(
+        quant_config.DeepseekV4FP8Config(
+            is_checkpoint_fp8_serialized=True,
+            activation_scheme="dynamic",
+            weight_block_size=[128, 128],
+        ),
+        quant_config.DeepseekV4FP8Config,
+    )
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -8574,6 +8652,16 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "native GB10 evidence"
                     ),
                 },
+                "deepseek_v4_fp8_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "DeepSeek V4 FP8 quantization can select FP8 "
+                        "block-quantized linear/attention layers and FP8, "
+                        "MXFP4, or ModelOpt NVFP4 MoE dispatch without "
+                        "native GB10 DeepSeek V4 evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9024,6 +9112,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
                 "public_fp8_quantization": {"status": "not_supported"},
+                "deepseek_v4_fp8_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9171,6 +9260,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w8a8_mxfp8_moe_loading",
         "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
+        "deepseek_v4_fp8_quantization",
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",
         "flashinfer_trtllm_mxfp4_moe",

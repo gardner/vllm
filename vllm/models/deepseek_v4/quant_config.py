@@ -10,7 +10,7 @@ from vllm.config import get_current_vllm_config
 from vllm.model_executor.layers.fused_moe import FusedMoE
 from vllm.model_executor.layers.fused_moe.layer import UnquantizedFusedMoEMethod
 from vllm.model_executor.layers.quantization import QuantizationMethods
-from vllm.model_executor.layers.quantization.fp8 import Fp8Config
+from vllm.model_executor.layers.quantization.fp8 import Fp8Config, _is_sm12x_device
 from vllm.model_executor.layers.quantization.mxfp4 import Mxfp4MoEMethod
 from vllm.model_executor.layers.quantization.utils.quant_utils import (
     is_layer_skipped,
@@ -21,6 +21,20 @@ _DEEPSEEK_V4_EXPERT_DTYPES = ("fp4", "fp8")
 if TYPE_CHECKING:
     from vllm.model_executor.layers.quantization.modelopt import (
         ModelOptNvFp4Config,
+    )
+
+
+def _gb10_deepseek_v4_fp8_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "DeepSeek V4 FP8 quantization is not supported on GB10/SM12x. The "
+        "deepseek_v4_fp8 quantization method can reach "
+        "FP8 block-quantized linear/attention layers and "
+        "FP8, MXFP4, or ModelOpt NVFP4 MoE dispatch today, but this is not "
+        "native GB10 DeepSeek V4 correctness evidence. "
+        "Use a validated GB10 DeepSeek V4 path after native SM12x correctness "
+        "evidence exists, or keep deepseek_v4_fp8 unselected."
     )
 
 
@@ -45,6 +59,8 @@ class DeepseekV4FP8Config(Fp8Config):
     """
 
     def __init__(self, *args, **kwargs):
+        if reason := _gb10_deepseek_v4_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(*args, **kwargs)
         self._resolved_expert_dtype: str | None = None
         self._resolved_moe_quant_algo: str | None = None
