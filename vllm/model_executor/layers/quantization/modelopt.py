@@ -207,6 +207,23 @@ def _gb10_modelopt_mixed_quantization_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_modelopt_nvfp4_kv_cache_unsupported_reason(
+    kv_cache_quant_method: str | None,
+) -> str | None:
+    if not _is_sm12x_device() or kv_cache_quant_method is None:
+        return None
+    if kv_cache_quant_method.upper() != "NVFP4":
+        return None
+    return (
+        "ModelOpt NVFP4 KV-cache loading is not supported on GB10/SM12x. "
+        "ModelOpt checkpoints with kv_cache_quant_algo=NVFP4 resolve to "
+        "vLLM kv_cache_dtype='nvfp4', but the current GB10 release evidence "
+        "only validates FP8 E4M3 KV cache. Use FP8 E4M3 KV cache until "
+        "native SM12x NVFP4 KV-cache correctness evidence exists, or keep "
+        "this checkpoint KV-cache path unselected."
+    )
+
+
 class ModelOptKVCacheMethod(BaseKVCacheMethod):
     """
     Supports loading kv-cache scaling factors from FP8 or NVFP4 checkpoints.
@@ -396,6 +413,11 @@ class ModelOptQuantConfigBase(QuantizationConfig):
                 and kv_cache_scheme.get("num_bits") == 8
             ):
                 kv_cache_quant_method = "FP8"
+            elif isinstance(kv_cache_scheme, dict) and (
+                kv_cache_scheme.get("type") == "float"
+                and kv_cache_scheme.get("num_bits") == 4
+            ):
+                kv_cache_quant_method = "NVFP4"
             else:
                 kv_cache_quant_method = None
 
@@ -419,6 +441,11 @@ class ModelOptQuantConfigBase(QuantizationConfig):
             )
         else:
             kv_cache_quant_method = kv_cache_quant_method.upper()
+
+        if reason := _gb10_modelopt_nvfp4_kv_cache_unsupported_reason(
+            kv_cache_quant_method
+        ):
+            raise ValueError(reason)
 
         if not isinstance(exclude_modules, list):
             raise ValueError(

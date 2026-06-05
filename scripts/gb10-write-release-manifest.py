@@ -443,6 +443,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "GB10 W4A16 NVFP4 correctness evidence exists."
                 ),
             },
+            "modelopt_nvfp4_kv_cache_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "ModelOpt NVFP4 KV-cache loading can auto-select vLLM "
+                    "kv_cache_dtype='nvfp4', but the current GB10 release "
+                    "evidence only validates FP8 E4M3 KV cache. It must "
+                    "reject on GB10/SM12x until native SM12x NVFP4 KV-cache "
+                    "correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

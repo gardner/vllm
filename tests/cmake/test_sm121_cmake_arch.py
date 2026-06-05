@@ -86,6 +86,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "marlin_nvfp4_fallback": "not_supported",
     "fbgemm_nvfp4_dense": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
+    "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2417,6 +2418,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["modelopt_w4a16_nvfp4_checkpoint_loading"][
+        "status"
+    ] == "not_supported"
+    assert support_matrix["entries"]["modelopt_nvfp4_kv_cache_loading"][
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -5460,6 +5464,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "MXFP8 MoE backend selection" in modelopt_quant
     assert "not supported on GB10/SM12x" in modelopt_quant
     assert "_gb10_modelopt_mixed_quantization_unsupported_reason" in modelopt_quant
+    assert "_gb10_modelopt_nvfp4_kv_cache_unsupported_reason" in modelopt_quant
+    assert "ModelOpt NVFP4 KV-cache loading" in modelopt_quant
+    assert "kv_cache_quant_algo=NVFP4" in modelopt_quant
+    assert "kv_cache_dtype='nvfp4'" in modelopt_quant
+    assert "FP8 E4M3 KV cache" in modelopt_quant
+    assert "native SM12x NVFP4 KV-cache correctness evidence" in modelopt_quant
     assert "ModelOpt mixed precision quantization" in modelopt_quant
     assert "FP8 dense or MoE selection" in modelopt_quant
     assert "NVFP4 dense or MoE selection" in modelopt_quant
@@ -7298,6 +7308,73 @@ def test_gb10_modelopt_mixed_quantization_rejects_sm12x(monkeypatch):
         modelopt.ModelOptMixedPrecisionConfig.from_config(hf_quant_config),
         modelopt.ModelOptMixedPrecisionConfig,
     )
+
+
+def test_gb10_modelopt_nvfp4_kv_cache_loading_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import modelopt
+
+    monkeypatch.setattr(
+        modelopt,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for kv_cache_quant_algo in ("NVFP4", "nvfp4"):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            modelopt.ModelOptNvFp4Config.from_config(
+                {
+                    "quantization": {
+                        "quant_algo": "NVFP4",
+                        "kv_cache_quant_algo": kv_cache_quant_algo,
+                        "exclude_modules": [],
+                        "group_size": 16,
+                    },
+                }
+            )
+
+        reason = str(exc_info.value)
+        assert "ModelOpt NVFP4 KV-cache loading" in reason
+        assert "kv_cache_quant_algo=NVFP4" in reason
+        assert "kv_cache_dtype='nvfp4'" in reason
+        assert "FP8 E4M3 KV cache" in reason
+        assert "native SM12x NVFP4 KV-cache correctness evidence" in reason
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        modelopt.ModelOptNvFp4Config.from_config(
+            {
+                "quant_algo": "NVFP4",
+                "quant_method": "modelopt_fp4",
+                "kv_cache_scheme": {
+                    "type": "float",
+                    "num_bits": 4,
+                },
+                "ignore": [],
+                "group_size": 16,
+            }
+        )
+
+    monkeypatch.setattr(
+        modelopt,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert modelopt._gb10_modelopt_nvfp4_kv_cache_unsupported_reason("NVFP4") is None
+    config = modelopt.ModelOptNvFp4Config.from_config(
+        {
+            "quantization": {
+                "quant_algo": "NVFP4",
+                "kv_cache_quant_algo": "NVFP4",
+                "exclude_modules": [],
+                "group_size": 16,
+            },
+        }
+    )
+    assert isinstance(config, modelopt.ModelOptNvFp4Config)
+    assert config.kv_cache_quant_algo == "NVFP4"
 
 
 def test_gb10_compressed_tensors_wna16_dense_rejects_sm12x(monkeypatch):
@@ -10061,6 +10138,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "ModelOpt W4A16 NVFP4 checkpoint loading is not validated"
                     ),
                 },
+                "modelopt_nvfp4_kv_cache_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "ModelOpt NVFP4 KV-cache loading can auto-select "
+                        "vLLM kv_cache_dtype='nvfp4' without native SM12x "
+                        "NVFP4 KV-cache correctness evidence"
+                    ),
+                },
                 "marlin_mxfp4_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10722,6 +10808,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "modelopt_w4a16_nvfp4_checkpoint_loading": {
                     "status": "not_supported"
                 },
+                "modelopt_nvfp4_kv_cache_loading": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -10931,6 +11018,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "modelopt_fp8_quantization",
         "modelopt_mixed_quantization",
         "modelopt_mxfp8_quantization",
+        "modelopt_nvfp4_kv_cache_loading",
         "modelopt_w4a16_nvfp4_checkpoint_loading",
         "moe_wna16_legacy_fallback",
         "mxfp4_moe_fallback",
