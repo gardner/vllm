@@ -42,11 +42,47 @@ from vllm.platforms import current_platform
 logger = init_logger(__name__)
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_fbgemm_fp8_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "FBGEMM FP8 quantization is not supported on GB10/SM12x. The "
+        "deprecated public quantization method can reach "
+        "generic FP8 linear kernel selection today, but this is not native "
+        "GB10 FBGEMM FP8 "
+        "correctness evidence. Use a validated GB10 FP8 path after native "
+        "SM12x correctness evidence exists, or keep --quantization fbgemm_fp8 "
+        "unselected."
+    )
+
+
 class FBGEMMFp8Config(QuantizationConfig):
     """Config class for FBGEMM Fp8."""
 
     def __init__(self, ignore_list: list[str], input_scale_ub: float):
         super().__init__()
+        if reason := _gb10_fbgemm_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
+
         self.ignore_list = ignore_list if ignore_list else []
         self.input_scale_ub = input_scale_ub
 

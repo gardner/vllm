@@ -476,6 +476,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP8 MoE release evidence."
                 ),
             },
+            "fbgemm_fp8_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FBGEMM FP8 quantization is a deprecated public "
+                    "quantization method that can reach generic FP8 linear "
+                    "kernel selection today and must reject on GB10/SM12x "
+                    "until native GB10 FBGEMM FP8 correctness evidence exists."
+                ),
+            },
             "online_fp8_quantization": {
                 "status": "not_supported",
                 "release_contract": (

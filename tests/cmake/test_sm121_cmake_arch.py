@@ -84,6 +84,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
+    "fbgemm_fp8_quantization": "not_supported",
     "online_fp8_quantization": "not_supported",
     "online_mxfp8_quantization": "not_supported",
     "compressed_tensors_w8a8_mxfp8_dense_loading": "not_supported",
@@ -2373,6 +2374,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["mxfp8_moe_fallback"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["fbgemm_fp8_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["online_fp8_quantization"]["status"] == (
@@ -5024,6 +5028,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "online" / "base.py"
     ).read_text()
+    fbgemm_fp8_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "fbgemm_fp8.py"
+    ).read_text()
     moe_wna16 = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "moe_wna16.py"
@@ -5102,6 +5110,11 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "FlashInfer CUTLASS MXFP8 dense" in online_quant_base
     assert "generic MXFP8 MoE backend selection" in online_quant_base
     assert "not supported on GB10/SM12x" in online_quant_base
+    assert "_gb10_fbgemm_fp8_quantization_unsupported_reason" in fbgemm_fp8_quant
+    assert "FBGEMM FP8 quantization" in fbgemm_fp8_quant
+    assert "deprecated public quantization method" in fbgemm_fp8_quant
+    assert "generic FP8 linear kernel selection" in fbgemm_fp8_quant
+    assert "not supported on GB10/SM12x" in fbgemm_fp8_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -5645,6 +5658,38 @@ def test_gb10_online_fp8_quantization_rejects_sm12x(monkeypatch):
             QuantizationConfigArgs(moe=QuantSpec(weight=kInt8StaticChannelSym))
         ),
         online_base.OnlineQuantizationConfig,
+    )
+
+
+def test_gb10_fbgemm_fp8_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import fbgemm_fp8
+
+    monkeypatch.setattr(
+        fbgemm_fp8,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        fbgemm_fp8.FBGEMMFp8Config(ignore_list=[], input_scale_ub=1200.0)
+
+    reason = str(exc_info.value)
+    assert "FBGEMM FP8 quantization" in reason
+    assert "deprecated public quantization method" in reason
+    assert "generic FP8 linear kernel selection" in reason
+    assert "native GB10 FBGEMM FP8 correctness evidence" in reason
+
+    monkeypatch.setattr(
+        fbgemm_fp8,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert fbgemm_fp8._gb10_fbgemm_fp8_quantization_unsupported_reason() is None
+    assert isinstance(
+        fbgemm_fp8.FBGEMMFp8Config(ignore_list=[], input_scale_ub=1200.0),
+        fbgemm_fp8.FBGEMMFp8Config,
     )
 
 
@@ -8182,6 +8227,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "MXFP8 MoE fallback paths are not native GB10 evidence",
                 },
+                "fbgemm_fp8_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "FBGEMM FP8 quantization can select generic FP8 linear "
+                        "kernels without native GB10 evidence"
+                    ),
+                },
                 "online_fp8_quantization": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -8520,6 +8573,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "moe_wna16_legacy_fallback": {"status": "not_supported"},
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
+                "fbgemm_fp8_quantization": {"status": "not_supported"},
                 "online_fp8_quantization": {"status": "not_supported"},
                 "online_mxfp8_quantization": {"status": "not_supported"},
                 "compressed_tensors_w8a8_mxfp8_dense_loading": {
@@ -8648,6 +8702,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w8a8_mxfp8_moe_loading",
         "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
+        "fbgemm_fp8_quantization",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
         "fp8_w8a16_marlin_fallback",
