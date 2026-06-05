@@ -4107,6 +4107,21 @@ def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
     assert "GB10_IMAGE_NAME=vllm-gb10" in proc.stdout
     assert "GB10_IMAGE_TAG=gb10-abcdef123456" in proc.stdout
     assert "GB10_VLLM_VERSION=0.22.1rc0+gb10.abcdef123456" in proc.stdout
+    assert (
+        f"GB10_RELEASE_MANIFEST_JSON="
+        f"{manifest_dir / 'gb10-release-manifest.json'}"
+    ) in proc.stdout
+    assert (
+        f"GB10_RELEASE_CHECKSUMS="
+        f"{manifest_dir / 'gb10-vllm-release-SHA256SUMS'}"
+    ) in proc.stdout
+    assert (
+        f"GB10_RUNTIME_IMAGE_REF={manifest_dir / 'gb10-runtime-image-ref.txt'}"
+    ) in proc.stdout
+    assert (
+        f"GB10_RUNTIME_IMAGE_DIGEST="
+        f"{manifest_dir / 'gb10-runtime-image-digest.txt'}"
+    ) in proc.stdout
     assert not cache_dir.exists()
 
     manifest_path = manifest_dir / "gb10-release-manifest.json"

@@ -98,6 +98,10 @@ GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_DIST_DIR="${GB10_LOCAL_DIST_DIR:-$repo_root/dist}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
 GB10_RUNTIME_IMAGE_METADATA_JSON="${GB10_RUNTIME_IMAGE_METADATA_JSON:-$GB10_LOCAL_RELEASE_MANIFEST_DIR/buildx-runtime-image-metadata.json}"
+GB10_RELEASE_MANIFEST_JSON="$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+GB10_RELEASE_CHECKSUMS="$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+GB10_RUNTIME_IMAGE_REF="$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-runtime-image-ref.txt"
+GB10_RUNTIME_IMAGE_DIGEST="$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-runtime-image-digest.txt"
 GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 git_branch="$(git symbolic-ref -q --short HEAD || true)"
 GITHUB_EVENT_NAME="${GITHUB_EVENT_NAME:-workflow_dispatch}"
@@ -190,7 +194,7 @@ export VLLM_BUILD_COMMIT VLLM_BUILD_PIPELINE VLLM_BUILD_URL VLLM_IMAGE_TAG
 mkdir -p "$GB10_LOCAL_RELEASE_MANIFEST_DIR"
 scripts/gb10-write-release-manifest.py \
     --gb10-validate-release-inputs \
-    --gb10-output-json "$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+    --gb10-output-json "$GB10_RELEASE_MANIFEST_JSON"
 
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 cache_dir="$cache_root/$cache_key"
@@ -215,6 +219,10 @@ if [ "$GB10_DRY_RUN_ENABLED" = "1" ]; then
     echo "GB10_IMAGE_NAME=$GB10_IMAGE_NAME"
     echo "GB10_IMAGE_TAG=$GB10_IMAGE_TAG"
     echo "GB10_VLLM_VERSION=$GB10_VLLM_VERSION"
+    echo "GB10_RELEASE_MANIFEST_JSON=$GB10_RELEASE_MANIFEST_JSON"
+    echo "GB10_RELEASE_CHECKSUMS=$GB10_RELEASE_CHECKSUMS"
+    echo "GB10_RUNTIME_IMAGE_REF=$GB10_RUNTIME_IMAGE_REF"
+    echo "GB10_RUNTIME_IMAGE_DIGEST=$GB10_RUNTIME_IMAGE_DIGEST"
     echo "VLLM_BUILD_COMMIT=$VLLM_BUILD_COMMIT"
     echo "VLLM_BUILD_PIPELINE=$VLLM_BUILD_PIPELINE"
     echo "VLLM_BUILD_URL=$VLLM_BUILD_URL"
@@ -341,7 +349,7 @@ if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; th
         --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
         --gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR" \
         --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"
-    cat "$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-vllm-release-SHA256SUMS"
+    cat "$GB10_RELEASE_CHECKSUMS"
     if [ -n "$GB10_RELEASE_TAG" ]; then
         scripts/gb10-validate-vllm-release-assets.py \
             --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
