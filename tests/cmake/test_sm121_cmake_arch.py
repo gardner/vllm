@@ -70,6 +70,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "trtllm_gen_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
+    "mxfp4_moe_fallback": "not_supported",
     "quark_nvfp4_checkpoint_loading": "not_supported",
     "compressed_tensors_w4a16_nvfp4_loading": "not_supported",
     "flashinfer_b12x_ep_all2all_eplb": "deferred",
@@ -1875,6 +1876,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["mxfp4_moe_fallback"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["quark_nvfp4_checkpoint_loading"]["status"] == (
         "not_supported"
     )
@@ -3007,6 +3011,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         "quantization" / "compressed_tensors" / "compressed_tensors_moe" /
         "compressed_tensors_moe_w4a4_mxfp4.py"
     ).read_text()
+    mxfp4_moe_oracle = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
+        "oracle" / "mxfp4.py"
+    ).read_text()
 
     assert "_log_nvfp4_linear_kernel_selection" in linear_selector
     assert "record_nvfp4_backend_selection" in linear_selector
@@ -3053,6 +3061,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_mxfp4_moe
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_mxfp4_moe
+    assert "_gb10_mxfp4_moe_fallback_unsupported_reason" in mxfp4_moe_oracle
+    assert "_MXFP4_MOE_FALLBACK_BACKENDS" in mxfp4_moe_oracle
+    assert "CPU fallback" in mxfp4_moe_oracle
+    assert "not supported on GB10/SM12x" in mxfp4_moe_oracle
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
 
@@ -4685,6 +4697,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "MXFP4 Marlin is a fallback path",
                 },
+                "mxfp4_moe_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "MXFP4 MoE fallback paths are not native GB10 evidence",
+                },
                 "quark_nvfp4_checkpoint_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -4885,6 +4902,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
+                "mxfp4_moe_fallback": {"status": "not_supported"},
                 "quark_nvfp4_checkpoint_loading": {"status": "not_supported"},
                 "compressed_tensors_w4a16_nvfp4_loading": {
                     "status": "not_supported"
@@ -4964,6 +4982,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_trtllm_nvfp4_dense",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
+        "mxfp4_moe_fallback",
         "public_flashattention_runtime",
         "quark_nvfp4_checkpoint_loading",
         "trtllm_gen_attention",

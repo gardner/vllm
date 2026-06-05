@@ -357,6 +357,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "release evidence."
                 ),
             },
+            "mxfp4_moe_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "MXFP4 MoE Marlin, batched Marlin, emulation, and CPU "
+                    "fallback backends can prove reachability, but they "
+                    "cannot satisfy native GB10 MXFP4 release evidence."
+                ),
+            },
             "quark_nvfp4_checkpoint_loading": {
                 "status": "not_supported",
                 "release_contract": (

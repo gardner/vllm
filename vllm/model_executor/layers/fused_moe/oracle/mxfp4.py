@@ -108,6 +108,43 @@ TRITON_BACKENDS = (
     Mxfp4MoeBackend.TRITON_UNFUSED,
 )
 
+_MXFP4_MOE_FALLBACK_BACKENDS = {
+    Mxfp4MoeBackend.MARLIN,
+    Mxfp4MoeBackend.BATCHED_MARLIN,
+    Mxfp4MoeBackend.EMULATION,
+    Mxfp4MoeBackend.CPU,
+}
+
+
+def _is_sm12x_device() -> bool:
+    return (
+        current_platform.is_cuda()
+        and current_platform.is_device_capability_family(120)
+    )
+
+
+def _gb10_mxfp4_moe_fallback_unsupported_reason(
+    backend: Mxfp4MoeBackend,
+) -> str:
+    return (
+        "MXFP4 MoE fallback backend "
+        f"'{backend.value}' is not supported on GB10/SM12x. "
+        "Marlin, batched Marlin, emulation, and CPU fallback "
+        "backends can prove reachability, but cannot satisfy native GB10 "
+        "MXFP4 Tensor Core evidence. Use a native SM12x MXFP4 MoE backend "
+        "after correctness evidence exists, or keep the path unselected."
+    )
+
+
+def _gb10_unsupported_backend_reason(
+    backend: Mxfp4MoeBackend,
+) -> str | None:
+    if not _is_sm12x_device():
+        return None
+    if backend in _MXFP4_MOE_FALLBACK_BACKENDS:
+        return _gb10_mxfp4_moe_fallback_unsupported_reason(backend)
+    return None
+
 
 def backend_to_kernel_cls(
     backend: Mxfp4MoeBackend,
@@ -364,6 +401,17 @@ def _make_log_unsupported(backend: Mxfp4MoeBackend, reason: str | None) -> str:
     return f"{base} since {reason}." if reason else f"{base}."
 
 
+def _make_unavailable_native_backend_reason_suffix(
+    unavailable_native_backend_reasons: list[str],
+) -> str:
+    if not unavailable_native_backend_reasons:
+        return ""
+    return (
+        " Unavailable native backend reasons:\n - "
+        + "\n - ".join(unavailable_native_backend_reasons)
+    )
+
+
 def _return_or_raise(
     backend: Mxfp4MoeBackend,
     config: FusedMoEConfig,
@@ -439,6 +487,8 @@ def select_mxfp4_moe_backend(
                 f"activation={requested_activation_key}; supported variants: "
                 f"{[b.name for b in requested_backends]}"
             )
+        if reason := _gb10_unsupported_backend_reason(candidates[0]):
+            raise ValueError(reason)
         last_error: Exception | None = None
         for requested_backend in candidates:
             act_key = (
@@ -463,6 +513,21 @@ def select_mxfp4_moe_backend(
     AVAILABLE_BACKENDS = _filter_by_activation(
         _get_priority_backends_for_gpt_oss(), requested_activation_key
     )
+    unavailable_native_backend_reasons: list[str] = []
+    gb10_unsupported_reasons_by_backend = {
+        backend: reason
+        for backend in AVAILABLE_BACKENDS
+        if (reason := _gb10_unsupported_backend_reason(backend)) is not None
+    }
+    if gb10_unsupported_reasons_by_backend:
+        AVAILABLE_BACKENDS = [
+            backend
+            for backend in AVAILABLE_BACKENDS
+            if backend not in gb10_unsupported_reasons_by_backend
+        ]
+        unavailable_native_backend_reasons.extend(
+            gb10_unsupported_reasons_by_backend.values()
+        )
 
     # Handle explicit FlashInfer MXFP4 BF16 configuration.
     if envs.is_set("VLLM_USE_FLASHINFER_MOE_MXFP4_BF16"):
@@ -524,8 +589,11 @@ def select_mxfp4_moe_backend(
 
     # Handle explicit Marlin MXFP4 configuration.
     if envs.is_set("VLLM_MXFP4_USE_MARLIN") and envs.VLLM_MXFP4_USE_MARLIN:
+        backend = Mxfp4MoeBackend.MARLIN
+        if reason := _gb10_unsupported_backend_reason(backend):
+            raise ValueError(reason)
         return _return_or_raise(
-            Mxfp4MoeBackend.MARLIN,
+            backend,
             config,
             kMxfp4Static,
             None,
@@ -579,6 +647,9 @@ def select_mxfp4_moe_backend(
             "Set `VLLM_LOGGING_LEVEL=DEBUG` to see detailed unsupported reasons. "
             "To use the emulation backend for research/debugging, pass "
             "--moe-backend emulation."
+            + _make_unavailable_native_backend_reason_suffix(
+                unavailable_native_backend_reasons
+            )
         )
 
     return Mxfp4MoeBackend.NONE, None
@@ -607,6 +678,8 @@ def select_deepseek_v4_mxfp4_moe_backend(
                 Mxfp4MoeBackend.BATCHED_MARLIN if b == Mxfp4MoeBackend.MARLIN else b
                 for b in requested_backends
             ]
+        if reason := _gb10_unsupported_backend_reason(requested_backends[0]):
+            raise ValueError(reason)
         last_error: Exception | None = None
         for requested_backend in requested_backends:
             try:
@@ -635,6 +708,22 @@ def select_deepseek_v4_mxfp4_moe_backend(
     else:
         priority_backends = _get_priority_backends()
 
+    unavailable_native_backend_reasons: list[str] = []
+    gb10_unsupported_reasons_by_backend = {
+        backend: reason
+        for backend in priority_backends
+        if (reason := _gb10_unsupported_backend_reason(backend)) is not None
+    }
+    if gb10_unsupported_reasons_by_backend:
+        priority_backends = [
+            backend
+            for backend in priority_backends
+            if backend not in gb10_unsupported_reasons_by_backend
+        ]
+        unavailable_native_backend_reasons.extend(
+            gb10_unsupported_reasons_by_backend.values()
+        )
+
     # Iterate priority backends: TRTLLM MXFP8, then Triton.
     for backend in priority_backends:
         activation_key = _backend_activation_key(backend)
@@ -650,6 +739,9 @@ def select_deepseek_v4_mxfp4_moe_backend(
 
     raise NotImplementedError(
         "No MXFP4 MoE backend supports the deployment configuration."
+        + _make_unavailable_native_backend_reason_suffix(
+            unavailable_native_backend_reasons
+        )
     )
 
 
