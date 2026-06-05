@@ -1022,6 +1022,50 @@ def test_gb10_release_settings_resolver_rejects_bad_tagged_release_image():
         )
 
 
+def test_gb10_release_settings_resolver_rejects_invalid_release_tag():
+    resolver = _load_gb10_release_settings_resolver_module()
+
+    with pytest.raises(ValueError, match="release-tag must match"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(
+                GB10_INPUT_RELEASE_TAG="bad-tag",
+                GB10_INPUT_PREFLIGHT_ONLY="false",
+                GB10_INPUT_PUSH_IMAGE="true",
+                GB10_INPUT_IMAGE_NAME="ghcr.io/gardner/vllm-gb10",
+                GB10_INPUT_RUNNER_LABELS=json.dumps(
+                    [
+                        "self-hosted",
+                        "linux",
+                        "aarch64",
+                        "cuda13",
+                        "dgx-spark",
+                        "sm121",
+                    ]
+                ),
+            )
+        )
+
+    with pytest.raises(ValueError, match="release-tag commit suffix"):
+        resolver.resolve_release_settings(
+            _gb10_release_resolver_env(
+                GB10_INPUT_RELEASE_TAG="gb10-vllm-v0.22.1rc0-deadbee",
+                GB10_INPUT_PREFLIGHT_ONLY="false",
+                GB10_INPUT_PUSH_IMAGE="true",
+                GB10_INPUT_IMAGE_NAME="ghcr.io/gardner/vllm-gb10",
+                GB10_INPUT_RUNNER_LABELS=json.dumps(
+                    [
+                        "self-hosted",
+                        "linux",
+                        "aarch64",
+                        "cuda13",
+                        "dgx-spark",
+                        "sm121",
+                    ]
+                ),
+            )
+        )
+
+
 def test_gb10_release_settings_resolver_rejects_bad_pushed_image_destination():
     resolver = _load_gb10_release_settings_resolver_module()
 
@@ -4107,6 +4151,42 @@ def test_gb10_local_cached_release_dry_run_rejects_unpushed_tagged_image(
 
     assert proc.returncode != 0, proc.stdout
     assert "requires push-image=true" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not cache_dir.exists()
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+
+
+def test_gb10_local_cached_release_dry_run_rejects_invalid_release_tag_before_manifest(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_OUTPUT": "push",
+            "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+            "GB10_RELEASE_TAG": "bad-tag",
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "release-tag must match" in proc.stdout
     assert "GB10 local cached build dry run" not in proc.stdout
     assert not cache_dir.exists()
     assert not (manifest_dir / "gb10-release-manifest.json").exists()

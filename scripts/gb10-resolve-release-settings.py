@@ -37,6 +37,9 @@ DEFAULT_SELF_HOSTED_RUNNER_LABELS = (
 )
 DOCKER_REPOSITORY_COMPONENT_RE = re.compile(r"[a-z0-9]+(?:[._-]+[a-z0-9]+)*")
 DOCKER_TAG_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}")
+RELEASE_TAG_RE = re.compile(
+    r"gb10-vllm-v(?P<version>[^-]+)-(?P<commit>[0-9a-f]{7,40})"
+)
 
 RESOLVED_ENV_KEYS = (
     "GB10_RELEASE_TAG",
@@ -155,10 +158,29 @@ def _release_tag_from_ref(github_ref: str) -> str:
 
 
 def _vllm_version_base(release_tag: str) -> str:
-    match = re.fullmatch(r"gb10-vllm-v([^-]+)-[0-9a-f]{7,40}", release_tag)
+    match = RELEASE_TAG_RE.fullmatch(release_tag)
     if match is None:
         return DEFAULT_VLLM_VERSION_BASE
-    return match.group(1)
+    return match.group("version")
+
+
+def _validate_release_tag(release_tag: str, github_sha: str) -> None:
+    if not release_tag:
+        return
+
+    match = RELEASE_TAG_RE.fullmatch(release_tag)
+    if match is None:
+        raise ValueError(
+            "GB10 release-tag must match "
+            "gb10-vllm-v<version>-<git-sha-prefix>."
+        )
+
+    tag_commit = match.group("commit")
+    if not github_sha.startswith(tag_commit):
+        raise ValueError(
+            "GB10 release-tag commit suffix must match the GITHUB_SHA prefix; "
+            f"got release-tag suffix {tag_commit} for GITHUB_SHA {github_sha}."
+        )
 
 
 def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -260,6 +282,8 @@ def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, 
         raise ValueError(
             f"GB10 nvcc-threads must be a positive integer, got {nvcc_threads}."
         )
+
+    _validate_release_tag(release_tag, github_sha)
 
     if preflight_only != "true":
         _validate_full_release_runner_labels(release_runner_labels)
