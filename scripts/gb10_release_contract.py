@@ -99,6 +99,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "ubatching_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
+    "ec_transfer_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -403,6 +404,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "indexing for KV-sharing models and is outside the validated GB10 "
         "first release path; reject it until native SM12x correctness evidence "
         "exists."
+    ),
+    "ec_transfer_runtime": (
+        "Distributed EC cache transfer connectors are outside the validated "
+        "GB10 first release path and V2 model-runner support; reject them "
+        "until native SM12x EC transfer correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "

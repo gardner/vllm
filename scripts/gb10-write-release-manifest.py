@@ -785,6 +785,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "until native SM12x correctness evidence exists."
                 ),
             },
+            "ec_transfer_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Distributed EC cache transfer connectors are outside "
+                    "the validated GB10 first release path and V2 "
+                    "model-runner support. They must reject until native "
+                    "SM12x EC transfer correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

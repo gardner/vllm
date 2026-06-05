@@ -20,6 +20,7 @@ from vllm.compilation.backends import VllmBackend
 from vllm.config import (
     CacheConfig,
     CompilationConfig,
+    ECTransferConfig,
     KernelConfig,
     KVTransferConfig,
     LoRAConfig,
@@ -312,6 +313,40 @@ def test_vllm_config_allows_kv_sharing_fast_prefill_off_gb10(monkeypatch):
     config = VllmConfig(cache_config=cache_config)
 
     assert config.cache_config is cache_config
+
+
+def test_gb10_vllm_config_rejects_ec_transfer_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    ec_transfer_config = ECTransferConfig(
+        ec_connector="PyNcclConnector",
+        ec_role="ec_producer",
+    )
+
+    with pytest.raises(ValueError, match="EC transfer runtime.*GB10/SM12x"):
+        VllmConfig(ec_transfer_config=ec_transfer_config)
+
+
+def test_vllm_config_allows_ec_transfer_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    ec_transfer_config = ECTransferConfig(
+        ec_connector="PyNcclConnector",
+        ec_role="ec_producer",
+    )
+    config = VllmConfig(ec_transfer_config=ec_transfer_config)
+
+    assert config.ec_transfer_config is ec_transfer_config
 
 
 @pytest.mark.parametrize(

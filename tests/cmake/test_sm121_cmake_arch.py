@@ -125,6 +125,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "ubatching_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
+    "ec_transfer_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2561,6 +2562,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["kv_sharing_fast_prefill_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["ec_transfer_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8851,6 +8855,16 @@ def test_gb10_kv_sharing_fast_prefill_runtime_is_reported():
     assert "cache_config.kv_sharing_fast_prefill" in vllm_config
 
 
+def test_gb10_ec_transfer_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_EC_TRANSFER_RUNTIME_MESSAGE" in vllm_config
+    assert "EC transfer runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--ec-transfer-config" in vllm_config
+    assert "distributed EC cache transfer connectors" in vllm_config
+    assert "ec_transfer_config.is_ec_transfer_instance" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10879,6 +10893,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "metadata and logits-indexing correctness evidence"
                     ),
                 },
+                "ec_transfer_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Distributed EC cache transfer lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11642,6 +11664,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "ubatching_runtime": {"status": "not_supported"},
                 "distributed_parallel_runtime": {"status": "not_supported"},
                 "kv_sharing_fast_prefill_runtime": {"status": "not_supported"},
+                "ec_transfer_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11837,6 +11860,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "deep_gemm_fp8_moe",
         "deepseek_v4_fp8_quantization",
         "distributed_parallel_runtime",
+        "ec_transfer_runtime",
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",
         "fbgemm_nvfp4_dense",

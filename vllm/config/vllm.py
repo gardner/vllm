@@ -139,6 +139,13 @@ _GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE = (
     "first-path NVFP4 release. Disable --kv-sharing-fast-prefill on GB10 until "
     "native SM12x correctness and runtime evidence exists."
 )
+_GB10_EC_TRANSFER_RUNTIME_MESSAGE = (
+    "EC transfer runtime is not supported on GB10/SM12x in this fork: "
+    "distributed EC cache transfer connectors are outside the validated native "
+    "first-path NVFP4 release and V2 model-runner support. Disable "
+    "--ec-transfer-config on GB10 until native SM12x EC transfer correctness "
+    "and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -953,6 +960,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE)
+
+        if (
+            self.ec_transfer_config is not None
+            and self.ec_transfer_config.is_ec_transfer_instance
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_EC_TRANSFER_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 
