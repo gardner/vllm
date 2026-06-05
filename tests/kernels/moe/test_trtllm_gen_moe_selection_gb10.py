@@ -320,6 +320,63 @@ def test_gb10_env_explicit_fp8_aiter_moe_rejected(monkeypatch):
         )
 
 
+def test_gb10_explicit_fp8_deep_gemm_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.DEEPGEMM})
+    config = make_dummy_moe_config()
+    config.moe_backend = "deep_gemm"
+
+    with pytest.raises(ValueError, match="DeepGEMM FP8 MoE.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            config,
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
+def test_gb10_explicit_batched_fp8_deep_gemm_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.BATCHED_DEEPGEMM})
+    config = make_dummy_moe_config()
+    config.moe_backend = "deep_gemm"
+    config.moe_parallel_config.use_ep = True
+    config.moe_parallel_config.dp_size = 2
+    config.moe_parallel_config.all2all_backend = "nixl_ep"
+
+    with pytest.raises(ValueError, match="DeepGEMM FP8 MoE.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            config,
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
+def test_gb10_env_explicit_fp8_deep_gemm_moe_rejected(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    monkeypatch.setenv("VLLM_USE_DEEP_GEMM", "1")
+    monkeypatch.setenv("VLLM_MOE_USE_DEEP_GEMM", "1")
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.DEEPGEMM})
+
+    with pytest.raises(ValueError, match="DeepGEMM FP8 MoE.*GB10/SM12x"):
+        select_fp8_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
+def test_gb10_auto_fp8_moe_reports_deep_gemm_rejection(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.DEEPGEMM})
+
+    with pytest.raises(NotImplementedError, match="DeepGEMM FP8 MoE.*not supported"):
+        select_fp8_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kFp8Static128BlockSym,
+            activation_key=kFp8Dynamic128Sym,
+        )
+
+
 def test_gb10_explicit_fp8_marlin_moe_rejected(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     _mock_fp8_backend_support(monkeypatch, {Fp8MoeBackend.MARLIN})
@@ -419,9 +476,9 @@ def test_gb10_auto_mxfp8_moe_reports_trtllm_and_marlin_rejection(monkeypatch):
         select_mxfp8_moe_backend(make_dummy_moe_config())
 
 
-def test_gb10_auto_wna16_moe_skips_trtllm_for_marlin(monkeypatch):
+def test_gb10_auto_wna16_moe_reports_trtllm_and_marlin_rejection(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
-    kernel_by_backend = _mock_wna16_backend_support(
+    _mock_wna16_backend_support(
         monkeypatch,
         {
             WNA16MoEBackend.FLASHINFER_TRTLLM,
@@ -429,13 +486,11 @@ def test_gb10_auto_wna16_moe_skips_trtllm_for_marlin(monkeypatch):
         },
     )
 
-    backend, experts_cls = select_wna16_moe_backend(
-        make_dummy_moe_config(),
-        weight_key=kInt4Static32,
-    )
-
-    assert backend == WNA16MoEBackend.MARLIN
-    assert experts_cls is kernel_by_backend[WNA16MoEBackend.MARLIN]
+    with pytest.raises(NotImplementedError, match="WNA16 MoE fallback.*not supported"):
+        select_wna16_moe_backend(
+            make_dummy_moe_config(),
+            weight_key=kInt4Static32,
+        )
 
 
 def test_gb10_auto_wna16_moe_reports_trtllm_rejection(monkeypatch):

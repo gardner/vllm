@@ -403,6 +403,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "satisfy native GB10 CUDA MoE release evidence."
                 ),
             },
+            "deep_gemm_fp8_moe": {
+                "status": "not_supported",
+                "release_contract": (
+                    "DeepGEMM FP8 MoE is selectable through "
+                    "moe_backend='deep_gemm' and DeepGEMM env flags, but it "
+                    "cannot satisfy native GB10 release evidence until GB10 "
+                    "DeepGEMM FP8 MoE artifacts, correctness, and runtime "
+                    "evidence exist."
+                ),
+            },
             "rocm_aiter_mxfp4_moe": {
                 "status": "not_supported",
                 "release_contract": (

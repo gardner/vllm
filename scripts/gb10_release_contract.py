@@ -58,6 +58,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "rocm_aiter_unquantized_moe": "not_supported",
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
+    "deep_gemm_fp8_moe": "not_supported",
     "rocm_aiter_mxfp4_moe": "not_supported",
     "gpt_oss_triton_mxfp4_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -166,6 +167,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "rocm_aiter_fp8_moe": (
         "AITER FP8 MoE is a ROCm-specific backend and is not a native GB10 "
         "CUDA path."
+    ),
+    "deep_gemm_fp8_moe": (
+        "DeepGEMM FP8 MoE is selectable through moe_backend='deep_gemm' and "
+        "DeepGEMM env flags, but it is not native GB10 release evidence until "
+        "GB10 DeepGEMM FP8 MoE artifacts, correctness, and runtime evidence "
+        "exist."
     ),
     "rocm_aiter_unquantized_moe": (
         "AITER unquantized MoE is a ROCm-specific backend and is not a "

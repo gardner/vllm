@@ -84,6 +84,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "rocm_aiter_unquantized_moe": "not_supported",
     "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
+    "deep_gemm_fp8_moe": "not_supported",
     "rocm_aiter_mxfp4_moe": "not_supported",
     "gpt_oss_triton_mxfp4_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2422,6 +2423,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["rocm_aiter_fp8_moe"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["deep_gemm_fp8_moe"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_mxfp4_moe"]["status"] == (
@@ -5676,11 +5680,15 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "not supported on GB10/SM12x" in wna16_moe_oracle
     assert "_gb10_fp8_moe_fallback_unsupported_reason" in fp8_moe_oracle
     assert "_gb10_aiter_fp8_moe_unsupported_reason" in fp8_moe_oracle
+    assert "_gb10_deep_gemm_fp8_moe_unsupported_reason" in fp8_moe_oracle
     assert "_FP8_MOE_FALLBACK_BACKENDS" in fp8_moe_oracle
+    assert "_FP8_MOE_DEEP_GEMM_BACKENDS" in fp8_moe_oracle
     assert "FP8 MoE fallback backend" in fp8_moe_oracle
     assert "AITER FP8 MoE backend" in fp8_moe_oracle
+    assert "DeepGEMM FP8 MoE backend" in fp8_moe_oracle
     assert "ROCm-specific backend" in fp8_moe_oracle
     assert "Marlin and CPU W8A16 fallbacks" in fp8_moe_oracle
+    assert "native GB10 DeepGEMM FP8 MoE" in fp8_moe_oracle
     assert "not supported on GB10/SM12x" in fp8_moe_oracle
     assert "_gb10_int8_moe_triton_unsupported_reason" in int8_moe_oracle
     assert "Int8 MoE Triton fallback backend" in int8_moe_oracle
@@ -10481,6 +10489,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "AITER FP8 MoE is not a native GB10 CUDA path",
                 },
+                "deep_gemm_fp8_moe": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "DeepGEMM FP8 MoE lacks GB10 evidence",
+                },
                 "rocm_aiter_mxfp4_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10985,6 +10998,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
                 "rocm_aiter_fp8_moe": {"status": "not_supported"},
+                "deep_gemm_fp8_moe": {"status": "not_supported"},
                 "rocm_aiter_mxfp4_moe": {"status": "not_supported"},
                 "gpt_oss_triton_mxfp4_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
@@ -11183,6 +11197,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_w8a8_mxfp8_moe_loading",
         "compressed_tensors_wna16_dense_loading",
         "compressed_tensors_wna16_moe_fallback",
+        "deep_gemm_fp8_moe",
         "deepseek_v4_fp8_quantization",
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",

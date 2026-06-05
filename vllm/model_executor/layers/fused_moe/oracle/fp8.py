@@ -114,6 +114,25 @@ def _gb10_aiter_fp8_moe_unsupported_reason(
     )
 
 
+_FP8_MOE_DEEP_GEMM_BACKENDS = (
+    Fp8MoeBackend.DEEPGEMM,
+    Fp8MoeBackend.BATCHED_DEEPGEMM,
+)
+
+
+def _gb10_deep_gemm_fp8_moe_unsupported_reason(
+    backend: Fp8MoeBackend,
+) -> str | None:
+    if backend not in _FP8_MOE_DEEP_GEMM_BACKENDS or not _is_sm12x_device():
+        return None
+    return (
+        f"DeepGEMM FP8 MoE backend '{backend.value}' is not supported on "
+        "GB10/SM12x until native GB10 DeepGEMM FP8 MoE artifact, correctness, "
+        "and runtime evidence exists. Use a validated GB10-safe MoE backend "
+        "such as flashinfer_cutlass."
+    )
+
+
 def _get_priority_backends(
     moe_config: FusedMoEConfig,
     weight_key: QuantKey | None,
@@ -363,6 +382,8 @@ def select_fp8_moe_backend(
             raise ValueError(reason)
         if reason := _gb10_aiter_fp8_moe_unsupported_reason(requested_backend):
             raise ValueError(reason)
+        if reason := _gb10_deep_gemm_fp8_moe_unsupported_reason(requested_backend):
+            raise ValueError(reason)
         if reason := _gb10_fp8_moe_fallback_unsupported_reason(requested_backend):
             raise ValueError(reason)
 
@@ -387,6 +408,8 @@ def select_fp8_moe_backend(
         reason = _gb10_trtllm_gen_moe_unsupported_reason(
             backend
         ) or _gb10_aiter_fp8_moe_unsupported_reason(
+            backend
+        ) or _gb10_deep_gemm_fp8_moe_unsupported_reason(
             backend
         ) or _gb10_fp8_moe_fallback_unsupported_reason(backend)
         if reason:
@@ -452,14 +475,17 @@ def select_fp8_moe_backend(
     # Handle explicit DeepGEMM FP8 configuration.
     if envs.is_set("VLLM_USE_DEEP_GEMM") or envs.is_set("VLLM_MOE_USE_DEEP_GEMM"):
         if not envs.VLLM_USE_DEEP_GEMM or not envs.VLLM_MOE_USE_DEEP_GEMM:
-            AVAILABLE_BACKENDS.remove(Fp8MoeBackend.DEEPGEMM)
-            AVAILABLE_BACKENDS.remove(Fp8MoeBackend.BATCHED_DEEPGEMM)
+            for backend in _FP8_MOE_DEEP_GEMM_BACKENDS:
+                if backend in AVAILABLE_BACKENDS:
+                    AVAILABLE_BACKENDS.remove(backend)
         else:
             backend = (
                 Fp8MoeBackend.DEEPGEMM
                 if activation_format == mk.FusedMoEActivationFormat.Standard
                 else Fp8MoeBackend.BATCHED_DEEPGEMM
             )
+            if reason := _gb10_deep_gemm_fp8_moe_unsupported_reason(backend):
+                raise ValueError(reason)
             return _return_or_raise(
                 backend, config, weight_key, activation_key, activation_format
             )
