@@ -59,11 +59,46 @@ from vllm.model_executor.parameter import (
     PackedvLLMParameter,
     RowvLLMParameter,
 )
+from vllm.platforms import current_platform
 from vllm.scalar_type import scalar_types
 from vllm.transformers_utils.config import get_safetensors_params_metadata
 from vllm.utils.collection_utils import is_list_of
 
 logger = init_logger(__name__)
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_gptq_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "GPTQ quantization is not supported on GB10/SM12x. The "
+        "auto_gptq, gptq, and gptq_marlin quantization methods can select "
+        "get_linear_quant_method, choose_mp_linear_kernel, AutoGPTQMoEMethod, "
+        "or MoeWNA16Config fallback handling today, but this is not native "
+        "GB10 GPTQ correctness evidence. Use a validated GB10 GPTQ path after "
+        "native SM12x correctness evidence exists, or keep --quantization "
+        "auto_gptq, --quantization gptq, and --quantization gptq_marlin "
+        "unselected."
+    )
 
 
 def get_moe_quant_method(
@@ -113,6 +148,8 @@ class AutoGPTQConfig(QuantizationConfig):
         modules_in_block_to_quantize: list[str] | None = None,
     ) -> None:
         super().__init__()
+        if reason := _gb10_gptq_quantization_unsupported_reason():
+            raise ValueError(reason)
         if desc_act and group_size == -1:
             # In this case, act_order == True is the same as act_order == False
             # (since we have only one group per output channel)

@@ -74,6 +74,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "torchao_fp8_activation_quantization": "not_supported",
     "bitsandbytes_quantization": "not_supported",
     "awq_quantization": "not_supported",
+    "gptq_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2358,6 +2359,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["awq_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["gptq_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
@@ -5095,6 +5099,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "awq_marlin.py"
     ).read_text()
+    auto_gptq_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "auto_gptq.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5255,6 +5263,16 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "not supported on GB10/SM12x" in awq_quant
     assert "_gb10_awq_quantization_unsupported_reason" in awq_marlin_quant
     assert "AWQMarlinConfig" in awq_marlin_quant
+    assert "_gb10_gptq_quantization_unsupported_reason" in auto_gptq_quant
+    assert "GPTQ quantization" in auto_gptq_quant
+    assert "auto_gptq, gptq, and gptq_marlin quantization methods" in (
+        auto_gptq_quant
+    )
+    assert "get_linear_quant_method" in auto_gptq_quant
+    assert "choose_mp_linear_kernel" in auto_gptq_quant
+    assert "AutoGPTQMoEMethod" in auto_gptq_quant
+    assert "MoeWNA16Config" in auto_gptq_quant
+    assert "not supported on GB10/SM12x" in auto_gptq_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -6235,6 +6253,73 @@ def test_gb10_awq_quantization_rejects_sm12x(monkeypatch):
     assert isinstance(
         awq.AWQConfig(weight_bits=4, group_size=128, zero_point=True),
         awq.AWQConfig,
+    )
+
+
+def test_gb10_gptq_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import auto_gptq
+
+    monkeypatch.setattr(
+        auto_gptq,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    config = {
+        "quant_method": "gptq",
+        "bits": 4,
+        "group_size": 128,
+        "desc_act": False,
+        "sym": True,
+        "lm_head": False,
+    }
+
+    for construct_config in (
+        lambda: auto_gptq.AutoGPTQConfig(
+            weight_bits=4,
+            group_size=128,
+            desc_act=False,
+            is_sym=True,
+            lm_head_quantized=False,
+            dynamic={},
+            full_config=config,
+        ),
+        lambda: auto_gptq.AutoGPTQConfig.from_config(config),
+        lambda: auto_gptq.AutoGPTQConfig(
+            weight_bits=8,
+            group_size=128,
+            desc_act=False,
+            is_sym=True,
+            lm_head_quantized=False,
+            dynamic={},
+            full_config={**config, "bits": 8},
+        ),
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            construct_config()
+
+        reason = str(exc_info.value)
+        assert "GPTQ quantization" in reason
+        assert "auto_gptq, gptq, and gptq_marlin quantization methods" in reason
+        assert "get_linear_quant_method" in reason
+        assert "choose_mp_linear_kernel" in reason
+        assert "AutoGPTQMoEMethod" in reason
+        assert "MoeWNA16Config" in reason
+        assert "native GB10 GPTQ correctness evidence" in reason
+
+    monkeypatch.setattr(
+        auto_gptq,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert auto_gptq._gb10_gptq_quantization_unsupported_reason() is None
+    assert isinstance(
+        auto_gptq.AutoGPTQConfig.from_config(config),
+        auto_gptq.AutoGPTQConfig,
     )
 
 
@@ -8902,6 +8987,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "evidence"
                     ),
                 },
+                "gptq_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "GPTQ quantization can select GPTQ dense kernels, "
+                        "AutoGPTQ-Marlin MoE, or Moe WNA16 fallback handling "
+                        "without native GB10 GPTQ evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9356,6 +9450,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "torchao_fp8_activation_quantization": {"status": "not_supported"},
                 "bitsandbytes_quantization": {"status": "not_supported"},
                 "awq_quantization": {"status": "not_supported"},
+                "gptq_quantization": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9513,6 +9608,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "fp8_w8a16_marlin_fallback",
         "fp8_w8a16_moe_fallback",
         "fp_quant_fp4_quantization",
+        "gptq_quantization",
         "int8_moe_triton_fallback",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",

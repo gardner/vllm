@@ -48,6 +48,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "torchao_fp8_activation_quantization": "not_supported",
     "bitsandbytes_quantization": "not_supported",
     "awq_quantization": "not_supported",
+    "gptq_quantization": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -191,6 +192,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "AWQ quantization can select AWQ dense kernels, AWQ-Marlin dense "
         "kernels, AWQ-Marlin MoE, and Moe WNA16 fallback handling today; "
         "reject it until native GB10 AWQ correctness evidence exists."
+    ),
+    "gptq_quantization": (
+        "GPTQ quantization can select GPTQ dense kernel routing, "
+        "AutoGPTQ-Marlin MoE, and Moe WNA16 fallback handling today; reject "
+        "it until native GB10 GPTQ correctness evidence exists."
     ),
     "fp8_w8a16_marlin_fallback": (
         "FP8 W8A16 Marlin fallback can prove reachability, but it is not "
