@@ -494,6 +494,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "modelopt_mixed_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "ModelOpt mixed precision quantization can reach FP8 dense "
+                    "or MoE selection, NVFP4 dense or MoE selection, and W4A16 "
+                    "NVFP4 fallback selection today and must reject on "
+                    "GB10/SM12x until native GB10 ModelOpt mixed precision "
+                    "correctness evidence exists."
+                ),
+            },
             "fbgemm_fp8_quantization": {
                 "status": "not_supported",
                 "release_contract": (

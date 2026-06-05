@@ -60,6 +60,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "modelopt_mxfp8_quantization": "not_supported",
+    "modelopt_mixed_quantization": "not_supported",
     "fbgemm_fp8_quantization": "not_supported",
     "experts_int8_quantization": "not_supported",
     "fp_quant_fp4_quantization": "not_supported",
@@ -198,6 +199,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "ModelOpt MXFP8 quantization can reach MXFP8 dense kernel selection "
         "and MXFP8 MoE backend selection today; reject it until native GB10 "
         "ModelOpt MXFP8 correctness evidence exists."
+    ),
+    "modelopt_mixed_quantization": (
+        "ModelOpt mixed precision quantization can reach FP8 dense or MoE "
+        "selection, NVFP4 dense or MoE selection, and W4A16 NVFP4 fallback "
+        "selection today; reject it until native GB10 ModelOpt mixed precision "
+        "correctness evidence exists."
     ),
     "fbgemm_fp8_quantization": (
         "FBGEMM FP8 quantization is a deprecated public quantization method "

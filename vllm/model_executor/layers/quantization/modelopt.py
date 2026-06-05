@@ -173,6 +173,20 @@ def _gb10_modelopt_mxfp8_quantization_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_modelopt_mixed_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "ModelOpt mixed precision quantization is not supported on "
+        "GB10/SM12x. MIXED_PRECISION checkpoints can reach "
+        "FP8 dense or MoE selection, NVFP4 dense or MoE selection, and "
+        "W4A16 NVFP4 fallback selection today, but this is not native "
+        "GB10 ModelOpt mixed precision correctness evidence. Use a validated "
+        "GB10 ModelOpt mixed precision path after native SM12x correctness "
+        "evidence exists, or keep --quantization modelopt_mixed unselected."
+    )
+
+
 class ModelOptKVCacheMethod(BaseKVCacheMethod):
     """
     Supports loading kv-cache scaling factors from FP8 or NVFP4 checkpoints.
@@ -2290,6 +2304,9 @@ class ModelOptMixedPrecisionConfig(ModelOptQuantConfigBase):
         w4a16_nvfp4_config: ModelOptNvFp4Config,
     ) -> None:
         super().__init__(exclude_modules)
+        if reason := _gb10_modelopt_mixed_quantization_unsupported_reason():
+            raise ValueError(reason)
+
         self.kv_cache_quant_method = kv_cache_quant_method
         self.quantized_layers = quantized_layers
         self.fp8_config = fp8_config

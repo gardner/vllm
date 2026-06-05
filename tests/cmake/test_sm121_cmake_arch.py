@@ -86,6 +86,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
     "modelopt_mxfp8_quantization": "not_supported",
+    "modelopt_mixed_quantization": "not_supported",
     "fbgemm_fp8_quantization": "not_supported",
     "experts_int8_quantization": "not_supported",
     "fp_quant_fp4_quantization": "not_supported",
@@ -2384,6 +2385,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["modelopt_mxfp8_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["modelopt_mixed_quantization"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["fbgemm_fp8_quantization"]["status"] == (
@@ -5186,6 +5190,12 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "MXFP8 dense kernel selection" in modelopt_quant
     assert "MXFP8 MoE backend selection" in modelopt_quant
     assert "not supported on GB10/SM12x" in modelopt_quant
+    assert "_gb10_modelopt_mixed_quantization_unsupported_reason" in modelopt_quant
+    assert "ModelOpt mixed precision quantization" in modelopt_quant
+    assert "FP8 dense or MoE selection" in modelopt_quant
+    assert "NVFP4 dense or MoE selection" in modelopt_quant
+    assert "W4A16 NVFP4 fallback selection" in modelopt_quant
+    assert "not supported on GB10/SM12x" in modelopt_quant
 
     assert "_gb10_w4a16_nvfp4_marlin_unsupported_reason" in (
         compressed_tensors_w4a16
@@ -5897,6 +5907,54 @@ def test_gb10_modelopt_mxfp8_quantization_rejects_sm12x(monkeypatch):
             exclude_modules=[],
         ),
         modelopt.ModelOptMxFp8Config,
+    )
+
+
+def test_gb10_modelopt_mixed_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import modelopt
+
+    hf_quant_config = {
+        "quantization": {
+            "quant_algo": "MIXED_PRECISION",
+            "kv_cache_quant_algo": None,
+            "exclude_modules": [],
+            "group_size": 16,
+            "quantized_layers": {
+                "model.layers.0.fp8_proj": {"quant_algo": "FP8"},
+                "model.layers.0.nvfp4_proj": {"quant_algo": "NVFP4"},
+                "model.layers.0.w4a16_proj": {"quant_algo": "W4A16_NVFP4"},
+            },
+        },
+    }
+
+    monkeypatch.setattr(
+        modelopt,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        modelopt.ModelOptMixedPrecisionConfig.from_config(hf_quant_config)
+
+    reason = str(exc_info.value)
+    assert "ModelOpt mixed precision quantization" in reason
+    assert "MIXED_PRECISION" in reason
+    assert "FP8 dense or MoE selection" in reason
+    assert "NVFP4 dense or MoE selection" in reason
+    assert "W4A16 NVFP4 fallback selection" in reason
+    assert "native GB10 ModelOpt mixed precision correctness evidence" in reason
+
+    monkeypatch.setattr(
+        modelopt,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert modelopt._gb10_modelopt_mixed_quantization_unsupported_reason() is None
+    assert isinstance(
+        modelopt.ModelOptMixedPrecisionConfig.from_config(hf_quant_config),
+        modelopt.ModelOptMixedPrecisionConfig,
     )
 
 
@@ -8452,6 +8510,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "without native GB10 evidence"
                     ),
                 },
+                "modelopt_mixed_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "ModelOpt mixed precision quantization can select FP8, "
+                        "NVFP4, and W4A16 NVFP4 fallback paths without native "
+                        "GB10 mixed precision evidence"
+                    ),
+                },
                 "fbgemm_fp8_quantization": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -8816,6 +8883,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "mxfp8_dense_fallback": {"status": "not_supported"},
                 "mxfp8_moe_fallback": {"status": "not_supported"},
                 "modelopt_mxfp8_quantization": {"status": "not_supported"},
+                "modelopt_mixed_quantization": {"status": "not_supported"},
                 "fbgemm_fp8_quantization": {"status": "not_supported"},
                 "experts_int8_quantization": {"status": "not_supported"},
                 "fp_quant_fp4_quantization": {"status": "not_supported"},
@@ -8957,6 +9025,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "int8_moe_triton_fallback",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",
+        "modelopt_mixed_quantization",
         "modelopt_mxfp8_quantization",
         "modelopt_w4a16_nvfp4_checkpoint_loading",
         "moe_wna16_legacy_fallback",
