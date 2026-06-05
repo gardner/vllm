@@ -115,15 +115,15 @@ def _validate_required_flashinfer_wheels(prebuilt_wheel_urls: str) -> None:
             )
 
 
-def _validate_tagged_release_image(image_name: str, image_tag: str) -> None:
+def _validate_pushed_image_destination(image_name: str, image_tag: str) -> None:
     if not image_name.startswith("ghcr.io/"):
         raise ValueError(
-            f"GB10 full release publication requires a GHCR image-name, "
+            f"GB10 pushed runtime image publication requires a GHCR image-name, "
             f"got {image_name}."
         )
     if ":" in image_name or "@" in image_name:
         raise ValueError(
-            f"GB10 full release image-name must not include a tag or digest, "
+            f"GB10 pushed runtime image-name must not include a tag or digest, "
             f"got {image_name}."
         )
 
@@ -131,19 +131,19 @@ def _validate_tagged_release_image(image_name: str, image_tag: str) -> None:
     image_repository_parts = image_repository.split("/")
     if len(image_repository_parts) < 2:
         raise ValueError(
-            "GB10 full release image-name must include owner and package "
+            "GB10 pushed runtime image-name must include owner and package "
             f"components, got {image_name}."
         )
     for image_repository_part in image_repository_parts:
         if DOCKER_REPOSITORY_COMPONENT_RE.fullmatch(image_repository_part) is None:
             raise ValueError(
-                "GB10 full release image-name must be a lowercase Docker "
+                "GB10 pushed runtime image-name must be a lowercase Docker "
                 f"repository name, got {image_name}."
             )
 
     if DOCKER_TAG_RE.fullmatch(image_tag) is None:
         raise ValueError(
-            "GB10 full release runtime image tag must be a Docker-compatible "
+            "GB10 pushed runtime image tag must be a Docker-compatible "
             f"tag, got {image_tag}."
         )
 
@@ -270,14 +270,15 @@ def resolve_release_settings(env: Mapping[str, str] | None = None) -> dict[str, 
             "runtime image is durable in GHCR."
         )
 
+    if push_image == "true":
+        _validate_pushed_image_destination(image_name, image_tag)
+
     _validate_required_flashinfer_wheels(prebuilt_wheel_urls)
 
-    if preflight_only != "true" and release_tag:
-        _validate_tagged_release_image(image_name, image_tag)
-        if image_tag != release_tag:
-            raise ValueError(
-                "GB10 full release runtime image tag must match the release tag."
-            )
+    if preflight_only != "true" and release_tag and image_tag != release_tag:
+        raise ValueError(
+            "GB10 full release runtime image tag must match the release tag."
+        )
 
     return settings
 

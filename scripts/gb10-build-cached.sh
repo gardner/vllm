@@ -121,6 +121,11 @@ case "$output_mode" in
         exit 2
         ;;
 esac
+if [ "$output_mode" = "push" ] && [ "$docker_target" != "vllm-openai" ]; then
+    echo "GB10_OUTPUT=push is only supported for runtime image builds." >&2
+    echo "Target '$target_arg' resolves to local stage '$docker_target'." >&2
+    exit 2
+fi
 
 if [ "$docker_target" = "gb10-flashinfer-preflight" ]; then
     gb10_preflight_only_default="true"
