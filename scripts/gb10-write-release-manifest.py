@@ -537,6 +537,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "compressed_tensors_w8a8_int_dense_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors W8A8 Int dense loading can select "
+                    "Cutlass/Triton W8A8 Int8 scaled-mm kernels today and "
+                    "must reject on GB10/SM12x until native GB10 W8A8 Int8 "
+                    "dense correctness evidence exists."
+                ),
+            },
             "compressed_tensors_w4a4_mxfp4_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (

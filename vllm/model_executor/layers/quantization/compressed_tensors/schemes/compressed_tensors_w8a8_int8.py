@@ -13,6 +13,9 @@ from vllm.model_executor.kernels.linear import (
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes import (
     CompressedTensorsScheme,
 )
+from vllm.model_executor.layers.quantization.compressed_tensors.utils import (
+    _is_sm12x_device,
+)
 from vllm.model_executor.parameter import (
     BasevLLMParameter,
     ChannelQuantScaleParameter,
@@ -23,10 +26,27 @@ from vllm.model_executor.parameter import (
 logger = init_logger(__name__)
 
 
+def _gb10_w8a8_int_dense_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors W8A8 Int dense loading is "
+        "not supported on GB10/SM12x. The available "
+        "Cutlass/Triton W8A8 Int8 scaled-mm kernels can prove reachability "
+        "but cannot satisfy native GB10 W8A8 Int8 dense correctness evidence. "
+        "Use a native SM12x W8A8 Int8 dense backend after correctness "
+        "evidence exists, or keep this checkpoint format unselected."
+    )
+
+
 class CompressedTensorsW8A8Int8(CompressedTensorsScheme):
     def __init__(
         self, strategy: str, is_static_input_scheme: bool, input_symmetric: bool
     ):
+        unsupported_reason = _gb10_w8a8_int_dense_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         self.strategy = strategy
         self.is_static_input_scheme = is_static_input_scheme
         self.input_symmetric = input_symmetric
