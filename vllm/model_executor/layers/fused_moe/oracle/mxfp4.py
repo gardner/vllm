@@ -120,6 +120,10 @@ _MXFP4_MOE_TRTLLM_BACKENDS = {
     Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
 }
 
+_MXFP4_MOE_HUMMING_BACKENDS = {
+    Mxfp4MoeBackend.HUMMING,
+}
+
 
 def _is_sm12x_device() -> bool:
     return (
@@ -154,6 +158,20 @@ def _gb10_mxfp4_moe_trtllm_unsupported_reason(
     )
 
 
+def _gb10_mxfp4_moe_humming_unsupported_reason(
+    backend: Mxfp4MoeBackend,
+) -> str:
+    return (
+        "Humming MXFP4 MoE backend "
+        f"'{backend.value}' is not supported on GB10/SM12x. "
+        "Humming Mixed Precision kernels can prove reachability today, but "
+        "they cannot satisfy native GB10 Humming MXFP4 MoE correctness "
+        "evidence. Use a validated native SM12x MXFP4 MoE backend after "
+        "correctness evidence exists, or keep the Humming MoE backend "
+        "unselected."
+    )
+
+
 def _gb10_unsupported_backend_reason(
     backend: Mxfp4MoeBackend,
 ) -> str | None:
@@ -161,6 +179,8 @@ def _gb10_unsupported_backend_reason(
         return None
     if backend in _MXFP4_MOE_TRTLLM_BACKENDS:
         return _gb10_mxfp4_moe_trtllm_unsupported_reason(backend)
+    if backend in _MXFP4_MOE_HUMMING_BACKENDS:
+        return _gb10_mxfp4_moe_humming_unsupported_reason(backend)
     if backend in _MXFP4_MOE_FALLBACK_BACKENDS:
         return _gb10_mxfp4_moe_fallback_unsupported_reason(backend)
     return None

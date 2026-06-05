@@ -490,6 +490,23 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "native GB10 GGUF correctness evidence exists."
                 ),
             },
+            "humming_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Humming quantization can select Humming dense and MoE "
+                    "kernels today and must reject on GB10/SM12x until native "
+                    "GB10 Humming correctness evidence exists."
+                ),
+            },
+            "humming_mxfp4_moe_backend": {
+                "status": "not_supported",
+                "release_contract": (
+                    "The Humming MXFP4 MoE backend can select Humming Mixed "
+                    "Precision kernels today and must reject on GB10/SM12x "
+                    "until native GB10 Humming MXFP4 MoE correctness evidence "
+                    "exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (

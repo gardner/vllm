@@ -51,6 +51,8 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "gptq_quantization": "not_supported",
     "inc_quantization": "not_supported",
     "gguf_quantization": "not_supported",
+    "humming_quantization": "not_supported",
+    "humming_mxfp4_moe_backend": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -209,6 +211,15 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "GGUF quantization can select GGUF dense, embedding, and MoE kernels, "
         "including GGML matmul and dequantization fallbacks today; reject it "
         "until native GB10 GGUF correctness evidence exists."
+    ),
+    "humming_quantization": (
+        "Humming quantization can select Humming dense and MoE kernels today; "
+        "reject it until native GB10 Humming correctness evidence exists."
+    ),
+    "humming_mxfp4_moe_backend": (
+        "The Humming MXFP4 MoE backend can select Humming Mixed Precision "
+        "kernels today; reject it until native GB10 Humming MXFP4 MoE "
+        "correctness evidence exists."
     ),
     "fp8_w8a16_marlin_fallback": (
         "FP8 W8A16 Marlin fallback can prove reachability, but it is not "

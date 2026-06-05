@@ -74,6 +74,40 @@ if TYPE_CHECKING:
     from vllm.model_executor.models.utils import WeightsMapper
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_humming_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "Humming quantization is not supported on GB10/SM12x. The "
+        "humming quantization method can select HummingLinearMethod or "
+        "HummingMoEMethod handling today. Humming paths can call "
+        "HummingMethod.prepare_layer_meta, HummingMethod.transform_humming_layer, "
+        "and HummingMethod.forward_layer, but this is not native GB10 Humming "
+        "correctness evidence. Use a validated GB10 Humming path after native "
+        "SM12x correctness evidence exists, or keep --quantization humming "
+        "unselected."
+    )
+
+
 def prepare_padded_shape(shape, x):
     padded_shape = math.ceil(shape / x) * x
     return padded_shape, padded_shape - shape
@@ -184,6 +218,9 @@ class HummingConfig(QuantizationConfig):
     packed_modules_mapping: dict[str, list[str]] = {}
 
     def __init__(self, full_config: dict[str, Any] | None = None):
+        super().__init__()
+        if reason := _gb10_humming_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.full_config: dict[str, Any] = full_config or {}
 
     @classmethod

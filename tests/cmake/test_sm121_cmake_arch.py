@@ -77,6 +77,8 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "gptq_quantization": "not_supported",
     "inc_quantization": "not_supported",
     "gguf_quantization": "not_supported",
+    "humming_quantization": "not_supported",
+    "humming_mxfp4_moe_backend": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
@@ -2370,6 +2372,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["gguf_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["humming_quantization"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["humming_mxfp4_moe_backend"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
@@ -5119,6 +5127,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "gguf.py"
     ).read_text()
+    humming_quant = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" /
+        "quantization" / "humming.py"
+    ).read_text()
     fbgemm_fp8_quant = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" /
         "quantization" / "fbgemm_fp8.py"
@@ -5308,6 +5320,15 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "ggml_mul_mat_a8" in gguf_quant
     assert "ggml_dequantize" in gguf_quant
     assert "not supported on GB10/SM12x" in gguf_quant
+    assert "_gb10_humming_quantization_unsupported_reason" in humming_quant
+    assert "Humming quantization" in humming_quant
+    assert "humming quantization method" in humming_quant
+    assert "HummingLinearMethod" in humming_quant
+    assert "HummingMoEMethod" in humming_quant
+    assert "HummingMethod.prepare_layer_meta" in humming_quant
+    assert "HummingMethod.transform_humming_layer" in humming_quant
+    assert "HummingMethod.forward_layer" in humming_quant
+    assert "not supported on GB10/SM12x" in humming_quant
     assert "FlashInfer TRTLLM NVFP4 dense is not supported on GB10/SM12x" in (
         flashinfer_nvfp4_linear
     )
@@ -5445,9 +5466,13 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "weight_quant.type == QuantizationType.INT" in compressed_tensors
     assert "_gb10_mxfp4_moe_fallback_unsupported_reason" in mxfp4_moe_oracle
     assert "_gb10_mxfp4_moe_trtllm_unsupported_reason" in mxfp4_moe_oracle
+    assert "_gb10_mxfp4_moe_humming_unsupported_reason" in mxfp4_moe_oracle
     assert "_MXFP4_MOE_FALLBACK_BACKENDS" in mxfp4_moe_oracle
     assert "_MXFP4_MOE_TRTLLM_BACKENDS" in mxfp4_moe_oracle
+    assert "_MXFP4_MOE_HUMMING_BACKENDS" in mxfp4_moe_oracle
     assert "FlashInfer TRTLLM MXFP4 MoE backend" in mxfp4_moe_oracle
+    assert "Humming MXFP4 MoE backend" in mxfp4_moe_oracle
+    assert "Humming Mixed Precision kernels" in mxfp4_moe_oracle
     assert "CPU fallback" in mxfp4_moe_oracle
     assert "not supported on GB10/SM12x" in mxfp4_moe_oracle
     assert "_gb10_mxfp8_moe_fallback_unsupported_reason" in mxfp8_moe_oracle
@@ -6452,6 +6477,90 @@ def test_gb10_gguf_quantization_rejects_sm12x(monkeypatch):
     )
     assert gguf._gb10_gguf_quantization_unsupported_reason() is None
     assert isinstance(gguf.GGUFConfig.from_config({}), gguf.GGUFConfig)
+
+
+def test_gb10_humming_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import humming
+
+    monkeypatch.setattr(
+        humming,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for construct_config in (
+        lambda: humming.HummingConfig(),
+        lambda: humming.HummingConfig.from_config({"quant_method": "humming"}),
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            construct_config()
+
+        reason = str(exc_info.value)
+        assert "Humming quantization" in reason
+        assert "humming quantization method" in reason
+        assert "HummingLinearMethod" in reason
+        assert "HummingMoEMethod" in reason
+        assert "HummingMethod.prepare_layer_meta" in reason
+        assert "HummingMethod.transform_humming_layer" in reason
+        assert "HummingMethod.forward_layer" in reason
+        assert "native GB10 Humming correctness evidence" in reason
+
+    monkeypatch.setattr(
+        humming,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert humming._gb10_humming_quantization_unsupported_reason() is None
+    assert isinstance(
+        humming.HummingConfig.from_config({"quant_method": "humming"}),
+        humming.HummingConfig,
+    )
+
+
+def test_gb10_humming_mxfp4_moe_backend_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.fused_moe.oracle import mxfp4
+
+    monkeypatch.setattr(
+        mxfp4,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    backend = mxfp4.Mxfp4MoeBackend.HUMMING
+    reason = mxfp4._gb10_unsupported_backend_reason(backend)
+    assert reason is not None
+    assert "Humming MXFP4 MoE backend" in reason
+    assert "Humming Mixed Precision kernels" in reason
+    assert "native GB10 Humming MXFP4 MoE correctness evidence" in reason
+
+    config = SimpleNamespace(
+        moe_backend="humming",
+        moe_parallel_config=SimpleNamespace(use_batched_activation_format=False),
+    )
+    monkeypatch.setattr(
+        mxfp4,
+        "_resolve_activation_key",
+        lambda activation_key: None,
+        raising=False,
+    )
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x") as exc_info:
+        mxfp4.select_mxfp4_moe_backend(config)
+
+    assert "Humming MXFP4 MoE backend" in str(exc_info.value)
+
+    monkeypatch.setattr(
+        mxfp4,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert mxfp4._gb10_unsupported_backend_reason(backend) is None
+    assert mxfp4.map_mxfp4_backend("humming") == [backend]
 
 
 def test_gb10_modelopt_fp8_quantization_rejects_sm12x(monkeypatch):
@@ -9146,6 +9255,23 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "native GB10 GGUF evidence"
                     ),
                 },
+                "humming_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Humming quantization can select Humming dense and "
+                        "MoE kernels without native GB10 Humming evidence"
+                    ),
+                },
+                "humming_mxfp4_moe_backend": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "The Humming MXFP4 MoE backend can select Humming "
+                        "Mixed Precision kernels without native GB10 Humming "
+                        "MXFP4 MoE evidence"
+                    ),
+                },
                 "fp8_w8a16_marlin_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9603,6 +9729,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "gptq_quantization": {"status": "not_supported"},
                 "inc_quantization": {"status": "not_supported"},
                 "gguf_quantization": {"status": "not_supported"},
+                "humming_quantization": {"status": "not_supported"},
+                "humming_mxfp4_moe_backend": {"status": "not_supported"},
                 "fp8_w8a16_marlin_fallback": {"status": "not_supported"},
                 "fp8_w8a16_moe_fallback": {"status": "not_supported"},
                 "int8_moe_triton_fallback": {"status": "not_supported"},
@@ -9762,6 +9890,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "fp_quant_fp4_quantization",
         "gguf_quantization",
         "gptq_quantization",
+        "humming_mxfp4_moe_backend",
+        "humming_quantization",
         "inc_quantization",
         "int8_moe_triton_fallback",
         "marlin_mxfp4_fallback",
