@@ -3274,6 +3274,25 @@ def test_gb10_local_cached_runtime_build_writes_release_checksums():
     )
 
 
+def test_gb10_local_cached_runtime_cacheonly_skips_release_asset_writes():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    post_build_runtime_guard = (
+        'if [ "$docker_target" = "vllm-openai" ] '
+        '&& [ "$output_mode" != "cacheonly" ]; then'
+    )
+
+    assert script.rindex(post_build_runtime_guard) > script.index(
+        'if [ "$build_status" -ne 0 ]; then'
+    )
+    assert script.rindex(post_build_runtime_guard) < script.index(
+        "scripts/gb10-write-runtime-image-provenance.py"
+    )
+    assert script.index("scripts/gb10-write-runtime-image-provenance.py") < (
+        script.rindex("fi")
+    )
+
+
 def test_gb10_local_cached_runtime_build_requires_wheel_before_docker():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 

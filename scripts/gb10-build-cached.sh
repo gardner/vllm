@@ -300,7 +300,7 @@ if [ "$docker_target" = "build" ] && [ "$output_mode" = "load" ]; then
     ls -lh "$GB10_LOCAL_DIST_DIR"
 fi
 
-if [ "$docker_target" = "vllm-openai" ]; then
+if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; then
     scripts/gb10-write-runtime-image-provenance.py \
         --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
         --gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR" \
