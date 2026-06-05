@@ -150,6 +150,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "quark_w8a8_int8_checkpoint_loading": "not_supported",
     "quark_w8a8_fp8_moe_loading": "not_supported",
     "quark_w8a8_int8_moe_loading": "not_supported",
+    "compressed_tensors_fp4_kv_cache_loading": "not_supported",
     "compressed_tensors_w4a8_fp8_loading": "not_supported",
     "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a8_int_moe_loading": "not_supported",
@@ -2633,6 +2634,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["quark_w8a8_int8_moe_loading"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["compressed_tensors_fp4_kv_cache_loading"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["compressed_tensors_w4a8_fp8_loading"][
         "status"
     ] == "not_supported"
@@ -5608,6 +5612,8 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         compressed_tensors_w4a16
     )
     assert "not supported on GB10/SM12x" in compressed_tensors_w4a16
+    assert 'if type_ != "float" or num_bits != 8:' in compressed_tensors
+    assert "Currently supported kv cache quantization" in compressed_tensors
     assert "init_nvfp4_linear_kernel" in compressed_tensors_w4a4_nvfp4
     assert "self.kernel = init_nvfp4_linear_kernel()" in (
         compressed_tensors_w4a4_nvfp4
@@ -10715,6 +10721,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "NVFP4 KV-cache correctness evidence"
                     ),
                 },
+                "compressed_tensors_fp4_kv_cache_loading": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "CompressedTensors FP4 KV-cache loading is not supported "
+                        "in vLLM and can masquerade as the FP8 KV-cache path"
+                    ),
+                },
                 "marlin_mxfp4_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11391,6 +11405,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "compressed_tensors_w4a4_nvfp4_moe_loading": {
                     "status": "supported_native"
                 },
+                "compressed_tensors_fp4_kv_cache_loading": {
+                    "status": "not_supported"
+                },
                 "compressed_tensors_qutlass_nvfp4_transform_loading": {
                     "status": "not_supported"
                 },
@@ -11633,6 +11650,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     ] == [
         "awq_quantization",
         "bitsandbytes_quantization",
+        "compressed_tensors_fp4_kv_cache_loading",
         "compressed_tensors_qutlass_nvfp4_transform_loading",
         "compressed_tensors_w4a16_nvfp4_loading",
         "compressed_tensors_w4a16_nvfp4_moe_loading",

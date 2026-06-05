@@ -124,6 +124,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "quark_w8a8_int8_checkpoint_loading": "not_supported",
     "quark_w8a8_fp8_moe_loading": "not_supported",
     "quark_w8a8_int8_moe_loading": "not_supported",
+    "compressed_tensors_fp4_kv_cache_loading": "not_supported",
     "compressed_tensors_w4a8_fp8_loading": "not_supported",
     "compressed_tensors_w4a8_int_dense_loading": "not_supported",
     "compressed_tensors_w4a8_int_moe_loading": "not_supported",
@@ -615,6 +616,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CompressedTensors W8A8 Int8 MoE loading can select generic Int8 W8A8 "
         "MoE backends today; reject it until native GB10 W8A8 Int8 MoE "
         "correctness evidence exists."
+    ),
+    "compressed_tensors_fp4_kv_cache_loading": (
+        "CompressedTensors FP4 KV-cache loading is not supported in vLLM; "
+        "only float8 KV-cache schemes are validated today. Reject FP4 KV-cache "
+        "schemes before they can masquerade as the GB10 FP8 KV-cache path."
     ),
     "compressed_tensors_w4a4_mxfp4_dense_loading": (
         "CompressedTensors W4A4 MXFP4 dense loading is not validated on "

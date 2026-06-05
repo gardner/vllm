@@ -1164,6 +1164,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "compressed_tensors_fp4_kv_cache_loading": {
+                "status": "not_supported",
+                "release_contract": (
+                    "CompressedTensors FP4 KV-cache loading is not supported "
+                    "in vLLM and must reject before it can masquerade as the "
+                    "validated GB10 FP8 KV-cache path."
+                ),
+            },
             "compressed_tensors_w4a4_mxfp4_dense_loading": {
                 "status": "not_supported",
                 "release_contract": (

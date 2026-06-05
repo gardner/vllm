@@ -22,6 +22,7 @@ from vllm.model_executor.kernels.linear import (
 from vllm.model_executor.layers.fused_moe import UnquantizedFusedMoEMethod
 from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors import (  # noqa: E501
     CompressedTensorsConfig,
+    CompressedTensorsKVCacheMethod,
     CompressedTensorsLinearMethod,
     CompressedTensorsW4A4Fp4,
     CompressedTensorsW4A4Mxfp4,
@@ -590,6 +591,31 @@ def _make_ct_config(*, target: str = "Linear") -> CompressedTensorsConfig:
         ignore=[],
         quant_format="pack-quantized",
     )
+
+
+def _make_kv_cache_scheme(*, type_: str = "float", num_bits: int = 8) -> dict:
+    return {
+        "type": type_,
+        "num_bits": num_bits,
+        "strategy": QuantizationStrategy.TENSOR.value,
+        "symmetric": True,
+    }
+
+
+def test_compressed_tensors_kv_cache_accepts_float8_scheme():
+    CompressedTensorsKVCacheMethod.validate_kv_cache_scheme(_make_kv_cache_scheme())
+
+
+@pytest.mark.parametrize(
+    "scheme",
+    [
+        _make_kv_cache_scheme(type_="float", num_bits=4),
+        _make_kv_cache_scheme(type_="int", num_bits=8),
+    ],
+)
+def test_compressed_tensors_kv_cache_rejects_non_float8_scheme(scheme):
+    with pytest.raises(NotImplementedError, match="num_bits=8, type=float"):
+        CompressedTensorsKVCacheMethod.validate_kv_cache_scheme(scheme)
 
 
 def test_get_quant_method_returns_linear_method_for_parallel_lm_head():
