@@ -524,6 +524,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "torchao_weight_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "TorchAO weight quantization can call "
+                    "torchao.quantization.quantize_ and hardware-specific "
+                    "tensor packing today and must reject on GB10/SM12x until "
+                    "native GB10 TorchAO weight correctness evidence exists."
+                ),
+            },
             "bitsandbytes_quantization": {
                 "status": "not_supported",
                 "release_contract": (

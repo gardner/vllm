@@ -73,6 +73,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
     "torchao_fp8_activation_quantization": "not_supported",
+    "torchao_weight_quantization": "not_supported",
     "bitsandbytes_quantization": "not_supported",
     "awq_quantization": "not_supported",
     "gptq_quantization": "not_supported",
@@ -2390,6 +2391,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["torchao_fp8_activation_quantization"][
         "status"
     ] == "not_supported"
+    assert support_matrix["entries"]["torchao_weight_quantization"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["bitsandbytes_quantization"]["status"] == (
         "not_supported"
     )
@@ -5395,6 +5399,9 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "torchao.quantization.quantize_" in torchao_quant
     assert "convert_to_packed_tensor_based_on_current_hardware" in torchao_quant
     assert "not supported on GB10/SM12x" in torchao_quant
+    assert "_gb10_torchao_weight_quantization_unsupported_reason" in torchao_quant
+    assert "TorchAO weight quantization" in torchao_quant
+    assert "native GB10 TorchAO weight correctness evidence" in torchao_quant
     assert "_gb10_bitsandbytes_quantization_unsupported_reason" in (
         bitsandbytes_quant
     )
@@ -6621,6 +6628,71 @@ def test_gb10_torchao_fp8_activation_quantization_rejects_sm12x(monkeypatch):
     )
     assert torchao._gb10_torchao_fp8_activation_unsupported_reason(fp8_config) is None
     assert isinstance(torchao.TorchAOConfig(fp8_config), torchao.TorchAOConfig)
+
+
+def test_gb10_torchao_weight_quantization_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.quantization import torchao
+
+    class Float8DynamicActivationFloat8WeightConfig:
+        pass
+
+    class Float8WeightOnlyConfig:
+        pass
+
+    class Int4WeightOnlyConfig:
+        pass
+
+    class Int8WeightOnlyConfig:
+        pass
+
+    monkeypatch.setattr(
+        torchao,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    for weight_config in (
+        Float8WeightOnlyConfig(),
+        Int4WeightOnlyConfig(),
+        Int8WeightOnlyConfig(),
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            torchao.TorchAOConfig(weight_config)
+
+        reason = str(exc_info.value)
+        assert "TorchAO weight quantization" in reason
+        assert type(weight_config).__name__ in reason
+        assert "torchao.quantization.quantize_" in reason
+        assert "convert_to_packed_tensor_based_on_current_hardware" in reason
+        assert "native GB10 TorchAO weight correctness evidence" in reason
+
+    fp8_activation_config = Float8DynamicActivationFloat8WeightConfig()
+    assert (
+        torchao._gb10_torchao_weight_quantization_unsupported_reason(
+            fp8_activation_config
+        )
+        is None
+    )
+
+    monkeypatch.setattr(
+        torchao,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert (
+        torchao._gb10_torchao_weight_quantization_unsupported_reason(
+            Int8WeightOnlyConfig()
+        )
+        is None
+    )
+    assert isinstance(
+        torchao.TorchAOConfig(Int8WeightOnlyConfig()),
+        torchao.TorchAOConfig,
+    )
 
 
 def test_gb10_bitsandbytes_quantization_rejects_sm12x(monkeypatch):
@@ -10281,6 +10353,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "without native GB10 TorchAO FP8 evidence"
                     ),
                 },
+                "torchao_weight_quantization": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "TorchAO weight quantization can call "
+                        "torchao.quantization.quantize_ and hardware packing "
+                        "without native GB10 TorchAO weight evidence"
+                    ),
+                },
                 "bitsandbytes_quantization": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -10918,6 +10999,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "public_fp8_quantization": {"status": "not_supported"},
                 "deepseek_v4_fp8_quantization": {"status": "not_supported"},
                 "torchao_fp8_activation_quantization": {"status": "not_supported"},
+                "torchao_weight_quantization": {"status": "not_supported"},
                 "bitsandbytes_quantization": {"status": "not_supported"},
                 "awq_quantization": {"status": "not_supported"},
                 "gptq_quantization": {"status": "not_supported"},
@@ -11148,6 +11230,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_mxfp4_moe",
         "rocm_aiter_unquantized_moe",
         "torchao_fp8_activation_quantization",
+        "torchao_weight_quantization",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
         "unquantized_moe_triton_fallback",

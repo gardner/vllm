@@ -144,6 +144,23 @@ def _gb10_torchao_fp8_activation_unsupported_reason(
     )
 
 
+def _gb10_torchao_weight_quantization_unsupported_reason(
+    torchao_config: Any,
+) -> str | None:
+    if not _is_sm12x_device() or _is_torchao_fp8_activation_config(torchao_config):
+        return None
+    config_name = type(torchao_config).__name__
+    return (
+        "TorchAO weight quantization is not supported on GB10/SM12x. The "
+        f"torchao quantization method can use {config_name}, call "
+        "torchao.quantization.quantize_, and convert weights with "
+        "convert_to_packed_tensor_based_on_current_hardware today, but this is "
+        "not native GB10 TorchAO weight correctness evidence. Use a validated "
+        "GB10 TorchAO weight path after native SM12x correctness evidence "
+        "exists, or keep TorchAO weight quantization configs unselected."
+    )
+
+
 def _check_torchao_fp8_activation_capability(torchao_config) -> None:
     """Check if the current GPU supports FP8 activation quantization.
 
@@ -188,6 +205,10 @@ class TorchAOConfig(QuantizationConfig):
     ) -> None:
         super().__init__()
         if reason := _gb10_torchao_fp8_activation_unsupported_reason(torchao_config):
+            raise ValueError(reason)
+        if reason := _gb10_torchao_weight_quantization_unsupported_reason(
+            torchao_config
+        ):
             raise ValueError(reason)
         self.torchao_config = torchao_config
         self.skip_modules = skip_modules or []

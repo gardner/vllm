@@ -47,6 +47,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
     "torchao_fp8_activation_quantization": "not_supported",
+    "torchao_weight_quantization": "not_supported",
     "bitsandbytes_quantization": "not_supported",
     "awq_quantization": "not_supported",
     "gptq_quantization": "not_supported",
@@ -234,6 +235,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "torchao.quantization.quantize_ and hardware-specific tensor packing "
         "today; reject it until native GB10 TorchAO FP8 activation correctness "
         "evidence exists."
+    ),
+    "torchao_weight_quantization": (
+        "TorchAO weight quantization can call torchao.quantization.quantize_ "
+        "and hardware-specific tensor packing today; reject it until native "
+        "GB10 TorchAO weight correctness evidence exists."
     ),
     "bitsandbytes_quantization": (
         "BitsAndBytes quantization can select bitsandbytes 4-bit linear "
