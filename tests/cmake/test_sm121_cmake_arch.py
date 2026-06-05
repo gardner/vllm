@@ -3248,10 +3248,72 @@ def test_gb10_local_cached_wheel_build_extracts_dist_artifact():
         script
     )
     assert 'docker rm "$wheel_container"' in script
-    assert 'find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl"' in script
+    assert "scripts/gb10-validate-vllm-wheel-artifact.py" in script
+    assert '--gb10-context "GB10 local wheel build after artifact extraction"' in (
+        script
+    )
+    assert '--gb10-vllm-version "$GB10_VLLM_VERSION"' in script
     assert script.index("build_status=$?") < script.index(
         'wheel_container="$(docker create vllm-gb10-wheel:local)"'
     )
+    assert script.index('docker cp "$wheel_container:/workspace/dist/."') < (
+        script.index(
+            '--gb10-context "GB10 local wheel build after artifact extraction"'
+        )
+    )
+
+
+def test_gb10_vllm_wheel_artifact_validator_enforces_exact_version(tmp_path):
+    validator = REPO_ROOT / "scripts" / "gb10-validate-vllm-wheel-artifact.py"
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    expected_version = "0.22.1rc0+gb10.abcdef123456"
+
+    def run_validator():
+        return subprocess.run(
+            [
+                sys.executable,
+                str(validator),
+                "--gb10-dist-dir",
+                str(dist_dir),
+                "--gb10-vllm-version",
+                expected_version,
+                "--gb10-context",
+                "GB10 local wheel build",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            timeout=20,
+        )
+
+    missing_proc = run_validator()
+    assert missing_proc.returncode != 0, missing_proc.stdout
+    assert "requires exactly one vLLM wheel" in missing_proc.stdout
+
+    stale_wheel = dist_dir / "vllm-0.22.1rc0+gb10.stale-cp38-abi3-linux_aarch64.whl"
+    stale_wheel.write_bytes(b"stale")
+    stale_proc = run_validator()
+    assert stale_proc.returncode != 0, stale_proc.stdout
+    assert "does not match GB10_VLLM_VERSION" in stale_proc.stdout
+
+    stale_wheel.unlink()
+    current_wheel = (
+        dist_dir
+        / "vllm-0.22.1rc0+gb10.abcdef123456-cp38-abi3-linux_aarch64.whl"
+    )
+    current_wheel.write_bytes(b"current")
+    current_proc = run_validator()
+    assert current_proc.returncode == 0, current_proc.stdout
+    assert str(current_wheel) in current_proc.stdout
+
+    (dist_dir / "vllm-0.22.1rc0+gb10.other-cp38-abi3-linux_aarch64.whl").write_bytes(
+        b"other"
+    )
+    multiple_proc = run_validator()
+    assert multiple_proc.returncode != 0, multiple_proc.stdout
+    assert "requires exactly one vLLM wheel" in multiple_proc.stdout
 
 
 def test_gb10_local_cached_runtime_build_writes_release_checksums():
@@ -3296,20 +3358,21 @@ def test_gb10_local_cached_runtime_cacheonly_skips_release_asset_writes():
 def test_gb10_local_cached_runtime_build_requires_wheel_before_docker():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 
-    assert "runtime_wheel_count=" in script
-    assert 'runtime_wheel_path="' in script
-    assert 'expected_wheel_prefix="vllm-${GB10_VLLM_VERSION}-"' in script
-    assert "does not match GB10_VLLM_VERSION" in script
-    assert '[ -d "$GB10_LOCAL_DIST_DIR" ]' in script
-    assert "GB10 local runtime build requires exactly one vLLM wheel" in script
+    assert "scripts/gb10-validate-vllm-wheel-artifact.py" in script
+    assert '--gb10-dist-dir "$GB10_LOCAL_DIST_DIR"' in script
+    assert '--gb10-vllm-version "$GB10_VLLM_VERSION"' in script
+    assert (
+        '--gb10-context "GB10 local runtime build before Docker/Buildx starts"'
+        in script
+    )
     assert "Run scripts/gb10-build-cached.sh wheel first" in script
     assert '[ "$docker_target" = "vllm-openai" ]' in script
     assert '[ "$output_mode" != "cacheonly" ]' in script
     assert script.index(
-        "GB10 local runtime build requires exactly one vLLM wheel"
+        '--gb10-context "GB10 local runtime build before Docker/Buildx starts"'
     ) < script.index('mkdir -p "$cache_root"')
     assert script.index(
-        "GB10 local runtime build requires exactly one vLLM wheel"
+        '--gb10-context "GB10 local runtime build before Docker/Buildx starts"'
     ) < script.index('docker buildx inspect "$GB10_BUILDX_BUILDER" --bootstrap')
 
 

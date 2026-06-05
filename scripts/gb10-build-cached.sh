@@ -187,30 +187,11 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
 fi
 
 if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; then
-    runtime_wheel_count=0
-    runtime_wheel_path=""
-    if [ -d "$GB10_LOCAL_DIST_DIR" ]; then
-        runtime_wheel_count="$(
-            find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -type f \
-                | wc -l
-        )"
-        runtime_wheel_path="$(
-            find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -type f \
-                -print -quit
-        )"
-    fi
-    if [ "$runtime_wheel_count" -ne 1 ]; then
-        echo "GB10 local runtime build requires exactly one vLLM wheel in $GB10_LOCAL_DIST_DIR before Docker/Buildx starts." >&2
-        echo "Run scripts/gb10-build-cached.sh wheel first, or set GB10_LOCAL_DIST_DIR to a directory with one vLLM wheel." >&2
-        exit 1
-    fi
-    expected_wheel_prefix="vllm-${GB10_VLLM_VERSION}-"
-    runtime_wheel_name="$(basename "$runtime_wheel_path")"
-    if [[ "$runtime_wheel_name" != "$expected_wheel_prefix"* ]]; then
-        echo "GB10 local runtime wheel $runtime_wheel_name does not match GB10_VLLM_VERSION=$GB10_VLLM_VERSION." >&2
-        echo "Run scripts/gb10-build-cached.sh wheel first so runtime checksums use the current vLLM wheel." >&2
-        exit 1
-    fi
+    scripts/gb10-validate-vllm-wheel-artifact.py \
+        --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
+        --gb10-vllm-version "$GB10_VLLM_VERSION" \
+        --gb10-context "GB10 local runtime build before Docker/Buildx starts" \
+        --gb10-remediation "Run scripts/gb10-build-cached.sh wheel first, or set GB10_LOCAL_DIST_DIR to a directory with one current vLLM wheel."
 fi
 
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
@@ -295,8 +276,10 @@ if [ "$docker_target" = "build" ] && [ "$output_mode" = "load" ]; then
     wheel_container="$(docker create vllm-gb10-wheel:local)"
     docker cp "$wheel_container:/workspace/dist/." "$GB10_LOCAL_DIST_DIR/"
     docker rm "$wheel_container"
-    find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -print -quit \
-        | grep -q .
+    scripts/gb10-validate-vllm-wheel-artifact.py \
+        --gb10-dist-dir "$GB10_LOCAL_DIST_DIR" \
+        --gb10-vllm-version "$GB10_VLLM_VERSION" \
+        --gb10-context "GB10 local wheel build after artifact extraction"
     ls -lh "$GB10_LOCAL_DIST_DIR"
 fi
 
