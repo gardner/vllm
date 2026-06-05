@@ -84,6 +84,29 @@ def _gb10_aiter_unquantized_moe_unsupported_reason(
     )
 
 
+_UNQUANTIZED_MOE_TRITON_FALLBACK_BACKENDS = {
+    UnquantizedMoeBackend.TRITON,
+    UnquantizedMoeBackend.BATCHED_TRITON,
+}
+
+
+def _gb10_unquantized_moe_triton_unsupported_reason(
+    backend: UnquantizedMoeBackend,
+) -> str | None:
+    if backend not in _UNQUANTIZED_MOE_TRITON_FALLBACK_BACKENDS:
+        return None
+    if not _is_sm12x_device():
+        return None
+    return (
+        "generic Triton unquantized MoE fallback backend "
+        f"'{backend.value}' is not supported on GB10/SM12x. Triton "
+        "unquantized MoE can prove reachability today, but it cannot satisfy "
+        "native GB10 unquantized MoE correctness evidence. Use a validated "
+        "GB10-safe MoE backend such as flashinfer_cutlass, or keep the Triton "
+        "unquantized MoE fallback unselected."
+    )
+
+
 def _get_priority_backends(moe_config: FusedMoEConfig) -> list[UnquantizedMoeBackend]:
     """
     Get available backends in priority order based on platform and config.
@@ -206,9 +229,10 @@ def select_unquantized_moe_backend(
         return UnquantizedMoeBackend.OOT, None
 
     if moe_config.is_lora_enabled:
-        return UnquantizedMoeBackend.TRITON, backend_to_kernel_cls(
-            UnquantizedMoeBackend.TRITON
-        )
+        backend = UnquantizedMoeBackend.TRITON
+        if reason := _gb10_unquantized_moe_triton_unsupported_reason(backend):
+            raise ValueError(reason)
+        return backend, backend_to_kernel_cls(backend)
 
     # NOTE: the kernels are selected in the following order.
     AVAILABLE_BACKENDS = _get_priority_backends(moe_config)
@@ -279,6 +303,10 @@ def select_unquantized_moe_backend(
             requested_backend
         ):
             raise ValueError(reason)
+        if reason := _gb10_unquantized_moe_triton_unsupported_reason(
+            requested_backend
+        ):
+            raise ValueError(reason)
 
         return _return_or_raise(requested_backend, moe_config, activation_format)
 
@@ -286,7 +314,9 @@ def select_unquantized_moe_backend(
     for backend in list(AVAILABLE_BACKENDS):
         reason = _gb10_trtllm_gen_moe_unsupported_reason(
             backend
-        ) or _gb10_aiter_unquantized_moe_unsupported_reason(backend)
+        ) or _gb10_aiter_unquantized_moe_unsupported_reason(
+            backend
+        ) or _gb10_unquantized_moe_triton_unsupported_reason(backend)
         if reason:
             AVAILABLE_BACKENDS.remove(backend)
             _append_unique_reason(unavailable_gb10_reasons, reason)

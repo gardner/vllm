@@ -374,6 +374,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 CUDA MoE release evidence."
                 ),
             },
+            "unquantized_moe_triton_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Generic Triton unquantized MoE fallback can prove "
+                    "reachability, but it cannot satisfy native GB10 "
+                    "unquantized MoE release evidence."
+                ),
+            },
             "marlin_nvfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

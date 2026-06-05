@@ -54,6 +54,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "humming_quantization": "not_supported",
     "humming_mxfp4_moe_backend": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
+    "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
@@ -145,6 +146,10 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "rocm_aiter_unquantized_moe": (
         "AITER unquantized MoE is a ROCm-specific backend and is not a "
         "native GB10 CUDA path."
+    ),
+    "unquantized_moe_triton_fallback": (
+        "Generic Triton unquantized MoE fallback can prove reachability, but "
+        "it is not native GB10 unquantized MoE evidence."
     ),
     "marlin_nvfp4_fallback": (
         "Marlin can prove fallback serving reachability, but it is not native "

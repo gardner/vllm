@@ -80,6 +80,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "humming_quantization": "not_supported",
     "humming_mxfp4_moe_backend": "not_supported",
     "rocm_aiter_unquantized_moe": "not_supported",
+    "unquantized_moe_triton_fallback": "not_supported",
     "rocm_aiter_fp8_moe": "not_supported",
     "marlin_nvfp4_fallback": "not_supported",
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
@@ -2383,6 +2384,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["rocm_aiter_unquantized_moe"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["unquantized_moe_triton_fallback"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["rocm_aiter_fp8_moe"]["status"] == (
         "not_supported"
     )
@@ -5501,11 +5505,81 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "_gb10_aiter_unquantized_moe_unsupported_reason" in (
         unquantized_moe_oracle
     )
+    assert "_gb10_unquantized_moe_triton_unsupported_reason" in (
+        unquantized_moe_oracle
+    )
+    assert "_UNQUANTIZED_MOE_TRITON_FALLBACK_BACKENDS" in unquantized_moe_oracle
     assert "AITER unquantized MoE backend" in unquantized_moe_oracle
+    assert "generic Triton unquantized MoE fallback backend" in (
+        unquantized_moe_oracle
+    )
+    assert "TRITON" in unquantized_moe_oracle
+    assert "BATCHED_TRITON" in unquantized_moe_oracle
     assert "ROCm-specific backend" in unquantized_moe_oracle
     assert "not supported on GB10/SM12x" in unquantized_moe_oracle
     assert "before publishing " in modelopt_quant
     assert "GB10 artifacts" in modelopt_quant
+
+
+def test_gb10_unquantized_moe_triton_fallback_rejects_sm12x(monkeypatch):
+    from vllm.model_executor.layers.fused_moe.oracle import unquantized
+
+    monkeypatch.setattr(
+        unquantized,
+        "_is_sm12x_device",
+        lambda: True,
+        raising=False,
+    )
+
+    backend = unquantized.UnquantizedMoeBackend.TRITON
+    reason = unquantized._gb10_unquantized_moe_triton_unsupported_reason(backend)
+    assert reason is not None
+    assert "generic Triton unquantized MoE fallback backend" in reason
+    assert "native GB10 unquantized MoE correctness evidence" in reason
+
+    for config in (
+        SimpleNamespace(
+            moe_backend="triton",
+            is_lora_enabled=False,
+            moe_parallel_config=SimpleNamespace(
+                use_batched_activation_format=False,
+                dp_size=1,
+            ),
+        ),
+        SimpleNamespace(
+            moe_backend="auto",
+            is_lora_enabled=True,
+            moe_parallel_config=SimpleNamespace(
+                use_batched_activation_format=False,
+                dp_size=1,
+            ),
+        ),
+        SimpleNamespace(
+            moe_backend="triton",
+            is_lora_enabled=False,
+            moe_parallel_config=SimpleNamespace(
+                use_batched_activation_format=True,
+                dp_size=1,
+            ),
+        ),
+    ):
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x") as (
+            exc_info
+        ):
+            unquantized.select_unquantized_moe_backend(config)
+
+        assert "generic Triton unquantized MoE fallback backend" in str(
+            exc_info.value
+        )
+
+    monkeypatch.setattr(
+        unquantized,
+        "_is_sm12x_device",
+        lambda: False,
+        raising=False,
+    )
+    assert unquantized._gb10_unquantized_moe_triton_unsupported_reason(backend) is None
+    assert unquantized.map_unquantized_backend("triton") == backend
 
 
 def test_gb10_wna16_moe_fallbacks_reject_sm12x(monkeypatch):
@@ -9334,6 +9408,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "AITER unquantized MoE is not a native GB10 CUDA path"
                     ),
                 },
+                "unquantized_moe_triton_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Generic Triton unquantized MoE fallback is not "
+                        "native GB10 unquantized MoE evidence"
+                    ),
+                },
                 "mxfp8_dense_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -9713,6 +9795,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "trtllm_gen_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
+                "unquantized_moe_triton_fallback": {"status": "not_supported"},
                 "rocm_aiter_fp8_moe": {"status": "not_supported"},
                 "marlin_nvfp4_fallback": {"status": "not_supported"},
                 "modelopt_w4a16_nvfp4_checkpoint_loading": {
@@ -9917,6 +10000,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "torchao_fp8_activation_quantization",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
+        "unquantized_moe_triton_fallback",
         "wna16_moe_fallback",
     ]
     assert checks_by_name["supported_routed_paths_reported"]["details"][
