@@ -4279,6 +4279,60 @@ def test_gb10_local_cached_build_rejects_pushed_stage_target_before_manifest(
     assert not cache_dir.exists()
 
 
+@pytest.mark.parametrize(
+    ("output_mode", "push_image", "expected_error"),
+    (
+        (
+            "load",
+            "true",
+            "GB10_OUTPUT=load requires GB10_PUSH_IMAGE=false",
+        ),
+        (
+            "push",
+            "false",
+            "GB10_OUTPUT=push requires GB10_PUSH_IMAGE=true",
+        ),
+    ),
+)
+def test_gb10_local_cached_build_rejects_output_push_image_mismatch_before_manifest(
+    tmp_path,
+    output_mode,
+    push_image,
+    expected_error,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_OUTPUT": output_mode,
+            "GB10_PUSH_IMAGE": push_image,
+            "GB10_IMAGE_NAME": "ghcr.io/gardner/vllm-gb10",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert expected_error in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not manifest_dir.exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_invalid_native_arch_flag_before_manifest(
     tmp_path,
 ):

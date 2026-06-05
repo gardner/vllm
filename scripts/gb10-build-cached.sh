@@ -310,6 +310,21 @@ if [ "$output_mode" = "push" ]; then
 else
     gb10_push_image_default="false"
 fi
+GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
+GB10_INPUT_PUSH_IMAGE_ENABLED="$(gb10_bool_flag GB10_PUSH_IMAGE "$GB10_INPUT_PUSH_IMAGE")"
+if [ "$output_mode" = "push" ] && [ "$GB10_INPUT_PUSH_IMAGE_ENABLED" != "1" ]; then
+    echo "GB10_OUTPUT=push requires GB10_PUSH_IMAGE=true so the release manifest and provenance match the Buildx output mode." >&2
+    exit 2
+fi
+if [ "$output_mode" != "push" ] && [ "$GB10_INPUT_PUSH_IMAGE_ENABLED" != "0" ]; then
+    echo "GB10_OUTPUT=$output_mode requires GB10_PUSH_IMAGE=false because the local Buildx output mode will not push a runtime image." >&2
+    exit 2
+fi
+if [ "$GB10_INPUT_PUSH_IMAGE_ENABLED" = "1" ]; then
+    GB10_INPUT_PUSH_IMAGE="true"
+else
+    GB10_INPUT_PUSH_IMAGE="false"
+fi
 
 export GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA
 export GB10_INPUT_FLASH_ATTN_REF="${GB10_FLASH_ATTN_REF:-}"
@@ -322,7 +337,7 @@ export GB10_INPUT_MAX_JOBS="$GB10_MAX_JOBS"
 export GB10_INPUT_NVCC_THREADS="$GB10_NVCC_THREADS"
 export GB10_INPUT_PREFLIGHT_ONLY="${GB10_PREFLIGHT_ONLY:-$gb10_preflight_only_default}"
 export GB10_INPUT_PREBUILT_WHEEL_URLS="${GB10_PREBUILT_WHEEL_URLS:-}"
-export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
+export GB10_INPUT_PUSH_IMAGE
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
 
