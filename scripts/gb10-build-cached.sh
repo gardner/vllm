@@ -13,6 +13,8 @@ Defaults are intentionally conservative for local work:
   GB10_NATIVE_CUDA_ARCHS_ONLY=1
   GB10_OUTPUT=load
 
+Set GB10_DRY_RUN=1 to resolve settings, validate the manifest, print the local
+build plan, and exit before creating cache dirs or touching Docker/Buildx.
 Set GB10_USE_REGISTRY_CACHE=1 to also import/export GHCR build cache.
 Set GB10_BUILDX_BUILDER to override the local buildx builder name.
 Set GB10_LOCAL_RELEASE_MANIFEST_DIR to override the local manifest output dir.
@@ -70,6 +72,7 @@ GB10_VLLM_VERSION="${GB10_VLLM_VERSION:-0.22.1rc0+gb10.local}"
 GB10_MAX_JOBS="${GB10_MAX_JOBS:-1}"
 GB10_NVCC_THREADS="${GB10_NVCC_THREADS:-1}"
 GB10_NATIVE_CUDA_ARCHS_ONLY="${GB10_NATIVE_CUDA_ARCHS_ONLY:-1}"
+GB10_DRY_RUN="${GB10_DRY_RUN:-0}"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
@@ -119,6 +122,22 @@ mkdir -p "$GB10_LOCAL_RELEASE_MANIFEST_DIR"
 scripts/gb10-write-release-manifest.py \
     --gb10-validate-release-inputs \
     --gb10-output-json "$GB10_LOCAL_RELEASE_MANIFEST_DIR/gb10-release-manifest.json"
+
+if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
+    echo "GB10 local cached build dry run"
+    echo "target_arg=$target_arg"
+    echo "docker_target=$docker_target"
+    echo "cache_key=$cache_key"
+    echo "output_mode=$output_mode"
+    echo "GB10_PREFLIGHT_ONLY=$GB10_PREFLIGHT_ONLY"
+    echo "GB10_PUSH_IMAGE=$GB10_PUSH_IMAGE"
+    echo "GB10_MAX_JOBS=$GB10_MAX_JOBS"
+    echo "GB10_NVCC_THREADS=$GB10_NVCC_THREADS"
+    echo "GB10_NATIVE_CUDA_ARCHS_ONLY=$GB10_NATIVE_CUDA_ARCHS_ONLY"
+    echo "GB10_LOCAL_RELEASE_MANIFEST_DIR=$GB10_LOCAL_RELEASE_MANIFEST_DIR"
+    echo "GB10_PREBUILT_WHEEL_URLS=$GB10_PREBUILT_WHEEL_URLS"
+    exit 0
+fi
 
 cache_root="${GB10_LOCAL_CACHE_DIR:-$repo_root/.buildx-cache/gb10}"
 cache_dir="$cache_root/$cache_key"

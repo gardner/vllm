@@ -3164,6 +3164,38 @@ def test_gb10_local_cached_build_script_validates_manifest_before_buildx():
     )
 
 
+def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode == 0, proc.stdout
+    assert "GB10 local cached build dry run" in proc.stdout
+    assert "docker_target=gb10-flashinfer-preflight" in proc.stdout
+    assert "cache_key=preflight" in proc.stdout
+    assert "GB10_PREFLIGHT_ONLY=true" in proc.stdout
+    assert (manifest_dir / "gb10-release-manifest.json").is_file()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_script_preserves_failed_cache_exports():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 
