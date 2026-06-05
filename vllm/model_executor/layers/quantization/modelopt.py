@@ -173,6 +173,26 @@ def _gb10_modelopt_mxfp8_quantization_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_modelopt_fp8_quantization_unsupported_reason(
+    quant_method: str | None = None,
+) -> str | None:
+    if not _is_sm12x_device():
+        return None
+
+    algo_clause = (
+        f" The requested quant_algo is {quant_method}." if quant_method else ""
+    )
+    return (
+        "ModelOpt FP8 quantization is not supported on GB10/SM12x."
+        f"{algo_clause} ModelOpt FP8-family checkpoints, including FP8, "
+        "FP8_PER_CHANNEL_PER_TOKEN, and FP8_PB_WO, can reach FP8 dense kernel "
+        "selection and FP8 MoE backend selection today, but this is not native "
+        "GB10 ModelOpt FP8 correctness evidence. Use a validated GB10 ModelOpt "
+        "FP8 path after native SM12x correctness evidence exists, or keep "
+        "--quantization modelopt unselected."
+    )
+
+
 def _gb10_modelopt_mixed_quantization_unsupported_reason() -> str | None:
     if not _is_sm12x_device():
         return None
@@ -444,6 +464,11 @@ class ModelOptFp8Config(ModelOptQuantConfigBase):
         exclude_modules: list[str],
     ) -> None:
         super().__init__(exclude_modules)
+        if reason := _gb10_modelopt_fp8_quantization_unsupported_reason(
+            quant_method
+        ):
+            raise ValueError(reason)
+
         self.quant_method = quant_method
         self.is_checkpoint_fp8_serialized = is_checkpoint_fp8_serialized
         self.kv_cache_quant_method = kv_cache_quant_method
@@ -2343,6 +2368,9 @@ class ModelOptMixedPrecisionConfig(ModelOptQuantConfigBase):
         group_size: int | None,
         **kwargs: Any,
     ) -> "ModelOptMixedPrecisionConfig":
+        if reason := _gb10_modelopt_mixed_quantization_unsupported_reason():
+            raise ValueError(reason)
+
         if "quantization" in original_config:
             quantized_layers = original_config["quantization"].get(
                 "quantized_layers", {}

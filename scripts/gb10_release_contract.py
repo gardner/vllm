@@ -59,6 +59,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "moe_wna16_legacy_fallback": "not_supported",
     "mxfp8_dense_fallback": "not_supported",
     "mxfp8_moe_fallback": "not_supported",
+    "modelopt_fp8_quantization": "not_supported",
     "modelopt_mxfp8_quantization": "not_supported",
     "modelopt_mixed_quantization": "not_supported",
     "fbgemm_fp8_quantization": "not_supported",
@@ -194,6 +195,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "mxfp8_moe_fallback": (
         "MXFP8 MoE Marlin fallback can prove reachability, but it is not "
         "native GB10 MXFP8 MoE evidence."
+    ),
+    "modelopt_fp8_quantization": (
+        "ModelOpt FP8 quantization can reach FP8 dense kernel selection and "
+        "FP8 MoE backend selection today; reject it until native GB10 ModelOpt "
+        "FP8 correctness evidence exists."
     ),
     "modelopt_mxfp8_quantization": (
         "ModelOpt MXFP8 quantization can reach MXFP8 dense kernel selection "
