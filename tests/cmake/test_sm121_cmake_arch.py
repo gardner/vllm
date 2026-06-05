@@ -4171,6 +4171,42 @@ def test_gb10_local_cached_build_rejects_dist_dir_file_before_manifest(
     assert not cache_dir.exists()
 
 
+@pytest.mark.parametrize("builder_name", ("bad builder", "--bootstrap"))
+def test_gb10_local_cached_build_rejects_invalid_buildx_builder_before_manifest(
+    tmp_path,
+    builder_name,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "preflight"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_BUILDX_BUILDER": builder_name,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10_BUILDX_BUILDER must be a Docker-compatible builder name" in (
+        proc.stdout
+    )
+    assert builder_name in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not manifest_dir.exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_pushed_non_ghcr_image_before_manifest(
     tmp_path,
 ):
@@ -4371,6 +4407,7 @@ def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker
         "ghcr.io/gardner/vllm-gb10-buildcache:preflight"
     ) in proc.stdout
     assert "GB10_PREFLIGHT_ONLY=true" in proc.stdout
+    assert "GB10_BUILDX_BUILDER=gb10-builder" in proc.stdout
     assert (manifest_dir / "gb10-release-manifest.json").is_file()
     assert not cache_dir.exists()
 

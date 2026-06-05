@@ -201,6 +201,14 @@ gb10_validate_local_dist_path() {
     fi
 }
 
+gb10_validate_buildx_builder_name() {
+    if ! [[ "$GB10_BUILDX_BUILDER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]]; then
+        echo "GB10_BUILDX_BUILDER must be a Docker-compatible builder name, got $GB10_BUILDX_BUILDER." >&2
+        echo "Use 1-128 characters: letters, digits, underscores, periods, or dashes; the first character must be a letter or digit." >&2
+        return 2
+    fi
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
@@ -318,6 +326,7 @@ export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
 
+gb10_validate_buildx_builder_name
 gb10_validate_local_dist_path
 gb10_validate_cache_root_path
 gb10_validate_release_output_paths
@@ -395,6 +404,7 @@ PY
     echo "cache_dir=$cache_dir"
     echo "cache_next=$cache_next"
     echo "cache_failed=$cache_failed"
+    echo "GB10_BUILDX_BUILDER=$GB10_BUILDX_BUILDER"
     echo "registry_cache_refs=$registry_cache_refs_string"
     echo "registry_cache_enabled=$GB10_USE_REGISTRY_CACHE_ENABLED"
     echo "output_mode=$output_mode"
