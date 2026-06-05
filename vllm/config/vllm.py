@@ -67,6 +67,20 @@ else:
 logger = init_logger(__name__)
 
 DEFAULT_V2_MODEL_RUNNER_ARCHITECTURES = frozenset({"Qwen3ForCausalLM"})
+_GB10_SPECULATIVE_DECODING_MESSAGE = (
+    "speculative decoding is not supported on GB10/SM12x in this fork: "
+    "MTP/EAGLE/draft/ngram speculative runtime paths are not validated for "
+    "the native first-path NVFP4 release. Disable speculative decoding for "
+    "GB10, or add SM12x correctness and runtime evidence before enabling it."
+)
+
+
+def _is_gb10_sm12x_cuda_platform() -> bool:
+    from vllm.platforms import current_platform
+
+    return current_platform.is_cuda() and current_platform.is_device_capability_family(
+        120
+    )
 
 
 class OptimizationLevel(IntEnum):
@@ -839,6 +853,9 @@ class VllmConfig:
             logger.info_once("Performance mode set to '%s'.", self.performance_mode)
 
         self.try_verify_and_update_config()
+
+        if self.speculative_config is not None and _is_gb10_sm12x_cuda_platform():
+            raise ValueError(_GB10_SPECULATIVE_DECODING_MESSAGE)
 
         if self.model_config is not None:
             self.model_config.verify_with_parallel_config(self.parallel_config)

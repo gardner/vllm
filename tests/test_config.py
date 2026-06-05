@@ -14,6 +14,7 @@ from pydantic import ValidationError
 import vllm.config.parallel as parallel_config_module
 import vllm.config.vllm as vllm_config_module
 import vllm.envs as envs
+import vllm.platforms as platforms
 from vllm.compilation.backends import VllmBackend
 from vllm.config import (
     CompilationConfig,
@@ -72,6 +73,41 @@ def test_parallel_config_allows_expert_parallel_off_gb10(monkeypatch):
     config = ParallelConfig(enable_expert_parallel=True)
 
     assert config.enable_expert_parallel
+
+
+def test_gb10_vllm_config_rejects_speculative_decoding_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    speculative_config = SpeculativeConfig(
+        method="ngram",
+        num_speculative_tokens=1,
+    )
+
+    with pytest.raises(ValueError, match="speculative decoding.*GB10/SM12x"):
+        VllmConfig(speculative_config=speculative_config)
+
+
+def test_vllm_config_allows_speculative_decoding_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    speculative_config = SpeculativeConfig(
+        method="ngram",
+        num_speculative_tokens=1,
+    )
+
+    config = VllmConfig(speculative_config=speculative_config)
+
+    assert config.speculative_config is speculative_config
 
 
 def test_compile_config_repr_succeeds():
@@ -1314,9 +1350,12 @@ def test_vllm_config_explicit_overrides():
     assert config.compilation_config.cudagraph_mode == CUDAGraphMode.FULL_AND_PIECEWISE
 
 
-def test_fusion_pass_op_priority():
+def test_fusion_pass_op_priority(monkeypatch):
     """This test checks that custom op enablement & IR op priority
     correctly control default fusions"""
+    import vllm.model_executor.layers.quantization.fp8 as fp8_quant
+
+    monkeypatch.setattr(fp8_quant, "_is_sm12x_device", lambda: False)
 
     # Default config, O2, rms_norm+quant fusion disabled
     cfg1 = VllmConfig()

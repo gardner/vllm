@@ -60,6 +60,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mamba2_triton_ssd_runtime": "not_supported",
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
+    "speculative_decoding_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -255,6 +256,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Linear attention runtime uses generic Triton lightning/decode kernels "
         "and is not native GB10 runtime evidence until SM12x linear-attention "
         "correctness, artifact, and runtime evidence exists."
+    ),
+    "speculative_decoding_runtime": (
+        "Speculative decoding changes scheduling, attention metadata, "
+        "sampling/rejection, and drafter runtime paths across MTP, EAGLE, "
+        "draft-model, and ngram methods; reject it on GB10/SM12x until native "
+        "SM12x correctness and runtime evidence exists."
     ),
     "gdn_prefill_triton_fallback": (
         "GDN prefill Triton/FLA fallback can prove reachability, but it is not "

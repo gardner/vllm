@@ -536,6 +536,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "and runtime evidence exists."
                 ),
             },
+            "speculative_decoding_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Speculative decoding changes scheduler, attention "
+                    "metadata, sampler/rejection, and drafter runtime paths "
+                    "across MTP, EAGLE, draft-model, and ngram methods; "
+                    "reject it on GB10/SM12x until native SM12x correctness "
+                    "and runtime evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (
