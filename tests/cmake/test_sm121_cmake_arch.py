@@ -4131,6 +4131,46 @@ def test_gb10_local_cached_build_rejects_cache_root_file_before_manifest(
     assert not manifest_dir.exists()
 
 
+@pytest.mark.parametrize("target", ("runtime", "wheel"))
+def test_gb10_local_cached_build_rejects_dist_dir_file_before_manifest(
+    tmp_path,
+    target,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+    dist_dir = tmp_path / "dist"
+    dist_dir.write_text("keep\n")
+
+    proc = subprocess.run(
+        ["bash", str(script), target],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_LOCAL_DIST_DIR": str(dist_dir),
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "GB10_LOCAL_DIST_DIR must be a directory path" in proc.stdout
+    assert "existing target is not a directory" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert "requires exactly one vLLM wheel" not in proc.stdout
+    assert dist_dir.read_text() == "keep\n"
+    assert not manifest_dir.exists()
+    assert not cache_dir.exists()
+
+
 def test_gb10_local_cached_build_rejects_pushed_non_ghcr_image_before_manifest(
     tmp_path,
 ):

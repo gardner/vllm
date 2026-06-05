@@ -182,6 +182,25 @@ gb10_validate_cache_root_path() {
     fi
 }
 
+gb10_uses_local_dist_dir() {
+    if [ "$docker_target" = "vllm-openai" ] && [ "$output_mode" != "cacheonly" ]; then
+        return 0
+    fi
+    if [ "$docker_target" = "build" ] && [ "$output_mode" = "load" ]; then
+        return 0
+    fi
+    return 1
+}
+
+gb10_validate_local_dist_path() {
+    if gb10_uses_local_dist_dir \
+        && [ -e "$GB10_LOCAL_DIST_DIR" ] \
+        && [ ! -d "$GB10_LOCAL_DIST_DIR" ]; then
+        echo "GB10_LOCAL_DIST_DIR must be a directory path; existing target is not a directory: $GB10_LOCAL_DIST_DIR." >&2
+        return 2
+    fi
+}
+
 GB10_PREFLIGHT_CACHE_REF="${GB10_PREFLIGHT_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:preflight}"
 GB10_WHEEL_CACHE_REF="${GB10_WHEEL_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:wheel}"
 GB10_RUNTIME_CACHE_REF="${GB10_RUNTIME_CACHE_REF:-ghcr.io/gardner/vllm-gb10-buildcache:runtime}"
@@ -299,6 +318,7 @@ export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
 
+gb10_validate_local_dist_path
 gb10_validate_cache_root_path
 gb10_validate_release_output_paths
 gb10_remove_stale_release_outputs
