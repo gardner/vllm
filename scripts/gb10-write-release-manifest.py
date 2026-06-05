@@ -803,6 +803,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "weight-transfer correctness evidence exists."
                 ),
             },
+            "return_routed_experts_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Routed experts capture changes MoE scheduler and "
+                    "model-runner bookkeeping outside the validated GB10 "
+                    "first release serving path. It must reject until native "
+                    "SM12x routed-expert capture correctness evidence exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

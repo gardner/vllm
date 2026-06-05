@@ -376,6 +376,43 @@ def test_vllm_config_allows_weight_transfer_off_gb10(monkeypatch):
     assert config.weight_transfer_config is weight_transfer_config
 
 
+def test_gb10_vllm_config_rejects_return_routed_experts_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        enable_return_routed_experts=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="return routed experts runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_vllm_config_allows_return_routed_experts_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        enable_return_routed_experts=True,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 @pytest.mark.parametrize(
     "parallel_config",
     [

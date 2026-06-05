@@ -153,6 +153,13 @@ _GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE = (
     "--weight-transfer-config on GB10 until native SM12x weight-transfer "
     "correctness and runtime evidence exists."
 )
+_GB10_RETURN_ROUTED_EXPERTS_RUNTIME_MESSAGE = (
+    "return routed experts runtime is not supported on GB10/SM12x in this "
+    "fork: routed experts capture changes MoE scheduler and model-runner "
+    "bookkeeping outside the validated native first-path NVFP4 serving "
+    "release. Disable --enable-return-routed-experts on GB10 until native "
+    "SM12x routed-expert capture correctness and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -980,6 +987,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.enable_return_routed_experts
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_RETURN_ROUTED_EXPERTS_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

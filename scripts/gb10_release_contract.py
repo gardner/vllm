@@ -101,6 +101,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "kv_sharing_fast_prefill_runtime": "not_supported",
     "ec_transfer_runtime": "not_supported",
     "weight_transfer_runtime": "not_supported",
+    "return_routed_experts_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -415,6 +416,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "RL training weight transfer uses NCCL or IPC weight update engines "
         "outside the validated GB10 first release serving path; reject it "
         "until native SM12x weight-transfer correctness evidence exists."
+    ),
+    "return_routed_experts_runtime": (
+        "Routed experts capture changes MoE scheduler and model-runner "
+        "bookkeeping outside the validated GB10 first release serving path; "
+        "reject it until native SM12x routed-expert capture correctness "
+        "evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "
