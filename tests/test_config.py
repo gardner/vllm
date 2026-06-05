@@ -165,6 +165,84 @@ def test_vllm_config_allows_nvfp4_kv_cache_off_gb10(monkeypatch):
     assert config.cache_config is cache_config
 
 
+@pytest.mark.parametrize(
+    "cache_dtype",
+    [
+        "fp8_e5m2",
+        "fp8_inc",
+        "int8_per_token_head",
+        "fp8_per_token_head",
+    ],
+)
+def test_gb10_vllm_config_rejects_unvalidated_kv_cache_runtime(
+    monkeypatch,
+    cache_dtype,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="unvalidated KV cache runtime dtype.*GB10/SM12x",
+    ):
+        VllmConfig(cache_config=CacheConfig(cache_dtype=cache_dtype))
+
+
+@pytest.mark.parametrize(
+    "cache_dtype",
+    [
+        "fp8",
+        "fp8_e4m3",
+        "fp8_ds_mla",
+    ],
+)
+def test_gb10_vllm_config_allows_validated_fp8_kv_cache_runtime(
+    monkeypatch,
+    cache_dtype,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    cache_config = CacheConfig(cache_dtype=cache_dtype)
+    config = VllmConfig(cache_config=cache_config)
+
+    assert config.cache_config is cache_config
+
+
+@pytest.mark.parametrize(
+    "cache_dtype",
+    [
+        "fp8_e5m2",
+        "fp8_inc",
+        "int8_per_token_head",
+        "fp8_per_token_head",
+    ],
+)
+def test_vllm_config_allows_unvalidated_kv_cache_runtime_off_gb10(
+    monkeypatch,
+    cache_dtype,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    cache_config = CacheConfig(cache_dtype=cache_dtype)
+    config = VllmConfig(cache_config=cache_config)
+
+    assert config.cache_config is cache_config
+
+
 def test_compile_config_repr_succeeds():
     # setup: VllmBackend mutates the config object
     config = VllmConfig()

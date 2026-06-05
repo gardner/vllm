@@ -86,6 +86,22 @@ _GB10_NVFP4_KV_CACHE_MESSAGE = (
     "or correctness. Use --kv-cache-dtype fp8_e4m3 or auto for GB10 until "
     "native SM12x NVFP4 KV-cache evidence exists."
 )
+_GB10_UNVALIDATED_KV_CACHE_DTYPES = frozenset(
+    {
+        "fp8_e5m2",
+        "fp8_inc",
+        "int8_per_token_head",
+        "fp8_per_token_head",
+    }
+)
+_GB10_UNVALIDATED_KV_CACHE_MESSAGE = (
+    "unvalidated KV cache runtime dtype {cache_dtype!r} is not supported on "
+    "GB10/SM12x in this fork: the native first-path NVFP4 release validates "
+    "FP8 E4M3 KV cache and FlashMLA sparse fp8_ds_mla handling, not E5M2, "
+    "Gaudi FP8, or per-token-head KV-cache runtime formats. Use "
+    "--kv-cache-dtype fp8_e4m3 or auto for GB10 until native SM12x "
+    "correctness evidence exists for this dtype."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -878,6 +894,16 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_NVFP4_KV_CACHE_MESSAGE)
+
+        if (
+            self.cache_config.cache_dtype in _GB10_UNVALIDATED_KV_CACHE_DTYPES
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(
+                _GB10_UNVALIDATED_KV_CACHE_MESSAGE.format(
+                    cache_dtype=self.cache_config.cache_dtype
+                )
+            )
 
         if self.model_config is not None:
             self.model_config.verify_with_parallel_config(self.parallel_config)

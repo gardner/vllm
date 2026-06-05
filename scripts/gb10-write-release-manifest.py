@@ -727,6 +727,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "attention dispatch, and correctness evidence exists."
                 ),
             },
+            "unvalidated_kv_cache_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "User-selected GB10 KV-cache runtime dtypes outside FP8 "
+                    "E4M3 and FlashMLA sparse fp8_ds_mla are not validated. "
+                    "E5M2, Gaudi FP8, and per-token-head KV-cache formats "
+                    "must reject until native SM12x correctness evidence "
+                    "exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

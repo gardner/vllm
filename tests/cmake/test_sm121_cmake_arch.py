@@ -119,6 +119,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
+    "unvalidated_kv_cache_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2537,6 +2538,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "status"
     ] == "not_supported"
     assert support_matrix["entries"]["nvfp4_kv_cache_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["unvalidated_kv_cache_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8763,6 +8767,20 @@ def test_gb10_nvfp4_kv_cache_runtime_is_reported():
     assert "native SM12x NVFP4 KV-cache evidence" in vllm_config
 
 
+def test_gb10_unvalidated_kv_cache_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_UNVALIDATED_KV_CACHE_DTYPES" in vllm_config
+    assert "_GB10_UNVALIDATED_KV_CACHE_MESSAGE" in vllm_config
+    assert "unvalidated KV cache runtime dtype" in vllm_config
+    assert "GB10/SM12x" in vllm_config
+    assert "fp8_e5m2" in vllm_config
+    assert "fp8_inc" in vllm_config
+    assert "int8_per_token_head" in vllm_config
+    assert "fp8_per_token_head" in vllm_config
+    assert "fp8_ds_mla" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10743,6 +10761,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "native SM12x NVFP4 KV-cache correctness evidence"
                     ),
                 },
+                "unvalidated_kv_cache_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "E5M2, Gaudi FP8, and per-token-head KV-cache "
+                        "runtime dtypes lack native SM12x correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11500,6 +11526,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
                 "modelopt_nvfp4_kv_cache_loading": {"status": "not_supported"},
                 "nvfp4_kv_cache_runtime": {"status": "not_supported"},
+                "unvalidated_kv_cache_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11767,6 +11794,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "trtllm_gen_moe",
         "turboquant_attention",
         "unquantized_moe_triton_fallback",
+        "unvalidated_kv_cache_runtime",
         "vllm_cutlass_fp8_moe",
         "wna16_moe_fallback",
     ]

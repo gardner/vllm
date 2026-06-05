@@ -93,6 +93,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
+    "unvalidated_kv_cache_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -363,6 +364,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "User-selected vLLM kv_cache_dtype='nvfp4' is not validated on "
         "GB10/SM12x; reject it until native SM12x NVFP4 KV-cache allocation, "
         "scale handling, attention dispatch, and correctness evidence exists."
+    ),
+    "unvalidated_kv_cache_runtime": (
+        "User-selected GB10 KV-cache runtime dtypes outside FP8 E4M3 and "
+        "FlashMLA sparse fp8_ds_mla are not validated; reject E5M2, Gaudi "
+        "FP8, and per-token-head KV-cache formats until native SM12x "
+        "correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "
