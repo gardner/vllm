@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pydantic
 import pytest
+import torch
 from pydantic import ValidationError
 
 import vllm.config.parallel as parallel_config_module
@@ -19,6 +20,7 @@ from vllm.compilation.backends import VllmBackend
 from vllm.config import (
     CompilationConfig,
     KernelConfig,
+    LoRAConfig,
     ModelConfig,
     ParallelConfig,
     PoolerConfig,
@@ -108,6 +110,32 @@ def test_vllm_config_allows_speculative_decoding_off_gb10(monkeypatch):
     config = VllmConfig(speculative_config=speculative_config)
 
     assert config.speculative_config is speculative_config
+
+
+def test_gb10_vllm_config_rejects_lora_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="LoRA runtime.*GB10/SM12x"):
+        VllmConfig(lora_config=LoRAConfig(lora_dtype=torch.float16))
+
+
+def test_vllm_config_allows_lora_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    lora_config = LoRAConfig(lora_dtype=torch.float16)
+    config = VllmConfig(lora_config=lora_config)
+
+    assert config.lora_config is lora_config
 
 
 def test_compile_config_repr_succeeds():

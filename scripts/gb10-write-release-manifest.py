@@ -546,6 +546,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "and runtime evidence exists."
                 ),
             },
+            "lora_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "LoRA runtime uses CUDA Punica and Triton adapter "
+                    "kernels across dense, embedding, logits, and MoE "
+                    "adapter paths; reject it on GB10/SM12x until native "
+                    "SM12x LoRA correctness and runtime evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (

@@ -87,6 +87,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
+    "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -8724,6 +8725,24 @@ def test_gb10_speculative_decoding_runtime_is_reported():
     assert "native first-path NVFP4 release" in vllm_config
 
 
+def test_gb10_lora_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    punica_gpu = (
+        REPO_ROOT / "vllm" / "lora" / "punica_wrapper" / "punica_gpu.py"
+    ).read_text()
+    punica_selector = (
+        REPO_ROOT / "vllm" / "lora" / "punica_wrapper" / "punica_selector.py"
+    ).read_text()
+
+    assert "_GB10_LORA_RUNTIME_MESSAGE" in vllm_config
+    assert "LoRA runtime is not supported on GB10/SM12x" in vllm_config
+    assert "CUDA Punica" in vllm_config
+    assert "Triton LoRA adapter runtime paths" in vllm_config
+    assert "current_platform.get_punica_wrapper()" in punica_selector
+    assert "lora_shrink" in punica_gpu
+    assert "lora_expand" in punica_gpu
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10620,6 +10639,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Speculative decoding runtime lacks native GB10 evidence"
                     ),
                 },
+                "lora_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "LoRA runtime lacks native GB10 evidence",
+                },
                 "gdn_prefill_triton_fallback": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11408,6 +11432,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "short_conv_triton_runtime": {"status": "not_supported"},
                 "linear_attention_triton_runtime": {"status": "not_supported"},
                 "speculative_decoding_runtime": {"status": "not_supported"},
+                "lora_runtime": {"status": "not_supported"},
                 "gdn_prefill_triton_fallback": {"status": "not_supported"},
                 "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
                 "mm_encoder_fp8_attention": {"status": "not_supported"},
@@ -11650,6 +11675,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "inc_quantization",
         "int8_moe_triton_fallback",
         "linear_attention_triton_runtime",
+        "lora_runtime",
         "mamba1_triton_runtime",
         "mamba2_triton_ssd_runtime",
         "marlin_mxfp4_fallback",

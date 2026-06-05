@@ -73,6 +73,12 @@ _GB10_SPECULATIVE_DECODING_MESSAGE = (
     "the native first-path NVFP4 release. Disable speculative decoding for "
     "GB10, or add SM12x correctness and runtime evidence before enabling it."
 )
+_GB10_LORA_RUNTIME_MESSAGE = (
+    "LoRA runtime is not supported on GB10/SM12x in this fork: CUDA Punica "
+    "and Triton LoRA adapter runtime paths are not validated for the native "
+    "first-path NVFP4 release. Disable LoRA for GB10, or add SM12x "
+    "correctness and runtime evidence before enabling it."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -856,6 +862,9 @@ class VllmConfig:
 
         if self.speculative_config is not None and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_SPECULATIVE_DECODING_MESSAGE)
+
+        if self.lora_config is not None and _is_gb10_sm12x_cuda_platform():
+            raise ValueError(_GB10_LORA_RUNTIME_MESSAGE)
 
         if self.model_config is not None:
             self.model_config.verify_with_parallel_config(self.parallel_config)

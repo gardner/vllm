@@ -61,6 +61,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
+    "lora_runtime": "not_supported",
     "gdn_prefill_triton_fallback": "not_supported",
     "gdn_prefill_cutedsl_backend": "not_supported",
     "mm_encoder_fp8_attention": "not_supported",
@@ -262,6 +263,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "sampling/rejection, and drafter runtime paths across MTP, EAGLE, "
         "draft-model, and ngram methods; reject it on GB10/SM12x until native "
         "SM12x correctness and runtime evidence exists."
+    ),
+    "lora_runtime": (
+        "LoRA runtime uses CUDA Punica and Triton LoRA adapter kernels, "
+        "including dense, embedding, logits, and MoE adapter paths, so reject "
+        "it on GB10/SM12x until native SM12x LoRA correctness and runtime "
+        "evidence exists."
     ),
     "gdn_prefill_triton_fallback": (
         "GDN prefill Triton/FLA fallback can prove reachability, but it is not "
