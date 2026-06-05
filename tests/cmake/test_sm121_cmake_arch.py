@@ -3237,6 +3237,23 @@ def test_gb10_local_cached_runtime_build_writes_image_provenance():
     )
 
 
+def test_gb10_local_cached_wheel_build_extracts_dist_artifact():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert "GB10_LOCAL_DIST_DIR" in script
+    assert '[ "$docker_target" = "build" ]' in script
+    assert '[ "$output_mode" = "load" ]' in script
+    assert 'wheel_container="$(docker create vllm-gb10-wheel:local)"' in script
+    assert 'docker cp "$wheel_container:/workspace/dist/." "$GB10_LOCAL_DIST_DIR/"' in (
+        script
+    )
+    assert 'docker rm "$wheel_container"' in script
+    assert 'find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl"' in script
+    assert script.index("build_status=$?") < script.index(
+        'wheel_container="$(docker create vllm-gb10-wheel:local)"'
+    )
+
+
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
     tmp_path,
 ):

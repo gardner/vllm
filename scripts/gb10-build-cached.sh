@@ -17,6 +17,7 @@ Set GB10_DRY_RUN=1 to resolve settings, validate the manifest, print the local
 build plan, and exit before creating cache dirs or touching Docker/Buildx.
 Set GB10_USE_REGISTRY_CACHE=1 to also import/export GHCR build cache.
 Set GB10_BUILDX_BUILDER to override the local buildx builder name.
+Set GB10_LOCAL_DIST_DIR to override where local wheel builds extract artifacts.
 Set GB10_LOCAL_RELEASE_MANIFEST_DIR to override the local manifest output dir.
 Failed builds preserve any exported cache for the next retry.
 EOF
@@ -68,6 +69,7 @@ GB10_NATIVE_CUDA_ARCHS_ONLY="${GB10_NATIVE_CUDA_ARCHS_ONLY:-1}"
 GB10_DRY_RUN="${GB10_DRY_RUN:-0}"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
+GB10_LOCAL_DIST_DIR="${GB10_LOCAL_DIST_DIR:-$repo_root/dist}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
 GB10_RUNTIME_IMAGE_METADATA_JSON="${GB10_RUNTIME_IMAGE_METADATA_JSON:-$GB10_LOCAL_RELEASE_MANIFEST_DIR/buildx-runtime-image-metadata.json}"
 GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
@@ -178,6 +180,7 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     echo "GB10_MAX_JOBS=$GB10_MAX_JOBS"
     echo "GB10_NVCC_THREADS=$GB10_NVCC_THREADS"
     echo "GB10_NATIVE_CUDA_ARCHS_ONLY=$GB10_NATIVE_CUDA_ARCHS_ONLY"
+    echo "GB10_LOCAL_DIST_DIR=$GB10_LOCAL_DIST_DIR"
     echo "GB10_LOCAL_RELEASE_MANIFEST_DIR=$GB10_LOCAL_RELEASE_MANIFEST_DIR"
     echo "GB10_PREBUILT_WHEEL_URLS=$GB10_PREBUILT_WHEEL_URLS"
     exit 0
@@ -258,6 +261,16 @@ fi
 
 if [ "$build_status" -ne 0 ]; then
     exit "$build_status"
+fi
+
+if [ "$docker_target" = "build" ] && [ "$output_mode" = "load" ]; then
+    mkdir -p "$GB10_LOCAL_DIST_DIR"
+    wheel_container="$(docker create vllm-gb10-wheel:local)"
+    docker cp "$wheel_container:/workspace/dist/." "$GB10_LOCAL_DIST_DIR/"
+    docker rm "$wheel_container"
+    find "$GB10_LOCAL_DIST_DIR" -maxdepth 1 -name "vllm-*.whl" -print -quit \
+        | grep -q .
+    ls -lh "$GB10_LOCAL_DIST_DIR"
 fi
 
 if [ "$docker_target" = "vllm-openai" ]; then
