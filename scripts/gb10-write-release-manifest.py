@@ -325,6 +325,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "to native SM121A FlashMLA kernels where selected."
                 ),
             },
+            "flashinfer_gdn_prefill": {
+                "status": "supported_native",
+                "release_contract": (
+                    "GB10 GDN prefill must use native FlashInfer SM12x "
+                    "kernels when GDN models are selected; Triton/FLA and "
+                    "CuteDSL fallbacks are separate Not Supported entries."
+                ),
+            },
             "gb10_attention_trtllm_gen_to_flashinfer_fa2": {
                 "status": "supported_routed",
                 "release_contract": (
@@ -413,6 +421,22 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "but it cannot satisfy native GB10 attention or KV-cache "
                     "release evidence until native SM12x TurboQuant "
                     "correctness and runtime evidence exist."
+                ),
+            },
+            "gdn_prefill_triton_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "GDN prefill Triton/FLA fallback can prove reachability, "
+                    "but it cannot satisfy native GB10 GDN prefill release "
+                    "evidence; use native FlashInfer SM12x GDN prefill."
+                ),
+            },
+            "gdn_prefill_cutedsl_backend": {
+                "status": "not_supported",
+                "release_contract": (
+                    "GDN prefill CuteDSL is SM100-family evidence today and "
+                    "must not satisfy GB10 GDN prefill release evidence; use "
+                    "native FlashInfer SM12x GDN prefill."
                 ),
             },
             "trtllm_gen_moe": {

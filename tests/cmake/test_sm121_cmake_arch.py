@@ -59,6 +59,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
+    "flashinfer_gdn_prefill": "supported_native",
     "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
     "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
         "supported_routed"
@@ -72,6 +73,8 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "triton_attention_fallback": "not_supported",
     "flex_attention_fallback": "not_supported",
     "turboquant_attention": "not_supported",
+    "gdn_prefill_triton_fallback": "not_supported",
+    "gdn_prefill_cutedsl_backend": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -2376,6 +2379,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["flashmla_attention"]["status"] == (
         "supported_native"
     )
+    assert support_matrix["entries"]["flashinfer_gdn_prefill"]["status"] == (
+        "supported_native"
+    )
     assert support_matrix["entries"]["public_flashattention_runtime"]["status"] == (
         "not_supported"
     )
@@ -2386,6 +2392,12 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["flashinfer_cutedsl_nvfp4_moe"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["gdn_prefill_triton_fallback"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["gdn_prefill_cutedsl_backend"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["public_fp8_quantization"]["status"] == (
@@ -8542,6 +8554,24 @@ def test_gb10_unvalidated_attention_fallbacks_are_reported():
     assert "not supported on GB10/SM12x" in turboquant_attn
 
 
+def test_gb10_gdn_prefill_fallbacks_are_reported():
+    gdn_prefill = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "gdn"
+        / "qwen_gdn_linear_attn.py"
+    ).read_text()
+
+    assert "_gb10_gdn_prefill_unsupported_reason" in gdn_prefill
+    assert "GDN prefill requires native FlashInfer SM12x support" in gdn_prefill
+    assert "Triton/FLA backend is not supported on GB10/SM12x" in gdn_prefill
+    assert "CuteDSL backend is not supported on GB10/SM12x" in gdn_prefill
+    assert "not native GB10 GDN prefill correctness evidence" in gdn_prefill
+
+
 def test_gb10_compressed_tensors_qutlass_nvfp4_transform_rejects_sm12x(
     monkeypatch,
 ):
@@ -10338,6 +10368,16 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "evidence"
                     ),
                 },
+                "gdn_prefill_triton_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "GDN prefill Triton/FLA lacks native GB10 evidence",
+                },
+                "gdn_prefill_cutedsl_backend": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "GDN prefill CuteDSL lacks native GB10 evidence",
+                },
                 "trtllm_gen_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11052,6 +11092,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "flashinfer_b12x_non_ep_moe": {"status": "supported_native"},
                 "flashinfer_cutlass_non_ep_moe": {"status": "supported_native"},
                 "flashmla_attention": {"status": "supported_native"},
+                "flashinfer_gdn_prefill": {"status": "supported_native"},
                 "gb10_attention_trtllm_gen_to_flashinfer_fa2": {
                     "status": "supported_routed"
                 },
@@ -11069,6 +11110,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "triton_attention_fallback": {"status": "not_supported"},
                 "flex_attention_fallback": {"status": "not_supported"},
                 "turboquant_attention": {"status": "not_supported"},
+                "gdn_prefill_triton_fallback": {"status": "not_supported"},
+                "gdn_prefill_cutedsl_backend": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
@@ -11286,6 +11329,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "fp8_w8a16_marlin_fallback",
         "fp8_w8a16_moe_fallback",
         "fp_quant_fp4_quantization",
+        "gdn_prefill_cutedsl_backend",
+        "gdn_prefill_triton_fallback",
         "gguf_quantization",
         "gpt_oss_triton_mxfp4_moe",
         "gptq_quantization",

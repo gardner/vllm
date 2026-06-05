@@ -157,6 +157,53 @@ def _has_flashinfer_sm12x_gdn_prefill() -> bool:
     return bool(_has_sm12x_prefill)
 
 
+def _is_sm12x_cuda_platform() -> bool:
+    return (
+        current_platform.is_cuda()
+        and current_platform.is_device_capability_family(120)
+    )
+
+
+def _gb10_gdn_prefill_unsupported_reason(
+    *,
+    requested_backend: str,
+    head_k_dim: int | None,
+    runtime_major: int,
+    supports_flashinfer: bool,
+) -> str:
+    if requested_backend == "triton":
+        return (
+            "GDN prefill Triton/FLA backend is not supported on GB10/SM12x. "
+            "Triton/FLA can prove reachability, but it is not native GB10 GDN "
+            "prefill correctness evidence. Use the native FlashInfer SM12x "
+            "GDN prefill backend, or keep GDN models unselected."
+        )
+    if requested_backend == "cutedsl":
+        return (
+            "GDN prefill CuteDSL backend is not supported on GB10/SM12x. "
+            "The in-tree CuteDSL GDN prefill path is SM100-family evidence "
+            "today and must not satisfy GB10 GDN prefill release evidence. "
+            "Use the native FlashInfer SM12x GDN prefill backend, or keep "
+            "GDN models unselected."
+        )
+
+    blockers: list[str] = []
+    if head_k_dim != 128:
+        blockers.append(f"head_k_dim={head_k_dim}")
+    if runtime_major < 13:
+        blockers.append(f"CUDA runtime major={runtime_major}")
+    if not supports_flashinfer:
+        blockers.append("FlashInfer SM12x GDN prefill kernel is unavailable")
+    blocker_text = ", ".join(blockers) if blockers else "native path unavailable"
+    return (
+        "GDN prefill requires native FlashInfer SM12x support on GB10/SM12x, "
+        f"but {blocker_text}. Triton/FLA fallback can prove reachability, "
+        "but it is not native GB10 GDN prefill correctness evidence. Install "
+        "the GB10 FlashInfer wheel/JIT cache with the SM12x GDN prefill "
+        "kernel, or keep GDN models unselected."
+    )
+
+
 def _resolve_gdn_prefill_backend(
     vllm_config: VllmConfig,
 ) -> tuple[str, Literal["triton", "flashinfer", "cutedsl"]]:
@@ -191,6 +238,8 @@ def _resolve_gdn_prefill_backend(
     head_k_dim = getattr(
         vllm_config.model_config.hf_config, "linear_key_head_dim", None
     )
+    runtime_major = current_platform.get_cuda_runtime_major()
+    is_sm12x = _is_sm12x_cuda_platform()
 
     supports_flashinfer = False
     supports_cutedsl = False
@@ -200,7 +249,7 @@ def _resolve_gdn_prefill_backend(
     elif (
         current_platform.is_device_capability_family(100)
         and head_k_dim == 128
-        and current_platform.get_cuda_runtime_major() >= 13
+        and runtime_major >= 13
     ):
         supports_flashinfer = _is_libs_cu13_install_intact()
         supports_cutedsl = True
@@ -216,18 +265,23 @@ def _resolve_gdn_prefill_backend(
                 "--no-deps nvidia-cutlass-dsl-libs-cu13"
             )
     elif (
-        current_platform.is_device_capability_family(120)
+        is_sm12x
         and head_k_dim == 128
-        and current_platform.get_cuda_runtime_major() >= 13
+        and runtime_major >= 13
     ):
         supports_flashinfer = _has_flashinfer_sm12x_gdn_prefill()
-        if not supports_flashinfer:
-            logger.warning_once(
-                "FlashInfer SM12x GDN prefill is unavailable. GB10/SM121 "
-                "requires a native SM12x kernel and will not be routed to the "
-                "SM100 tcgen05/TMEM GDN prefill path. Falling back to "
-                "Triton/FLA."
+
+    if is_sm12x:
+        if backend in ["flashinfer", "auto"] and supports_flashinfer:
+            return backend, "flashinfer"
+        raise ValueError(
+            _gb10_gdn_prefill_unsupported_reason(
+                requested_backend=backend,
+                head_k_dim=head_k_dim,
+                runtime_major=runtime_major,
+                supports_flashinfer=supports_flashinfer,
             )
+        )
 
     if backend in ["flashinfer", "auto"] and supports_flashinfer:
         return backend, "flashinfer"

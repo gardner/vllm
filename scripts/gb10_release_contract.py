@@ -33,6 +33,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_b12x_non_ep_moe": "supported_native",
     "flashinfer_cutlass_non_ep_moe": "supported_native",
     "flashmla_attention": "supported_native",
+    "flashinfer_gdn_prefill": "supported_native",
     "gb10_attention_trtllm_gen_to_flashinfer_fa2": "supported_routed",
     "gb10_attention_public_flashattention_to_flashinfer_or_flashmla": (
         "supported_routed"
@@ -46,6 +47,8 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "triton_attention_fallback": "not_supported",
     "flex_attention_fallback": "not_supported",
     "turboquant_attention": "not_supported",
+    "gdn_prefill_triton_fallback": "not_supported",
+    "gdn_prefill_cutedsl_backend": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -181,6 +184,16 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "native GB10 attention or KV-cache correctness evidence; route GB10 "
         "attention through FlashInfer with validated FP8 KV cache until native "
         "SM12x TurboQuant runtime evidence exists."
+    ),
+    "gdn_prefill_triton_fallback": (
+        "GDN prefill Triton/FLA fallback can prove reachability, but it is not "
+        "native GB10 GDN prefill correctness evidence; use the native "
+        "FlashInfer SM12x GDN prefill backend or keep GDN models unselected."
+    ),
+    "gdn_prefill_cutedsl_backend": (
+        "GDN prefill CuteDSL is SM100-family evidence today and must not "
+        "satisfy GB10 GDN prefill release evidence; use the native FlashInfer "
+        "SM12x GDN prefill backend or keep GDN models unselected."
     ),
     "trtllm_gen_moe": (
         "TRTLLM Gen MoE rejects SM121 today and must not satisfy GB10 MoE "

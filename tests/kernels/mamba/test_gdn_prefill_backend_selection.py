@@ -47,18 +47,14 @@ def _mock_cuda_platform(
     )
 
 
-def test_gdn_prefill_backend_sm12x_auto_uses_triton_until_flashinfer_kernel_exists(
+def test_gdn_prefill_backend_sm12x_auto_rejects_missing_flashinfer_kernel(
     monkeypatch,
 ):
     _mock_cuda_platform(monkeypatch, family=120)
     monkeypatch.setattr(gdn_mod, "_has_flashinfer_sm12x_gdn_prefill", lambda: False)
 
-    requested_backend, active_backend = gdn_mod._resolve_gdn_prefill_backend(
-        _make_config()
-    )
-
-    assert requested_backend == "auto"
-    assert active_backend == "triton"
+    with pytest.raises(ValueError, match="GDN prefill.*GB10/SM12x"):
+        gdn_mod._resolve_gdn_prefill_backend(_make_config())
 
 
 def test_gdn_prefill_backend_sm12x_auto_uses_flashinfer_when_kernel_exists(
@@ -75,12 +71,23 @@ def test_gdn_prefill_backend_sm12x_auto_uses_flashinfer_when_kernel_exists(
     assert active_backend == "flashinfer"
 
 
-def test_gdn_prefill_backend_sm12x_requires_qwen_head_dim(monkeypatch):
+@pytest.mark.parametrize("requested_backend", ["triton", "cutedsl"])
+def test_gdn_prefill_backend_sm12x_rejects_non_flashinfer_backends(
+    monkeypatch,
+    requested_backend,
+):
     _mock_cuda_platform(monkeypatch, family=120)
     monkeypatch.setattr(gdn_mod, "_has_flashinfer_sm12x_gdn_prefill", lambda: True)
 
-    _, active_backend = gdn_mod._resolve_gdn_prefill_backend(
-        _make_config(head_k_dim=64)
-    )
+    with pytest.raises(ValueError, match="GDN prefill.*GB10/SM12x"):
+        gdn_mod._resolve_gdn_prefill_backend(
+            _make_config(requested_backend=requested_backend)
+        )
 
-    assert active_backend == "triton"
+
+def test_gdn_prefill_backend_sm12x_rejects_non_qwen_head_dim(monkeypatch):
+    _mock_cuda_platform(monkeypatch, family=120)
+    monkeypatch.setattr(gdn_mod, "_has_flashinfer_sm12x_gdn_prefill", lambda: True)
+
+    with pytest.raises(ValueError, match="head_k_dim=64"):
+        gdn_mod._resolve_gdn_prefill_backend(_make_config(head_k_dim=64))
