@@ -3216,6 +3216,27 @@ def test_gb10_local_cached_build_script_sets_image_metadata_args():
     assert '--build-arg "VLLM_IMAGE_TAG=$VLLM_IMAGE_TAG"' in script
 
 
+def test_gb10_local_cached_runtime_build_writes_image_provenance():
+    script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
+
+    assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in script
+    assert '--metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in script
+    assert "scripts/gb10-write-runtime-image-provenance.py" in script
+    assert '--gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON"' in (
+        script
+    )
+    assert '--gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR"' in script
+    assert '--gb10-image-name "$GB10_IMAGE_NAME"' in script
+    assert '--gb10-image-tag "$GB10_IMAGE_TAG"' in script
+    assert '--gb10-push-image "$GB10_PUSH_IMAGE"' in script
+    assert script.index('--metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON"') < (
+        script.index("build_status=$?")
+    )
+    assert script.index("build_status=$?") < script.index(
+        "scripts/gb10-write-runtime-image-provenance.py"
+    )
+
+
 def test_gb10_local_cached_build_script_dry_run_validates_before_cache_or_docker(
     tmp_path,
 ):

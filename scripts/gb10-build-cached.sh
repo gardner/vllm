@@ -69,6 +69,7 @@ GB10_DRY_RUN="${GB10_DRY_RUN:-0}"
 GB10_USE_REGISTRY_CACHE="${GB10_USE_REGISTRY_CACHE:-0}"
 GB10_BUILDX_BUILDER="${GB10_BUILDX_BUILDER:-gb10-builder}"
 GB10_LOCAL_RELEASE_MANIFEST_DIR="${GB10_LOCAL_RELEASE_MANIFEST_DIR:-$repo_root/gb10-release-manifest-local}"
+GB10_RUNTIME_IMAGE_METADATA_JSON="${GB10_RUNTIME_IMAGE_METADATA_JSON:-$GB10_LOCAL_RELEASE_MANIFEST_DIR/buildx-runtime-image-metadata.json}"
 GITHUB_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 git_branch="$(git symbolic-ref -q --short HEAD || true)"
 GITHUB_EVENT_NAME="${GITHUB_EVENT_NAME:-workflow_dispatch}"
@@ -135,6 +136,10 @@ export GB10_PREFLIGHT_CACHE_REF GB10_RUNTIME_CACHE_REF GB10_WHEEL_CACHE_REF
 if [ "$docker_target" = "vllm-openai" ]; then
     image_tags=(--tag "${GB10_IMAGE_NAME}:${GB10_IMAGE_TAG}")
 fi
+metadata_args=()
+if [ "$docker_target" = "vllm-openai" ]; then
+    metadata_args=(--metadata-file "$GB10_RUNTIME_IMAGE_METADATA_JSON")
+fi
 
 VLLM_BUILD_COMMIT="${VLLM_BUILD_COMMIT:-$GITHUB_SHA}"
 VLLM_BUILD_PIPELINE="${VLLM_BUILD_PIPELINE:-${GITHUB_WORKFLOW:-GB10 local cached build}}"
@@ -169,6 +174,7 @@ if [[ "$GB10_DRY_RUN" =~ ^(1|true|yes|on)$ ]]; then
     echo "VLLM_BUILD_PIPELINE=$VLLM_BUILD_PIPELINE"
     echo "VLLM_BUILD_URL=$VLLM_BUILD_URL"
     echo "VLLM_IMAGE_TAG=$VLLM_IMAGE_TAG"
+    echo "GB10_RUNTIME_IMAGE_METADATA_JSON=$GB10_RUNTIME_IMAGE_METADATA_JSON"
     echo "GB10_MAX_JOBS=$GB10_MAX_JOBS"
     echo "GB10_NVCC_THREADS=$GB10_NVCC_THREADS"
     echo "GB10_NATIVE_CUDA_ARCHS_ONLY=$GB10_NATIVE_CUDA_ARCHS_ONLY"
@@ -219,6 +225,7 @@ scripts/gb10-run-with-heartbeat.sh "local ${cache_key} build" \
     "${output_args[@]}" \
     "${image_tags[@]}" \
     "${cache_args[@]}" \
+    "${metadata_args[@]}" \
     --build-arg "max_jobs=$GB10_MAX_JOBS" \
     --build-arg "nvcc_threads=$GB10_NVCC_THREADS" \
     --build-arg "vllm_native_cuda_archs_only=$GB10_NATIVE_CUDA_ARCHS_ONLY" \
@@ -251,4 +258,13 @@ fi
 
 if [ "$build_status" -ne 0 ]; then
     exit "$build_status"
+fi
+
+if [ "$docker_target" = "vllm-openai" ]; then
+    scripts/gb10-write-runtime-image-provenance.py \
+        --gb10-runtime-image-metadata-json "$GB10_RUNTIME_IMAGE_METADATA_JSON" \
+        --gb10-release-manifest-dir "$GB10_LOCAL_RELEASE_MANIFEST_DIR" \
+        --gb10-image-name "$GB10_IMAGE_NAME" \
+        --gb10-image-tag "$GB10_IMAGE_TAG" \
+        --gb10-push-image "$GB10_PUSH_IMAGE"
 fi
