@@ -119,7 +119,14 @@ export GB10_INPUT_PUSH_IMAGE="${GB10_PUSH_IMAGE:-$gb10_push_image_default}"
 export GB10_INPUT_RELEASE_TAG="${GB10_RELEASE_TAG:-}"
 export GB10_INPUT_RUNNER_LABELS="${GB10_RUNNER_LABELS:-$GB10_SELF_HOSTED_RUNNER_LABELS}"
 
-resolved_settings="$(python3 scripts/gb10-resolve-release-settings.py --gb10-output-shell)"
+set +e
+resolved_settings="$(python3 scripts/gb10-resolve-release-settings.py --gb10-output-shell 2>&1)"
+resolve_status=$?
+set -e
+if [ "$resolve_status" -ne 0 ]; then
+    printf '%s\n' "$resolved_settings" >&2
+    exit "$resolve_status"
+fi
 eval "$resolved_settings"
 
 export GB10_NATIVE_CUDA_ARCHS_ONLY

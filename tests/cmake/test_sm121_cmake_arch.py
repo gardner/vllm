@@ -3282,6 +3282,41 @@ def test_gb10_local_cached_runtime_dry_run_uses_resolved_release_settings(
     assert manifest["vllm"]["version"] == "0.22.1rc0+gb10.abcdef123456"
 
 
+def test_gb10_local_cached_release_dry_run_rejects_unpushed_tagged_image(
+    tmp_path,
+):
+    script = REPO_ROOT / "scripts" / "gb10-build-cached.sh"
+    manifest_dir = tmp_path / "manifest"
+    cache_dir = tmp_path / "cache"
+
+    proc = subprocess.run(
+        ["bash", str(script), "runtime"],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "GB10_DRY_RUN": "1",
+            "GB10_LOCAL_RELEASE_MANIFEST_DIR": str(manifest_dir),
+            "GB10_LOCAL_CACHE_DIR": str(cache_dir),
+            "GB10_OUTPUT": "load",
+            "GB10_RELEASE_TAG": "gb10-vllm-v0.22.1rc0-abcdef123",
+            "GITHUB_EVENT_NAME": "",
+            "GITHUB_REF": "",
+            "GITHUB_SHA": "abcdef1234567890abcdef1234567890abcdef12",
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=20,
+    )
+
+    assert proc.returncode != 0, proc.stdout
+    assert "requires push-image=true" in proc.stdout
+    assert "GB10 local cached build dry run" not in proc.stdout
+    assert not cache_dir.exists()
+    assert not (manifest_dir / "gb10-release-manifest.json").exists()
+
+
 def test_gb10_local_cached_build_script_preserves_failed_cache_exports():
     script = (REPO_ROOT / "scripts" / "gb10-build-cached.sh").read_text()
 
