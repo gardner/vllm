@@ -49,6 +49,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "modelopt_w4a16_nvfp4_checkpoint_loading": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
+    "public_mxfp4_quantization": "not_supported",
     "fp8_w8a16_marlin_fallback": "not_supported",
     "fp8_w8a16_moe_fallback": "not_supported",
     "int8_moe_triton_fallback": "not_supported",
@@ -149,6 +150,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "MXFP4 MoE Marlin, batched Marlin, emulation, and CPU fallbacks can "
         "prove reachability, but they are not native GB10 MXFP4 Tensor Core "
         "evidence."
+    ),
+    "public_mxfp4_quantization": (
+        "Public MXFP4 quantization can reach unquantized linear/attention "
+        "handling and MXFP4 MoE backend selection today; reject it until "
+        "native GB10 public MXFP4 correctness evidence exists."
     ),
     "fp8_w8a16_marlin_fallback": (
         "FP8 W8A16 Marlin fallback can prove reachability, but it is not "

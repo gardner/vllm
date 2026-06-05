@@ -406,6 +406,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "cannot satisfy native GB10 MXFP4 release evidence."
                 ),
             },
+            "public_mxfp4_quantization": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Public MXFP4 quantization can reach unquantized linear/"
+                    "attention handling and MXFP4 MoE backend selection today "
+                    "and must reject on GB10/SM12x until native GB10 public "
+                    "MXFP4 correctness evidence exists."
+                ),
+            },
             "fp8_w8a16_marlin_fallback": {
                 "status": "not_supported",
                 "release_contract": (
