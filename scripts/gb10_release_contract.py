@@ -43,6 +43,9 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
     "flashinfer_cutedsl_nvfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
+    "triton_attention_fallback": "not_supported",
+    "flex_attention_fallback": "not_supported",
+    "turboquant_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -160,6 +163,24 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     "trtllm_gen_attention": (
         "TRTLLM Gen attention artifacts and metadata do not support SM121; "
         "route GB10 attention through FlashInfer or FlashMLA."
+    ),
+    "triton_attention_fallback": (
+        "Generic Triton attention fallback can prove reachability, but it is "
+        "not native GB10 attention correctness evidence; route GB10 attention "
+        "through FlashInfer or FlashMLA until native SM12x Triton attention "
+        "runtime evidence exists."
+    ),
+    "flex_attention_fallback": (
+        "PyTorch FlexAttention fallback can prove reachability, but it is not "
+        "native GB10 attention correctness evidence; route GB10 attention "
+        "through FlashInfer or FlashMLA until native SM12x FlexAttention "
+        "runtime evidence exists."
+    ),
+    "turboquant_attention": (
+        "TurboQuant KV-cache compression can prove reachability, but it is not "
+        "native GB10 attention or KV-cache correctness evidence; route GB10 "
+        "attention through FlashInfer with validated FP8 KV cache until native "
+        "SM12x TurboQuant runtime evidence exists."
     ),
     "trtllm_gen_moe": (
         "TRTLLM Gen MoE rejects SM121 today and must not satisfy GB10 MoE "

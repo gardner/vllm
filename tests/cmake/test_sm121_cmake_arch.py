@@ -69,6 +69,9 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "flashinfer_trtllm_mxfp4_moe": "not_supported",
     "flashinfer_cutedsl_nvfp4_moe": "not_supported",
     "trtllm_gen_attention": "not_supported",
+    "triton_attention_fallback": "not_supported",
+    "flex_attention_fallback": "not_supported",
+    "turboquant_attention": "not_supported",
     "trtllm_gen_moe": "not_supported",
     "public_fp8_quantization": "not_supported",
     "deepseek_v4_fp8_quantization": "not_supported",
@@ -8512,6 +8515,33 @@ def test_gb10_compressed_tensors_w4a16_nvfp4_moe_rejects_sm12x(monkeypatch):
     )
 
 
+def test_gb10_unvalidated_attention_fallbacks_are_reported():
+    triton_attn = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "triton_attn.py"
+    ).read_text()
+    flex_attn = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" /
+        "flex_attention.py"
+    ).read_text()
+    turboquant_attn = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" /
+        "turboquant_attn.py"
+    ).read_text()
+
+    assert "_gb10_triton_attention_unsupported_reason" in triton_attn
+    assert "Triton attention backend" in triton_attn
+    assert "generic Triton attention fallback" in triton_attn
+    assert "not supported on GB10/SM12x" in triton_attn
+    assert "_gb10_flex_attention_unsupported_reason" in flex_attn
+    assert "FlexAttention backend" in flex_attn
+    assert "PyTorch FlexAttention fallback" in flex_attn
+    assert "not supported on GB10/SM12x" in flex_attn
+    assert "_gb10_turboquant_attention_unsupported_reason" in turboquant_attn
+    assert "TurboQuant attention backend" in turboquant_attn
+    assert "TurboQuant KV-cache compression" in turboquant_attn
+    assert "not supported on GB10/SM12x" in turboquant_attn
+
+
 def test_gb10_compressed_tensors_qutlass_nvfp4_transform_rejects_sm12x(
     monkeypatch,
 ):
@@ -10290,6 +10320,24 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "TRTLLM Gen attention rejects SM121",
                 },
+                "triton_attention_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Triton attention lacks native GB10 evidence",
+                },
+                "flex_attention_fallback": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "FlexAttention lacks native GB10 evidence",
+                },
+                "turboquant_attention": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "TurboQuant KV-cache compression lacks native GB10 "
+                        "evidence"
+                    ),
+                },
                 "trtllm_gen_moe": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11018,6 +11066,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "flashinfer_trtllm_mxfp4_moe": {"status": "not_supported"},
                 "flashinfer_cutedsl_nvfp4_moe": {"status": "not_supported"},
                 "trtllm_gen_attention": {"status": "not_supported"},
+                "triton_attention_fallback": {"status": "not_supported"},
+                "flex_attention_fallback": {"status": "not_supported"},
+                "turboquant_attention": {"status": "not_supported"},
                 "trtllm_gen_moe": {"status": "not_supported"},
                 "rocm_aiter_unquantized_moe": {"status": "not_supported"},
                 "unquantized_moe_triton_fallback": {"status": "not_supported"},
@@ -11231,6 +11282,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_cutedsl_nvfp4_moe",
         "flashinfer_trtllm_mxfp4_moe",
         "flashinfer_trtllm_nvfp4_dense",
+        "flex_attention_fallback",
         "fp8_w8a16_marlin_fallback",
         "fp8_w8a16_moe_fallback",
         "fp_quant_fp4_quantization",
@@ -11272,9 +11324,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_unquantized_moe",
         "torchao_fp8_activation_quantization",
         "torchao_weight_quantization",
+        "triton_attention_fallback",
         "triton_fp8_moe",
         "trtllm_gen_attention",
         "trtllm_gen_moe",
+        "turboquant_attention",
         "unquantized_moe_triton_fallback",
         "vllm_cutlass_fp8_moe",
         "wna16_moe_fallback",

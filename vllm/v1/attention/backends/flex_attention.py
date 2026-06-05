@@ -26,6 +26,7 @@ from vllm.config import VllmConfig
 from vllm.config.cache import CacheDType
 from vllm.logger import init_logger
 from vllm.platforms import current_platform
+from vllm.platforms.interface import DeviceCapability
 from vllm.utils.math_utils import cdiv
 from vllm.utils.torch_utils import is_quantized_kv_cache, is_torch_equal_or_newer
 from vllm.v1.attention.backend import (
@@ -46,6 +47,24 @@ create_block_mask_compiled = torch.compile(
     create_block_mask, fullgraph=True, mode="reduce-overhead"
 )
 flex_attention_compiled = torch.compile(flex_attention, fullgraph=True)
+
+
+def _is_sm12x_capability(capability: DeviceCapability) -> bool:
+    return capability.major == 12
+
+
+def _gb10_flex_attention_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if not _is_sm12x_capability(capability):
+        return None
+    return (
+        "FlexAttention backend is not supported on GB10/SM12x. The "
+        "PyTorch FlexAttention fallback can prove reachability, but it is not native "
+        "GB10 attention correctness evidence. Use validated FlashInfer or "
+        "FlashMLA attention after native SM12x runtime evidence exists, or "
+        "keep the FlexAttention backend unselected."
+    )
 
 
 def _offsets_to_doc_ids_tensor(
@@ -150,6 +169,20 @@ class FlexAttentionBackend(AttentionBackend):
     @staticmethod
     def get_supported_kernel_block_sizes() -> list[int | MultipleOf]:
         return [MultipleOf(16)]
+
+    @classmethod
+    def supports_combination(
+        cls,
+        head_size: int,
+        dtype: torch.dtype,
+        kv_cache_dtype: CacheDType | None,
+        block_size: int | None,
+        use_mla: bool,
+        has_sink: bool,
+        use_sparse: bool,
+        device_capability: DeviceCapability,
+    ) -> str | None:
+        return _gb10_flex_attention_unsupported_reason(device_capability)
 
 
 # @torch.compile(fullgraph=True, mode="reduce-overhead")

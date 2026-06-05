@@ -388,6 +388,33 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "route GB10 attention through FlashInfer or FlashMLA."
                 ),
             },
+            "triton_attention_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Generic Triton attention fallback can prove reachability, "
+                    "but it cannot satisfy native GB10 attention release "
+                    "evidence until native SM12x Triton attention correctness "
+                    "and runtime evidence exist."
+                ),
+            },
+            "flex_attention_fallback": {
+                "status": "not_supported",
+                "release_contract": (
+                    "PyTorch FlexAttention fallback can prove reachability, "
+                    "but it cannot satisfy native GB10 attention release "
+                    "evidence until native SM12x FlexAttention correctness "
+                    "and runtime evidence exist."
+                ),
+            },
+            "turboquant_attention": {
+                "status": "not_supported",
+                "release_contract": (
+                    "TurboQuant KV-cache compression can prove reachability, "
+                    "but it cannot satisfy native GB10 attention or KV-cache "
+                    "release evidence until native SM12x TurboQuant "
+                    "correctness and runtime evidence exist."
+                ),
+            },
             "trtllm_gen_moe": {
                 "status": "not_supported",
                 "release_contract": (

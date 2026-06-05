@@ -29,6 +29,7 @@ from vllm.config.cache import CacheDType
 from vllm.model_executor.layers.quantization.turboquant.centroids import (
     get_centroids,
 )
+from vllm.platforms.interface import DeviceCapability
 from vllm.triton_utils import triton
 from vllm.v1.attention.backend import (
     AttentionBackend,
@@ -67,6 +68,25 @@ if _HAS_FLASH_ATTN:
 # kernel can read them efficiently. This avoids O(cached_len) dequant work
 # per continuation, eliminating the O(N²/chunk_size) collapse at long context.
 _CONTINUATION_DECODE_THRESHOLD = 128
+
+
+def _is_sm12x_capability(capability: DeviceCapability) -> bool:
+    return capability.major == 12
+
+
+def _gb10_turboquant_attention_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if not _is_sm12x_capability(capability):
+        return None
+    return (
+        "TurboQuant attention backend is not supported on GB10/SM12x. "
+        "TurboQuant KV-cache compression can prove reachability, but it is "
+        "not native GB10 attention or KV-cache correctness evidence. Use "
+        "validated FlashInfer attention with FP8 KV cache after native SM12x "
+        "runtime evidence exists, or keep TurboQuant KV-cache compression "
+        "unselected."
+    )
 
 
 def _build_hadamard(d: int, device_str: str) -> torch.Tensor:
@@ -171,6 +191,20 @@ class TurboQuantAttentionBackend(AttentionBackend):
         # head_size from spec is effective_head_size (padded_slot//2),
         # not the model's actual head_dim. Accept any positive value.
         return head_size > 0
+
+    @classmethod
+    def supports_combination(
+        cls,
+        head_size: int,
+        dtype: torch.dtype,
+        kv_cache_dtype: CacheDType | None,
+        block_size: int | None,
+        use_mla: bool,
+        has_sink: bool,
+        use_sparse: bool,
+        device_capability: DeviceCapability,
+    ) -> str | None:
+        return _gb10_turboquant_attention_unsupported_reason(device_capability)
 
 
 @dataclass

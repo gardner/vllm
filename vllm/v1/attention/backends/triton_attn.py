@@ -50,6 +50,24 @@ from vllm.v1.kv_cache_interface import (
 logger = init_logger(__name__)
 
 
+def _is_sm12x_capability(capability: DeviceCapability) -> bool:
+    return capability.major == 12
+
+
+def _gb10_triton_attention_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if not _is_sm12x_capability(capability):
+        return None
+    return (
+        "Triton attention backend is not supported on GB10/SM12x. The "
+        "generic Triton attention fallback can prove reachability, but it is "
+        "not native GB10 attention correctness evidence. Use validated "
+        "FlashInfer or FlashMLA attention after native SM12x runtime evidence "
+        "exists, or keep the Triton attention backend unselected."
+    )
+
+
 # constants
 MIN_LAUNCH_GRID_SIZE_2D = 128  # Minimum launch grid size of 2D kernel
 NUM_PAR_SOFTMAX_SEGMENTS = 16  # Number of parallel tiled softmax segments
@@ -391,6 +409,20 @@ class TritonAttentionBackend(AttentionBackend):
     @classmethod
     def supports_compute_capability(cls, capability: DeviceCapability) -> bool:
         return True
+
+    @classmethod
+    def supports_combination(
+        cls,
+        head_size: int,
+        dtype: torch.dtype,
+        kv_cache_dtype: CacheDType | None,
+        block_size: int | None,
+        use_mla: bool,
+        has_sink: bool,
+        use_sparse: bool,
+        device_capability: DeviceCapability,
+    ) -> str | None:
+        return _gb10_triton_attention_unsupported_reason(device_capability)
 
 
 class TritonAttentionImpl(AttentionImpl):
