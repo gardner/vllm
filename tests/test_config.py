@@ -310,6 +310,51 @@ def test_gb10_vllm_config_rejects_ubatching_runtime(
         VllmConfig(parallel_config=parallel_config)
 
 
+@pytest.mark.parametrize(
+    "parallel_config",
+    [
+        ParallelConfig(data_parallel_size=2),
+        ParallelConfig(data_parallel_size=2, data_parallel_external_lb=True),
+        ParallelConfig(data_parallel_size=2, data_parallel_hybrid_lb=True),
+        ParallelConfig(distributed_executor_backend="external_launcher"),
+        ParallelConfig(
+            pipeline_parallel_size=2,
+            distributed_executor_backend="mp",
+            nnodes=2,
+        ),
+        ParallelConfig(
+            tensor_parallel_size=2,
+            distributed_executor_backend="mp",
+            nnodes=2,
+        ),
+        ParallelConfig(
+            prefill_context_parallel_size=2,
+            distributed_executor_backend="mp",
+            nnodes=2,
+        ),
+        ParallelConfig(
+            tensor_parallel_size=2,
+            decode_context_parallel_size=2,
+            distributed_executor_backend="mp",
+            nnodes=2,
+        ),
+    ],
+)
+def test_gb10_vllm_config_rejects_distributed_parallel_runtime(
+    monkeypatch,
+    parallel_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="distributed parallel runtime.*GB10/SM12x"):
+        VllmConfig(parallel_config=parallel_config)
+
+
 def test_compile_config_repr_succeeds():
     # setup: VllmBackend mutates the config object
     config = VllmConfig()
@@ -495,7 +540,13 @@ def test_with_hf_config_leaves_unknown_model_type_without_architectures(
     assert updated.model_config.hf_config.architectures is None
 
 
-def test_async_scheduling_with_pipeline_parallelism_is_allowed():
+def test_async_scheduling_with_pipeline_parallelism_is_allowed(monkeypatch):
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
     cfg = VllmConfig(
         scheduler_config=SchedulerConfig(
             max_model_len=8192,
@@ -1620,6 +1671,7 @@ def test_scheduler_config_init():
     ],
 )
 def test_needs_dp_coordination(
+    monkeypatch,
     model_id,
     data_parallel_size,
     external_lb,
@@ -1627,6 +1679,12 @@ def test_needs_dp_coordination(
 ):
     """Test that DP coordinator and wave coordination are configured correctly."""
     from vllm.config import ParallelConfig
+
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
 
     model_config = ModelConfig(model_id)
     parallel_config = ParallelConfig(

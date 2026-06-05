@@ -123,6 +123,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
+    "distributed_parallel_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -2553,6 +2554,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["ubatching_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["distributed_parallel_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["marlin_mxfp4_fallback"]["status"] == (
@@ -8817,6 +8821,20 @@ def test_gb10_ubatching_runtime_is_reported():
     assert "DeepEP all-to-all" in vllm_config
 
 
+def test_gb10_distributed_parallel_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+
+    assert "_GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE" in vllm_config
+    assert "distributed parallel runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "data parallel, tensor parallel, pipeline parallel" in vllm_config
+    assert "context parallel" in vllm_config
+    assert "external launcher" in vllm_config
+    assert "world_size_across_dp > 1" in vllm_config
+    assert "distributed_executor_backend == \"external_launcher\"" in vllm_config
+
+
 def test_gb10_mm_encoder_fp8_attention_is_reported():
     mm_encoder_attention = (
         REPO_ROOT
@@ -10829,6 +10847,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "scheduler and DeepEP all-to-all correctness evidence"
                     ),
                 },
+                "distributed_parallel_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Distributed parallel process topologies lack native "
+                        "SM12x distributed correctness evidence"
+                    ),
+                },
                 "compressed_tensors_fp4_kv_cache_loading": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11590,6 +11616,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "kv_offload_runtime": {"status": "not_supported"},
                 "kv_transfer_runtime": {"status": "not_supported"},
                 "ubatching_runtime": {"status": "not_supported"},
+                "distributed_parallel_runtime": {"status": "not_supported"},
                 "marlin_mxfp4_fallback": {"status": "not_supported"},
                 "mxfp4_moe_fallback": {"status": "not_supported"},
                 "public_mxfp4_quantization": {"status": "not_supported"},
@@ -11784,6 +11811,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "cutlass_mla_sm100_fallback",
         "deep_gemm_fp8_moe",
         "deepseek_v4_fp8_quantization",
+        "distributed_parallel_runtime",
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",
         "fbgemm_nvfp4_dense",

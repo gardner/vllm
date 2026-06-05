@@ -765,6 +765,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "ubatching correctness evidence exists."
                 ),
             },
+            "distributed_parallel_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Data parallel, tensor parallel, pipeline parallel, "
+                    "context parallel, multi-node multiprocessing, and "
+                    "external launcher process topologies are outside the "
+                    "validated GB10 first release path. They must reject "
+                    "until native SM12x distributed correctness evidence "
+                    "exists."
+                ),
+            },
             "marlin_mxfp4_fallback": {
                 "status": "not_supported",
                 "release_contract": (

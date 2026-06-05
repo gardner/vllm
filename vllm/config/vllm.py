@@ -124,6 +124,14 @@ _GB10_UBATCHING_RUNTIME_MESSAGE = (
     "--ubatch-size at 0 or 1 on GB10 until native SM12x ubatching correctness "
     "and runtime evidence exists."
 )
+_GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE = (
+    "distributed parallel runtime is not supported on GB10/SM12x in this fork: "
+    "data parallel, tensor parallel, pipeline parallel, context parallel, "
+    "multi-node multiprocessing, and external launcher process topologies are "
+    "outside the validated native first-path NVFP4 release. Use a single local "
+    "GB10 worker for this release until native SM12x distributed correctness "
+    "and runtime evidence exists."
+)
 
 
 def _is_gb10_sm12x_cuda_platform() -> bool:
@@ -131,6 +139,14 @@ def _is_gb10_sm12x_cuda_platform() -> bool:
 
     return current_platform.is_cuda() and current_platform.is_device_capability_family(
         120
+    )
+
+
+def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
+    return (
+        parallel_config.world_size_across_dp > 1
+        or parallel_config.nnodes > 1
+        or parallel_config.distributed_executor_backend == "external_launcher"
     )
 
 
@@ -918,6 +934,12 @@ class VllmConfig:
 
         if self.parallel_config.use_ubatching and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_UBATCHING_RUNTIME_MESSAGE)
+
+        if (
+            _uses_distributed_parallel_runtime(self.parallel_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE)
 
         self.try_verify_and_update_config()
 

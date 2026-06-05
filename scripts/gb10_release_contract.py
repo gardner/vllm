@@ -97,6 +97,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
+    "distributed_parallel_runtime": "not_supported",
     "marlin_mxfp4_fallback": "not_supported",
     "mxfp4_moe_fallback": "not_supported",
     "public_mxfp4_quantization": "not_supported",
@@ -389,6 +390,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "microbatching, cascade-attention handling, and DeepEP all-to-all "
         "assumptions outside the validated GB10 first release path; reject "
         "them until native SM12x ubatching correctness evidence exists."
+    ),
+    "distributed_parallel_runtime": (
+        "Data parallel, tensor parallel, pipeline parallel, context parallel, "
+        "multi-node multiprocessing, and external launcher process topologies "
+        "are outside the validated GB10 first release path; reject them until "
+        "native SM12x distributed correctness evidence exists."
     ),
     "marlin_mxfp4_fallback": (
         "Marlin can prove MXFP4 dense/MoE fallback reachability, but it is "
