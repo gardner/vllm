@@ -925,6 +925,18 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness and runtime evidence exists."
                 ),
             },
+            "skip_tokenizer_init_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Skipping tokenizer initialization disables tokenizer and "
+                    "detokenizer setup and switches serving to token-id-only "
+                    "request/response semantics outside the validated GB10 "
+                    "first release OpenAI-compatible serving path. "
+                    "--skip-tokenizer-init must reject until native SM12x "
+                    "tokenizerless serving correctness and runtime evidence "
+                    "exists."
+                ),
+            },
             "transformers_model_impl_runtime": {
                 "status": "not_supported",
                 "release_contract": (

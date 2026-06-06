@@ -239,6 +239,14 @@ _GB10_SPECIALIZED_TOKENIZER_RUNTIME_MESSAGE = (
     "NVFP4 serving release. Use auto, hf, or slow tokenizer modes on GB10 until "
     "native SM12x specialized tokenizer correctness and runtime evidence exists."
 )
+_GB10_SKIP_TOKENIZER_INIT_RUNTIME_MESSAGE = (
+    "skip tokenizer init runtime is not supported on GB10/SM12x in this fork: "
+    "--skip-tokenizer-init and direct model_config.skip_tokenizer_init disable "
+    "tokenizer and detokenizer initialization and switch serving to token-id-only "
+    "request and response semantics outside the validated native first-path NVFP4 "
+    "OpenAI-compatible serving release. Initialize the tokenizer on GB10 until "
+    "native SM12x tokenizerless serving correctness and runtime evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -1207,6 +1215,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_SPECIALIZED_TOKENIZER_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.skip_tokenizer_init
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_SKIP_TOKENIZER_INIT_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

@@ -139,6 +139,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "hf_config_path_runtime": "not_supported",
     "hf_overrides_runtime": "not_supported",
     "specialized_tokenizer_runtime": "not_supported",
+    "skip_tokenizer_init_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
@@ -2622,6 +2623,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["specialized_tokenizer_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["skip_tokenizer_init_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["transformers_model_impl_runtime"]["status"] == (
@@ -9135,6 +9139,21 @@ def test_gb10_specialized_tokenizer_runtime_is_reported():
     assert "--tokenizer-mode" in arg_utils
 
 
+def test_gb10_skip_tokenizer_init_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_SKIP_TOKENIZER_INIT_RUNTIME_MESSAGE" in vllm_config
+    assert "skip tokenizer init runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--skip-tokenizer-init" in vllm_config
+    assert "model_config.skip_tokenizer_init" in vllm_config
+    assert "skip_tokenizer_init" in model_config
+    assert "--skip-tokenizer-init" in arg_utils
+
+
 def test_gb10_transformers_model_impl_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
@@ -11381,6 +11400,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "skip_tokenizer_init_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "tokenizerless serving lacks native SM12x correctness "
+                        "evidence"
+                    ),
+                },
                 "transformers_model_impl_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12214,6 +12241,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "hf_config_path_runtime": {"status": "not_supported"},
                 "hf_overrides_runtime": {"status": "not_supported"},
                 "specialized_tokenizer_runtime": {"status": "not_supported"},
+                "skip_tokenizer_init_runtime": {"status": "not_supported"},
                 "transformers_model_impl_runtime": {"status": "not_supported"},
                 "trust_remote_code_runtime": {"status": "not_supported"},
                 "custom_scheduler_runtime": {"status": "not_supported"},
@@ -12495,6 +12523,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_mxfp4_moe",
         "rocm_aiter_unquantized_moe",
         "short_conv_triton_runtime",
+        "skip_tokenizer_init_runtime",
         "specialized_tokenizer_runtime",
         "speculative_decoding_runtime",
         "stock_torch_compile_runtime",

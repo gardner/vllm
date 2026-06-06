@@ -113,6 +113,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "hf_config_path_runtime": "not_supported",
     "hf_overrides_runtime": "not_supported",
     "specialized_tokenizer_runtime": "not_supported",
+    "skip_tokenizer_init_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
@@ -508,6 +509,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "GB10 first release serving path; reject tokenizer modes outside auto, "
         "hf, and slow until native SM12x specialized tokenizer correctness and "
         "runtime evidence exists."
+    ),
+    "skip_tokenizer_init_runtime": (
+        "Skipping tokenizer initialization disables tokenizer and detokenizer "
+        "setup and switches serving to token-id-only request/response semantics "
+        "outside the validated GB10 first release OpenAI-compatible serving "
+        "path; reject --skip-tokenizer-init until native SM12x tokenizerless "
+        "serving correctness and runtime evidence exists."
     ),
     "transformers_model_impl_runtime": (
         "Transformers model implementation runtime bypasses native vLLM model "
