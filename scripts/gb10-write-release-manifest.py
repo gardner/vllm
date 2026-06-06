@@ -907,6 +907,18 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "runtime evidence exists."
                 ),
             },
+            "alternate_model_loader_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Alternate model loaders and model loader extra config "
+                    "select checkpoint loading code outside the validated "
+                    "GB10 first release serving path. --load-format values "
+                    "outside auto, hf, pt, safetensors, and fastsafetensors "
+                    "plus non-empty --model-loader-extra-config must reject "
+                    "until native SM12x alternate-loader correctness and "
+                    "runtime evidence exists."
+                ),
+            },
             "custom_logits_processors_runtime": {
                 "status": "not_supported",
                 "release_contract": (

@@ -991,6 +991,97 @@ def test_vllm_config_allows_sleep_mode_runtime_off_gb10(
     assert config.model_config is model_config
 
 
+@pytest.mark.parametrize(
+    "load_config",
+    [
+        LoadConfig(load_format="bitsandbytes"),
+        LoadConfig(load_format="dummy"),
+        LoadConfig(load_format="gguf"),
+        LoadConfig(load_format="instanttensor"),
+        LoadConfig(load_format="mistral"),
+        LoadConfig(load_format="modelexpress"),
+        LoadConfig(load_format="npcache"),
+        LoadConfig(load_format="runai_streamer"),
+        LoadConfig(load_format="runai_streamer_sharded"),
+        LoadConfig(load_format="sharded_state"),
+        LoadConfig(load_format="tensorizer"),
+        LoadConfig(model_loader_extra_config={"loader": "custom"}),
+    ],
+)
+def test_gb10_vllm_config_rejects_alternate_model_loader_runtime(
+    monkeypatch,
+    load_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+
+    with pytest.raises(
+        ValueError,
+        match="alternate model loader runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config, load_config=load_config)
+
+
+@pytest.mark.parametrize(
+    "load_config",
+    [
+        LoadConfig(),
+        LoadConfig(load_format="auto"),
+        LoadConfig(load_format="fastsafetensors"),
+        LoadConfig(load_format="hf"),
+        LoadConfig(load_format="pt"),
+        LoadConfig(load_format="safetensors"),
+    ],
+)
+def test_gb10_vllm_config_allows_basic_model_loader_runtime(
+    monkeypatch,
+    load_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config, load_config=load_config)
+
+    assert config.model_config is model_config
+    assert config.load_config is load_config
+
+
+@pytest.mark.parametrize(
+    "load_config",
+    [
+        LoadConfig(load_format="dummy"),
+        LoadConfig(model_loader_extra_config={"loader": "custom"}),
+    ],
+)
+def test_vllm_config_allows_alternate_model_loader_runtime_off_gb10(
+    monkeypatch,
+    load_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config, load_config=load_config)
+
+    assert config.model_config is model_config
+    assert config.load_config is load_config
+
+
 def _noop_hf_overrides(config):
     return config
 

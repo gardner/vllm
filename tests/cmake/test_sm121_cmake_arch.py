@@ -137,6 +137,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "logprobs_logits_runtime": "not_supported",
     "fp64_gumbel_sampling_runtime": "not_supported",
     "sleep_mode_runtime": "not_supported",
+    "alternate_model_loader_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
     "hf_config_path_runtime": "not_supported",
@@ -2620,6 +2621,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["sleep_mode_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["alternate_model_loader_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
@@ -9139,6 +9143,33 @@ def test_gb10_sleep_mode_runtime_is_reported():
     assert "Wake up the allocator from sleep mode" in cumem
 
 
+def test_gb10_alternate_model_loader_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    load_config = (REPO_ROOT / "vllm" / "config" / "load.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+    model_loader = (
+        REPO_ROOT / "vllm" / "model_executor" / "model_loader" / "__init__.py"
+    ).read_text()
+
+    assert "_GB10_ALTERNATE_MODEL_LOADER_RUNTIME_MESSAGE" in vllm_config
+    assert "alternate model loader runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "_GB10_BASIC_MODEL_LOAD_FORMATS" in vllm_config
+    assert "_uses_alternate_model_loader_runtime" in vllm_config
+    assert "--load-format" in vllm_config
+    assert "--model-loader-extra-config" in vllm_config
+    assert "load_config.model_loader_extra_config" in vllm_config
+    assert "load_format" in load_config
+    assert "model_loader_extra_config" in load_config
+    assert "--load-format" in arg_utils
+    assert "--model-loader-extra-config" in arg_utils
+    assert "DummyModelLoader" in model_loader
+    assert "TensorizerLoader" in model_loader
+    assert "RunaiModelStreamerLoader" in model_loader
+    assert "GGUFModelLoader" in model_loader
+
+
 def test_gb10_custom_logits_processors_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11453,6 +11484,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "alternate_model_loader_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "alternate model loaders lack native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "custom_logits_processors_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12332,6 +12371,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "fp64_gumbel_sampling_runtime": {"status": "not_supported"},
                 "sleep_mode_runtime": {"status": "not_supported"},
+                "alternate_model_loader_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
                 "io_processor_plugin_runtime": {"status": "not_supported"},
                 "hf_config_path_runtime": {"status": "not_supported"},
@@ -12516,6 +12556,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert checks_by_name["unsupported_paths_reported"]["details"][
         "reported_not_supported_entries"
     ] == [
+        "alternate_model_loader_runtime",
         "awq_quantization",
         "bitsandbytes_quantization",
         "cascade_attention_runtime",

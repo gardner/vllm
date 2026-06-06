@@ -111,6 +111,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "logprobs_logits_runtime": "not_supported",
     "fp64_gumbel_sampling_runtime": "not_supported",
     "sleep_mode_runtime": "not_supported",
+    "alternate_model_loader_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
     "hf_config_path_runtime": "not_supported",
@@ -501,6 +502,14 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "release serving path; reject --enable-sleep-mode and "
         "--enable-cumem-allocator until native SM12x allocator correctness and "
         "runtime evidence exists."
+    ),
+    "alternate_model_loader_runtime": (
+        "Alternate model loaders and model loader extra config select "
+        "checkpoint loading code outside the validated GB10 first release "
+        "serving path; reject --load-format values outside auto, hf, pt, "
+        "safetensors, and fastsafetensors plus non-empty "
+        "--model-loader-extra-config until native SM12x alternate-loader "
+        "correctness and runtime evidence exists."
     ),
     "custom_logits_processors_runtime": (
         "Custom logits processor hooks mutate sampler logits outside the "

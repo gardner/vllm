@@ -272,6 +272,15 @@ _GB10_SLEEP_MODE_RUNTIME_MESSAGE = (
     "GB10 until native SM12x sleep/wake allocator correctness and runtime "
     "evidence exists."
 )
+_GB10_ALTERNATE_MODEL_LOADER_RUNTIME_MESSAGE = (
+    "alternate model loader runtime is not supported on GB10/SM12x in this "
+    "fork: --load-format values outside auto, hf, pt, safetensors, and "
+    "fastsafetensors, plus --model-loader-extra-config and direct "
+    "load_config.model_loader_extra_config, select checkpoint loading code "
+    "outside the validated native first-path NVFP4 serving release. Use the "
+    "basic model loaders on GB10 until native SM12x alternate-loader "
+    "correctness and runtime evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -357,6 +366,19 @@ def _uses_kv_events_runtime(kv_events_config: KVEventsConfig | None) -> bool:
 
 def _uses_specialized_tokenizer_runtime(model_config: ModelConfig) -> bool:
     return model_config.tokenizer_mode not in ("auto", "hf", "slow")
+
+
+_GB10_BASIC_MODEL_LOAD_FORMATS = frozenset(
+    {"auto", "fastsafetensors", "hf", "pt", "safetensors"}
+)
+
+
+def _uses_alternate_model_loader_runtime(load_config: LoadConfig) -> bool:
+    load_format = str(load_config.load_format).lower()
+    return (
+        load_format not in _GB10_BASIC_MODEL_LOAD_FORMATS
+        or bool(load_config.model_loader_extra_config)
+    )
 
 
 def _uses_transformers_model_impl_runtime(model_config: ModelConfig) -> bool:
@@ -1271,6 +1293,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_SLEEP_MODE_RUNTIME_MESSAGE)
+
+        if (
+            _uses_alternate_model_loader_runtime(self.load_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_ALTERNATE_MODEL_LOADER_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None
