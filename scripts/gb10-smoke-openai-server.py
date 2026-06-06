@@ -144,6 +144,9 @@ def _json_headers() -> dict[str, str]:
 def _runtime_env() -> dict[str, str | None]:
     return {
         "FLASHINFER_DISABLE_JIT": os.environ.get("FLASHINFER_DISABLE_JIT"),
+        "GB10_GPU_MEMORY_UTILIZATION": os.environ.get(
+            "GB10_GPU_MEMORY_UTILIZATION"
+        ),
     }
 
 

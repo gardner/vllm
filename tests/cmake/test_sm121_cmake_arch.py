@@ -11311,6 +11311,7 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report(
 ):
     smoke = _load_gb10_openai_smoke_module()
     monkeypatch.setenv("FLASHINFER_DISABLE_JIT", "1")
+    monkeypatch.setenv("GB10_GPU_MEMORY_UTILIZATION", "0.88")
 
     assert (
         smoke._extract_generated_text(
@@ -11478,7 +11479,10 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report(
     }
     assert report["response"]["usage"] == {"completion_tokens": 3}
     assert report["response"]["generated_text_source"] == "message.content"
-    assert report["runtime"]["env"] == {"FLASHINFER_DISABLE_JIT": "1"}
+    assert report["runtime"]["env"] == {
+        "FLASHINFER_DISABLE_JIT": "1",
+        "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+    }
     assert report["responses"] == response_summaries
     assert report["deterministic_generation"] == {
         "status": "passed",
@@ -11583,6 +11587,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             },
             "env": {
                 "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
             },
         },
         "backend_summary": {
@@ -12736,6 +12741,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "runtime": {
             "env": {
                 "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
             }
         },
         "deterministic_generation": {

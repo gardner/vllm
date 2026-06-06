@@ -250,6 +250,9 @@ def _collect_runtime_metadata() -> dict[str, Any]:
         "compilation_counter": _collect_compilation_counter(),
         "env": {
             "FLASHINFER_DISABLE_JIT": os.environ.get("FLASHINFER_DISABLE_JIT"),
+            "GB10_GPU_MEMORY_UTILIZATION": os.environ.get(
+                "GB10_GPU_MEMORY_UTILIZATION"
+            ),
             "VLLM_FAIL_ON_NVFP4_FALLBACK": os.environ.get(
                 "VLLM_FAIL_ON_NVFP4_FALLBACK"
             ),
