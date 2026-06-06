@@ -140,6 +140,15 @@ _GB10_KV_TRANSFER_RUNTIME_MESSAGE = (
     "NVFP4 release. Disable --kv-transfer-config on GB10 until native SM12x "
     "KV transfer correctness and runtime evidence exists."
 )
+_GB10_HYBRID_KV_CACHE_MANAGER_RUNTIME_MESSAGE = (
+    "hybrid KV cache manager runtime is not supported on GB10/SM12x in this "
+    "fork: --disable-hybrid-kv-cache-manager and direct "
+    "scheduler_config.disable_hybrid_kv_cache_manager=True change KV-cache "
+    "manager grouping and sliding-window/local-attention KV-cache allocation "
+    "outside the validated native first-path NVFP4 serving release. Use the "
+    "default hybrid KV-cache manager path on GB10 until native SM12x hybrid "
+    "KV-cache correctness and runtime evidence exists."
+)
 _GB10_KV_OFFLOAD_RUNTIME_MESSAGE = (
     "KV offload runtime is not supported on GB10/SM12x in this fork: "
     "single-instance KV cache offload connectors change KV allocation, "
@@ -426,6 +435,12 @@ def _uses_partial_prefill_scheduler_runtime(
         or scheduler_config.long_prefill_token_threshold
         != SchedulerConfig.long_prefill_token_threshold
     )
+
+
+def _uses_hybrid_kv_cache_manager_runtime(
+    scheduler_config: SchedulerConfig,
+) -> bool:
+    return scheduler_config.disable_hybrid_kv_cache_manager is True
 
 
 def _uses_specialized_tokenizer_runtime(model_config: ModelConfig) -> bool:
@@ -1233,6 +1248,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_KV_TRANSFER_RUNTIME_MESSAGE)
+
+        if (
+            _uses_hybrid_kv_cache_manager_runtime(self.scheduler_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_HYBRID_KV_CACHE_MANAGER_RUNTIME_MESSAGE)
 
         if self.parallel_config.use_ubatching and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_UBATCHING_RUNTIME_MESSAGE)

@@ -129,6 +129,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "kv_events_runtime": "not_supported",
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
+    "hybrid_kv_cache_manager_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
     "partial_prefill_scheduler_runtime": "not_supported",
     "async_scheduling_runtime": "not_supported",
@@ -2604,6 +2605,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["kv_transfer_runtime"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["hybrid_kv_cache_manager_runtime"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["ubatching_runtime"]["status"] == (
         "not_supported"
     )
@@ -9066,6 +9070,30 @@ def test_gb10_kv_transfer_and_offload_runtime_are_reported():
     assert "slot-mapping" in vllm_config
 
 
+def test_gb10_hybrid_kv_cache_manager_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    scheduler_config = (
+        REPO_ROOT / "vllm" / "config" / "scheduler.py"
+    ).read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+    kv_cache_utils = (
+        REPO_ROOT / "vllm" / "v1" / "core" / "kv_cache_utils.py"
+    ).read_text()
+
+    assert "_GB10_HYBRID_KV_CACHE_MANAGER_RUNTIME_MESSAGE" in vllm_config
+    assert "hybrid KV cache manager runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--disable-hybrid-kv-cache-manager" in vllm_config
+    assert "scheduler_config.disable_hybrid_kv_cache_manager=True" in vllm_config
+    assert "_uses_hybrid_kv_cache_manager_runtime" in vllm_config
+    assert "disable_hybrid_kv_cache_manager: bool | None = None" in (
+        scheduler_config
+    )
+    assert "--disable-hybrid-kv-cache-manager" in arg_utils
+    assert "unify_hybrid_kv_cache_specs" in kv_cache_utils
+
+
 def test_gb10_ubatching_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11544,6 +11572,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "lack native SM12x correctness evidence"
                     ),
                 },
+                "hybrid_kv_cache_manager_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Explicit hybrid KV-cache manager disablement lacks "
+                        "native SM12x KV-cache grouping and allocation "
+                        "correctness evidence"
+                    ),
+                },
                 "ubatching_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12527,6 +12564,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "kv_events_runtime": {"status": "not_supported"},
                 "kv_offload_runtime": {"status": "not_supported"},
                 "kv_transfer_runtime": {"status": "not_supported"},
+                "hybrid_kv_cache_manager_runtime": {"status": "not_supported"},
                 "ubatching_runtime": {"status": "not_supported"},
                 "partial_prefill_scheduler_runtime": {"status": "not_supported"},
                 "async_scheduling_runtime": {"status": "not_supported"},
@@ -12779,6 +12817,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "hf_overrides_runtime",
         "humming_mxfp4_moe_backend",
         "humming_quantization",
+        "hybrid_kv_cache_manager_runtime",
         "inc_quantization",
         "int8_moe_triton_fallback",
         "io_processor_plugin_runtime",

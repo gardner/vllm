@@ -1580,6 +1580,65 @@ def test_vllm_config_allows_partial_prefill_scheduler_runtime_off_gb10(
     assert config.scheduler_config.long_prefill_token_threshold > 0
 
 
+def test_gb10_vllm_config_rejects_hybrid_kv_cache_manager_runtime(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        disable_hybrid_kv_cache_manager=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="hybrid KV cache manager runtime.*GB10/SM12x",
+    ):
+        VllmConfig(scheduler_config=scheduler_config)
+
+
+def test_gb10_vllm_config_allows_default_hybrid_kv_cache_manager(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    config = VllmConfig()
+
+    assert config.scheduler_config.disable_hybrid_kv_cache_manager is False
+
+
+def test_vllm_config_allows_hybrid_kv_cache_manager_runtime_off_gb10(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        disable_hybrid_kv_cache_manager=True,
+    )
+    config = VllmConfig(scheduler_config=scheduler_config)
+
+    assert config.scheduler_config is scheduler_config
+    assert config.scheduler_config.disable_hybrid_kv_cache_manager is True
+
+
 @pytest.mark.parametrize(
     "kv_events_config",
     [

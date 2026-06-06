@@ -103,6 +103,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "kv_events_runtime": "not_supported",
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
+    "hybrid_kv_cache_manager_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
     "partial_prefill_scheduler_runtime": "not_supported",
     "async_scheduling_runtime": "not_supported",
@@ -460,6 +461,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Distributed KV transfer, disaggregated prefill/decode, and external "
         "KV connector request paths are not validated on GB10/SM12x; reject "
         "them until native SM12x KV transfer correctness evidence exists."
+    ),
+    "hybrid_kv_cache_manager_runtime": (
+        "Explicit hybrid KV-cache manager disablement changes KV-cache manager "
+        "grouping and sliding-window/local-attention KV-cache allocation "
+        "outside the validated GB10 first release serving path; reject it "
+        "until native SM12x hybrid KV-cache correctness and runtime evidence "
+        "exists."
     ),
     "ubatching_runtime": (
         "Dual batch overlap and manual ubatching change scheduler "

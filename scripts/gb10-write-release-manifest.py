@@ -829,6 +829,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x KV transfer correctness evidence exists."
                 ),
             },
+            "hybrid_kv_cache_manager_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Explicit hybrid KV-cache manager disablement changes "
+                    "KV-cache manager grouping and sliding-window/local-"
+                    "attention KV-cache allocation outside the validated GB10 "
+                    "first release serving path. It must reject until native "
+                    "SM12x hybrid KV-cache correctness and runtime evidence "
+                    "exists."
+                ),
+            },
             "ubatching_runtime": {
                 "status": "not_supported",
                 "release_contract": (
