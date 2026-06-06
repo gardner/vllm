@@ -109,6 +109,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
+    "io_processor_plugin_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
@@ -478,6 +479,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Custom logits processor hooks mutate sampler logits outside the "
         "validated GB10 first release serving path; reject them until native "
         "SM12x custom logits processor correctness evidence exists."
+    ),
+    "io_processor_plugin_runtime": (
+        "IO processor plugins load custom input/output processor code at model "
+        "startup outside the validated GB10 first release serving path; reject "
+        "--io-processor-plugin until native SM12x IO processor plugin "
+        "correctness and runtime evidence exists."
     ),
     "transformers_model_impl_runtime": (
         "Transformers model implementation runtime bypasses native vLLM model "

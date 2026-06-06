@@ -207,6 +207,14 @@ _GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE = (
     "native SM12x custom logits processor correctness and runtime evidence "
     "exists."
 )
+_GB10_IO_PROCESSOR_PLUGIN_RUNTIME_MESSAGE = (
+    "IO processor plugin runtime is not supported on GB10/SM12x in this fork: "
+    "--io-processor-plugin and direct model_config.io_processor_plugin load "
+    "custom input/output processor plugin code at model startup outside the "
+    "validated native first-path NVFP4 serving release. Disable IO processor "
+    "plugins on GB10 until native SM12x IO processor plugin correctness and "
+    "runtime evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -1143,6 +1151,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.io_processor_plugin
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_IO_PROCESSOR_PLUGIN_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

@@ -135,6 +135,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
+    "io_processor_plugin_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
@@ -2606,6 +2607,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["io_processor_plugin_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["transformers_model_impl_runtime"]["status"] == (
@@ -9061,6 +9065,21 @@ def test_gb10_custom_logits_processors_runtime_is_reported():
     assert "native SM12x custom logits processor correctness" in vllm_config
 
 
+def test_gb10_io_processor_plugin_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_IO_PROCESSOR_PLUGIN_RUNTIME_MESSAGE" in vllm_config
+    assert "IO processor plugin runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--io-processor-plugin" in vllm_config
+    assert "model_config.io_processor_plugin" in vllm_config
+    assert "io_processor_plugin" in model_config
+    assert "--io-processor-plugin" in arg_utils
+
+
 def test_gb10_transformers_model_impl_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
@@ -11275,6 +11294,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "io_processor_plugin_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "IO processor plugin code lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "transformers_model_impl_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12104,6 +12131,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
+                "io_processor_plugin_runtime": {"status": "not_supported"},
                 "transformers_model_impl_runtime": {"status": "not_supported"},
                 "trust_remote_code_runtime": {"status": "not_supported"},
                 "custom_scheduler_runtime": {"status": "not_supported"},
@@ -12331,6 +12359,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "humming_quantization",
         "inc_quantization",
         "int8_moe_triton_fallback",
+        "io_processor_plugin_runtime",
         "kv_events_runtime",
         "kv_offload_runtime",
         "kv_sharing_fast_prefill_runtime",

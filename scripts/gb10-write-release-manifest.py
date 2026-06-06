@@ -884,6 +884,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "processor correctness evidence exists."
                 ),
             },
+            "io_processor_plugin_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "IO processor plugins load custom input/output processor "
+                    "code at model startup outside the validated GB10 first "
+                    "release serving path. They must reject until native SM12x "
+                    "IO processor plugin correctness and runtime evidence "
+                    "exists."
+                ),
+            },
             "transformers_model_impl_runtime": {
                 "status": "not_supported",
                 "release_contract": (

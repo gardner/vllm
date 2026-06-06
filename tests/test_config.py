@@ -613,6 +613,43 @@ def test_vllm_config_allows_custom_logits_processors_runtime_off_gb10(monkeypatc
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_io_processor_plugin_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        io_processor_plugin="my_plugin",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="IO processor plugin runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_vllm_config_allows_io_processor_plugin_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        io_processor_plugin="my_plugin",
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 def test_gb10_vllm_config_rejects_transformers_model_impl_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(
