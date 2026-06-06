@@ -2272,6 +2272,17 @@ def test_gb10_vllm_config_rejects_distributed_parallel_runtime(
         VllmConfig(parallel_config=parallel_config)
 
 
+def test_gb10_distributed_parallel_runtime_helper_recognizes_elastic_ep():
+    parallel_config = SimpleNamespace(
+        world_size_across_dp=1,
+        nnodes=1,
+        distributed_executor_backend="ray",
+        enable_elastic_ep=True,
+    )
+
+    assert vllm_config_module._uses_distributed_parallel_runtime(parallel_config)
+
+
 def test_compile_config_repr_succeeds():
     # setup: VllmBackend mutates the config object
     config = VllmConfig()

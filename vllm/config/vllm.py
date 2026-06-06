@@ -451,6 +451,7 @@ def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
         parallel_config.world_size_across_dp > 1
         or parallel_config.nnodes > 1
         or parallel_config.distributed_executor_backend == "external_launcher"
+        or parallel_config.enable_elastic_ep
     )
 
 
