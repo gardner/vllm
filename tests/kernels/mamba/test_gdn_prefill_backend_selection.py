@@ -123,6 +123,7 @@ def test_fi_chunk_gated_delta_rule_forwards_raw_q_and_k(monkeypatch):
         initial_state,
         output_final_state,
         cu_seqlens,
+        use_qk_l2norm_in_kernel,
         **kwargs,
     ):
         seen["q"] = q
@@ -132,6 +133,7 @@ def test_fi_chunk_gated_delta_rule_forwards_raw_q_and_k(monkeypatch):
         seen["initial_state"] = initial_state
         seen["output_final_state"] = output_final_state
         seen["cu_seqlens"] = cu_seqlens
+        seen["use_qk_l2norm_in_kernel"] = use_qk_l2norm_in_kernel
         return (
             torch.zeros_like(q),
             torch.zeros(1, q.shape[1], q.shape[2], q.shape[2], dtype=q.dtype),
@@ -164,5 +166,6 @@ def test_fi_chunk_gated_delta_rule_forwards_raw_q_and_k(monkeypatch):
     assert seen["initial_state"].dtype == torch.float32
     assert seen["output_final_state"] is True
     torch.testing.assert_close(seen["cu_seqlens"], cu_seqlens)
+    assert seen["use_qk_l2norm_in_kernel"] is True
     assert output.shape == (1, 3, 2, 4)
     assert final_state.shape == (1, 2, 4, 4)
