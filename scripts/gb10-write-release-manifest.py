@@ -894,6 +894,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "hf_overrides_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "HF config overrides mutate Hugging Face model "
+                    "configuration before native vLLM model/backend selection "
+                    "outside the validated GB10 first release serving path. "
+                    "They must reject until native SM12x HF config override "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "transformers_model_impl_runtime": {
                 "status": "not_supported",
                 "release_contract": (
