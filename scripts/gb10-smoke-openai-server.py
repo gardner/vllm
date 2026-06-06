@@ -141,6 +141,12 @@ def _json_headers() -> dict[str, str]:
     return headers
 
 
+def _runtime_env() -> dict[str, str | None]:
+    return {
+        "FLASHINFER_DISABLE_JIT": os.environ.get("FLASHINFER_DISABLE_JIT"),
+    }
+
+
 def _http_json(
     *,
     method: str,
@@ -457,6 +463,9 @@ def _build_report(
             "retries": args.gb10_retries,
             "repeat_count": args.gb10_repeat_count,
             "require_deterministic": args.gb10_require_deterministic,
+        },
+        "runtime": {
+            "env": _runtime_env(),
         },
         "response": first_response_summary,
         "responses": response_summaries,

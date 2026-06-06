@@ -52,6 +52,12 @@ def has_flashinfer() -> bool:
     if importlib.util.find_spec("flashinfer") is None:
         logger.debug_once("FlashInfer unavailable since package was not found")
         return False
+    if os.environ.get("FLASHINFER_DISABLE_JIT") == "1" and not has_flashinfer_cubin():
+        logger.debug_once(
+            "FlashInfer unavailable since FLASHINFER_DISABLE_JIT=1 and "
+            "flashinfer-cubin was not found"
+        )
+        return False
     # When not using flashinfer cubin,
     # Also check if nvcc is available since it's required to JIT compile flashinfer
     if not has_flashinfer_cubin() and shutil.which("nvcc") is None:

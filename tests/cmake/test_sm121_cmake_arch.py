@@ -9892,6 +9892,8 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert 'os.environ["VLLM_FAIL_ON_NVFP4_FALLBACK"] = "1"' in script
     assert "VLLM_ENABLE_V1_MULTIPROCESSING" in script
     assert 'os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")' in script
+    assert "FLASHINFER_DISABLE_JIT" in script
+    assert 'os.environ.setdefault("FLASHINFER_DISABLE_JIT", "1")' in script
     assert "GB10_NVFP4_MODEL" in script
     assert 'parser.error("--model or GB10_NVFP4_MODEL is required")' in script
 
@@ -10089,6 +10091,9 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
                 "num_cudagraph_captured": 2,
                 "num_cudagraph_replayed": 1,
             },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+            },
         },
     )
     args = SimpleNamespace(
@@ -10147,6 +10152,11 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
     assert release_summary["checks"]["native_nvfp4_gemm"]["status"] == "observed"
     assert release_summary["checks"]["native_nvfp4_moe_non_ep"]["status"] == "observed"
     assert release_summary["checks"]["fallback_free"]["status"] == "passed"
+    assert release_summary["checks"]["flashinfer_jit_disabled"] == {
+        "status": "passed",
+        "expected": "1",
+        "configured": "1",
+    }
     assert release_summary["checks"]["kv_cache_dtype"] == {
         "status": "passed",
         "expected": "fp8_e4m3",
@@ -10197,6 +10207,40 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
     assert "OpenAI-compatible server smoke" in release_summary[
         "remaining_release_evidence"
     ]
+
+    monkeypatch.setattr(
+        smoke,
+        "_collect_runtime_metadata",
+        lambda: {
+            "compilation_counter": {
+                "num_cudagraph_captured": 2,
+                "num_cudagraph_replayed": 1,
+            },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "0",
+            },
+        },
+    )
+    failed_report = smoke._build_report(
+        args=args,
+        required_paths=("linear", "moe"),
+        selections=selections,
+        fallbacks=(),
+        outputs=(),
+        status="passed",
+        vllm_config_summary=vllm_config_summary,
+    )
+    failed_release_summary = failed_report["gb10_release_summary"]
+    assert failed_release_summary["checks"]["flashinfer_jit_disabled"] == {
+        "status": "failed",
+        "expected": "1",
+        "configured": "0",
+    }
+    assert (
+        "FlashInfer runtime JIT was not disabled for the GB10 smoke"
+        in failed_release_summary["smoke_blockers"]
+    )
+    assert failed_release_summary["first_path_smoke_passed"] is False
 
     missing_shape_summary = copy.deepcopy(vllm_config_summary)
     missing_shape_summary["model"].pop("head_size")
@@ -10304,6 +10348,8 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
     assert "GB10_OPENAI_IMAGE_REPORT_DIR" in script
     assert "GB10_OPENAI_IMAGE_ENV_FILE" in script
     assert "GB10_OPENAI_IMAGE_EXTRA_DOCKER_ARGS" in script
+    assert "FLASHINFER_DISABLE_JIT" in script
+    assert "-e FLASHINFER_DISABLE_JIT=1" in script
     assert "HF_TOKEN" in script
     assert "HUGGING_FACE_HUB_TOKEN" in script
     assert "gb10-openai-server-smoke-image.json" in script
@@ -10312,6 +10358,7 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
     assert "--gb10-repeat-count" in script
     assert "--gb10-require-deterministic" in script
     assert "GB10_OPENAI_IMAGE_REQUIRE_DETERMINISTIC" in script
+    assert 'FLASHINFER_DISABLE_JIT=1 python3 "$smoke_script" "${smoke_args[@]}"' in script
     assert 'python3 "$smoke_script" "${smoke_args[@]}"' in script
 
 
@@ -11200,6 +11247,8 @@ def test_gb10_openai_server_smoke_reports_api_evidence():
     assert '"responses": response_summaries' in script
     assert '"gb10_release_evidence"' in script
     assert '"openai_compatible_server_smoke"' in script
+    assert '"runtime": {' in script
+    assert '"FLASHINFER_DISABLE_JIT"' in script
     assert '"offline NVFP4 backend-selection smoke report"' in script
     assert "native backend evidence comes from the" in script
     assert "_request_with_retries" in script
@@ -11209,8 +11258,11 @@ def test_gb10_openai_server_smoke_reports_api_evidence():
     assert "raise SystemExit(main())" in script
 
 
-def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
+def test_gb10_openai_server_smoke_extracts_text_and_builds_report(
+    monkeypatch,
+):
     smoke = _load_gb10_openai_smoke_module()
+    monkeypatch.setenv("FLASHINFER_DISABLE_JIT", "1")
 
     assert (
         smoke._extract_generated_text(
@@ -11378,6 +11430,7 @@ def test_gb10_openai_server_smoke_extracts_text_and_builds_report():
     }
     assert report["response"]["usage"] == {"completion_tokens": 3}
     assert report["response"]["generated_text_source"] == "message.content"
+    assert report["runtime"]["env"] == {"FLASHINFER_DISABLE_JIT": "1"}
     assert report["responses"] == response_summaries
     assert report["deterministic_generation"] == {
         "status": "passed",
@@ -11422,9 +11475,11 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"native_nvfp4_gemm_observed"' in script
     assert '"native_nvfp4_moe_non_ep_observed"' in script
     assert '"openai_deterministic_generation"' in script
+    assert '"openai_flashinfer_jit_disabled"' in script
     assert '"gb10_device_sm121"' in script
     assert '"flashinfer_gb10_runtime_version"' in script
     assert '"flashinfer_gb10_distribution_versions"' in script
+    assert '"flashinfer_jit_disabled"' in script
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"attention_backend_allowed_by_support_matrix"' in script
@@ -11477,6 +11532,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "flashinfer-python": "0.6.12+cu130gb10",
                 "flashinfer-cubin": "0.6.12+cu130gb10",
                 "flashinfer-jit-cache": "0.6.12+cu130gb10",
+            },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
             },
         },
         "backend_summary": {
@@ -12605,6 +12663,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected": "modelopt_fp4",
                     "configured": "modelopt_fp4",
                 },
+                "flashinfer_jit_disabled": {
+                    "status": "passed",
+                    "expected": "1",
+                    "configured": "1",
+                },
             },
         },
     }
@@ -12621,6 +12684,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             "generated_text": "native output",
             "generated_text_source": "message.content",
             "system_fingerprint": "vllm-gb10",
+        },
+        "runtime": {
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+            }
         },
         "deterministic_generation": {
             "status": "passed",
@@ -12975,6 +13043,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["gb10_device_sm121"] == "passed"
     assert check_statuses["flashinfer_gb10_runtime_version"] == "passed"
     assert check_statuses["flashinfer_gb10_distribution_versions"] == "passed"
+    assert check_statuses["flashinfer_jit_disabled"] == "passed"
     assert check_statuses["cuda_graph_capture_replay"] == "passed"
     assert check_statuses["model_shape_reported"] == "passed"
     assert checks_by_name["model_shape_reported"]["details"] == {
@@ -13161,6 +13230,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         check_statuses["nvfp4_backend_selections_allowed_by_support_matrix"]
         == "passed"
     )
+    assert check_statuses["openai_flashinfer_jit_disabled"] == "passed"
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
     assert check_statuses["release_manifest_durable_inputs"] == "passed"
@@ -13509,6 +13579,73 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "flashinfer_gb10_distribution_versions"
         for failure in generic_flashinfer_summary["failures"]
+    )
+
+    openai_missing_jit_disable_report = copy.deepcopy(openai_report)
+    openai_missing_jit_disable_report["runtime"]["env"][
+        "FLASHINFER_DISABLE_JIT"
+    ] = "0"
+    openai_missing_jit_disable_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_missing_jit_disable_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert openai_missing_jit_disable_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "openai_flashinfer_jit_disabled"
+        for failure in openai_missing_jit_disable_summary["failures"]
+    )
+
+    missing_jit_disable_report = {
+        **nvfp4_report,
+        "fallback_events": [],
+        "runtime": {
+            **nvfp4_report["runtime"],
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "0",
+            },
+        },
+        "gb10_release_summary": {
+            **nvfp4_report["gb10_release_summary"],
+            "checks": {
+                **nvfp4_report["gb10_release_summary"]["checks"],
+                "flashinfer_jit_disabled": {
+                    "status": "failed",
+                    "expected": "1",
+                    "configured": "0",
+                },
+            },
+        },
+    }
+    missing_jit_disable_summary = verifier._build_summary(
+        nvfp4_report=missing_jit_disable_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert missing_jit_disable_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "flashinfer_jit_disabled"
+        for failure in missing_jit_disable_summary["failures"]
     )
 
     release_manifest["dependencies"]["flashinfer"][

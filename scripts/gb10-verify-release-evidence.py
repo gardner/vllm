@@ -346,6 +346,25 @@ def _check_nvfp4_report(
             details={"flashinfer_distributions": flashinfer_distribution_versions},
         ),
         _check(
+            name="flashinfer_jit_disabled",
+            passed=_nested_get(
+                report,
+                "gb10_release_summary",
+                "checks",
+                "flashinfer_jit_disabled",
+                "status",
+            )
+            == "passed",
+            message="offline NVFP4 smoke ran with FLASHINFER_DISABLE_JIT=1",
+            details=_nested_get(
+                report,
+                "gb10_release_summary",
+                "checks",
+                "flashinfer_jit_disabled",
+            )
+            or {},
+        ),
+        _check(
             name="kv_cache_fp8_e4m3",
             passed=_nested_get(
                 report,
@@ -460,6 +479,13 @@ def _check_openai_report(
                 "openai_compatible_server_smoke",
             )
             or {},
+        ),
+        _check(
+            name="openai_flashinfer_jit_disabled",
+            passed=_nested_get(report, "runtime", "env", "FLASHINFER_DISABLE_JIT")
+            == "1",
+            message="OpenAI-compatible server smoke ran with FLASHINFER_DISABLE_JIT=1",
+            details=_nested_get(report, "runtime", "env") or {},
         ),
         _check(
             name="openai_http_200",

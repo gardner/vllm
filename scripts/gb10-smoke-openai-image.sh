@@ -197,6 +197,8 @@ if [ -n "${GB10_OPENAI_IMAGE_EXTRA_DOCKER_ARGS:-}" ]; then
     docker_args+=("${extra_docker_args[@]}")
 fi
 
+docker_args+=(-e FLASHINFER_DISABLE_JIT=1)
+
 cleanup() {
     if [ "${GB10_OPENAI_IMAGE_KEEP_CONTAINER:-0}" != "1" ]; then
         docker rm -f "$container_name" >/dev/null 2>&1 || true
@@ -225,4 +227,4 @@ while ! curl -fsS --max-time 5 "$models_url" >/dev/null; do
 done
 
 echo "Temporary GB10 OpenAI server is ready at $base_url" >&2
-python3 "$smoke_script" "${smoke_args[@]}"
+FLASHINFER_DISABLE_JIT=1 python3 "$smoke_script" "${smoke_args[@]}"

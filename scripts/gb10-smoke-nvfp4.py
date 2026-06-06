@@ -65,6 +65,7 @@ def _preparse_allow_fallback(argv: Sequence[str] | None) -> bool:
 def _configure_env(*, allow_fallback: bool) -> None:
     os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
     os.environ.setdefault("VLLM_NO_USAGE_STATS", "1")
+    os.environ.setdefault("FLASHINFER_DISABLE_JIT", "1")
 
     if allow_fallback:
         os.environ["VLLM_FAIL_ON_NVFP4_FALLBACK"] = "0"
@@ -245,6 +246,7 @@ def _collect_runtime_metadata() -> dict[str, Any]:
         ),
         "compilation_counter": _collect_compilation_counter(),
         "env": {
+            "FLASHINFER_DISABLE_JIT": os.environ.get("FLASHINFER_DISABLE_JIT"),
             "VLLM_FAIL_ON_NVFP4_FALLBACK": os.environ.get(
                 "VLLM_FAIL_ON_NVFP4_FALLBACK"
             ),
@@ -735,6 +737,9 @@ def _build_gb10_release_summary(
         attention_backend_status = "passed"
     else:
         attention_backend_status = "mismatched"
+    flashinfer_jit_disabled = (
+        runtime_metadata.get("env", {}).get("FLASHINFER_DISABLE_JIT") == "1"
+    )
     cuda_graph_check = _build_cuda_graph_check(
         runtime_metadata=runtime_metadata,
         vllm_config_summary=vllm_config_summary,
@@ -790,6 +795,13 @@ def _build_gb10_release_summary(
                 "mla_prefill_backend",
             ),
         },
+        "flashinfer_jit_disabled": {
+            "status": "passed" if flashinfer_jit_disabled else "failed",
+            "expected": "1",
+            "configured": runtime_metadata.get("env", {}).get(
+                "FLASHINFER_DISABLE_JIT"
+            ),
+        },
         "cuda_graph": cuda_graph_check,
     }
 
@@ -823,6 +835,10 @@ def _build_gb10_release_summary(
         smoke_blockers.append(
             "attention_backend_mismatch: configured attention backend did not "
             "match smoke request"
+        )
+    if smoke_checks["flashinfer_jit_disabled"]["status"] != "passed":
+        smoke_blockers.append(
+            "FlashInfer runtime JIT was not disabled for the GB10 smoke"
         )
 
     unsupported_paths = {
