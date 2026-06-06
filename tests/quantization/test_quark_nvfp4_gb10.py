@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 import vllm.model_executor.layers.quantization.quark.utils as quark_utils
+from vllm.model_executor.layers.quantization.quark.quark import (
+    QuarkKVCacheMethod,
+)
 from vllm.model_executor.layers.quantization.quark.quark_moe import (
     QuarkNvfp4MoEMethod,
     QuarkOCP_MX_MoEMethod,
@@ -53,6 +57,27 @@ def test_quark_nvfp4_moe_rejects_checkpoint_loading_on_sm12x(
             moe=MagicMock(),
             quant_config=MagicMock(),
         )
+
+
+def test_quark_nvfp4_kv_cache_rejects_checkpoint_loading_on_sm12x(
+    sm12x_platform, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    validate_kv_cache_config = MagicMock()
+    monkeypatch.setattr(
+        QuarkKVCacheMethod,
+        "validate_kv_cache_config",
+        validate_kv_cache_config,
+        raising=False,
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        QuarkKVCacheMethod(
+            SimpleNamespace(
+                kv_cache_config={"dtype": "fp8_e4m3", "qscheme": "per_tensor"}
+            )
+        )
+
+    validate_kv_cache_config.assert_not_called()
 
 
 def _ocp_mx_weight_quant() -> dict:

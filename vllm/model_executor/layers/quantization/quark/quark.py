@@ -33,6 +33,7 @@ from vllm.model_executor.layers.quantization.quark.schemes import (
 )
 from vllm.model_executor.layers.quantization.quark.utils import (
     deep_compare,
+    gb10_quark_nvfp4_unsupported_reason,
     should_ignore_layer,
 )
 from vllm.model_executor.models.utils import WeightsMapper
@@ -726,6 +727,9 @@ class QuarkKVCacheMethod(BaseKVCacheMethod):
     """
 
     def __init__(self, quant_config: QuarkConfig):
+        unsupported_reason = gb10_quark_nvfp4_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.validate_kv_cache_config(quant_config.kv_cache_config)
         super().__init__(quant_config)
 
