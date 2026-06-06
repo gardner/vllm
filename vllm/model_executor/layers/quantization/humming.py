@@ -417,6 +417,8 @@ class HummingLayerQuantizationConfig(HummingConfig):
 
 class HummingLinearMethod(LinearMethodBase):
     def __init__(self, quant_config: HummingLayerQuantizationConfig):
+        if reason := _gb10_humming_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
         self.weight_schema = quant_config.weight_schema
         self.input_schema = quant_config.input_schema
@@ -661,6 +663,8 @@ class HummingMoEMethod(FusedMoEMethodBase):
     def __init__(
         self, quant_config: HummingLayerQuantizationConfig, moe: "FusedMoEConfig"
     ) -> None:
+        if reason := _gb10_humming_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         self.quant_config = quant_config
         self.moe = moe
