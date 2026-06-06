@@ -55,6 +55,37 @@ from vllm.utils.deep_gemm import per_block_cast_to_fp8
 # ---------------------------------------------------------------------------
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_online_fp8_linear_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "Online FP8/MXFP8 linear quantization is not supported on GB10/SM12x. "
+        "The online linear path can instantiate FP8 or MXFP8 kernels today, "
+        "but this is not native GB10 online linear correctness evidence. Use a "
+        "native SM12x online FP8/MXFP8 linear path after correctness evidence "
+        "exists, or keep online quantization unselected."
+    )
+
+
 class _Fp8OnlineLinearBase(LinearMethodBase):
     """Shared base for online FP8 linear methods. Loads fp16/bf16 checkpoint
     weights onto meta device and materializes them just-in-time."""
@@ -62,6 +93,8 @@ class _Fp8OnlineLinearBase(LinearMethodBase):
     uses_meta_device: bool = True
 
     def __init__(self):
+        if reason := _gb10_online_fp8_linear_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.out_dtype = torch.get_default_dtype()
         self.input_dtype = get_current_vllm_config().model_config.dtype
 

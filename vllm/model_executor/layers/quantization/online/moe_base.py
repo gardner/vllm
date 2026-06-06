@@ -15,6 +15,38 @@ from vllm.model_executor.model_loader.reload.layerwise import (
     initialize_online_processing,
 )
 from vllm.model_executor.utils import set_weight_attrs
+from vllm.platforms import current_platform
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_online_moe_quantization_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "Online MoE quantization is not supported on GB10/SM12x. The online "
+        "FP8, MXFP8, and Int8 MoE paths can reach backend selection today, "
+        "but this is not native GB10 online MoE correctness evidence. Use a "
+        "native SM12x online MoE path after correctness evidence exists, or "
+        "keep the online MoE path unselected."
+    )
 
 
 class OnlineMoEMethodBase(FusedMoEMethodBase):
@@ -23,6 +55,11 @@ class OnlineMoEMethodBase(FusedMoEMethodBase):
     """
 
     uses_meta_device: bool = True
+
+    def __init__(self, moe):
+        super().__init__(moe)
+        if reason := _gb10_online_moe_quantization_unsupported_reason():
+            raise ValueError(reason)
 
     def create_weights(
         self,
