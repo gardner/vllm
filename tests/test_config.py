@@ -32,6 +32,7 @@ from vllm.config import (
     ParallelConfig,
     PoolerConfig,
     PrefetchOffloadConfig,
+    ProfilerConfig,
     ReasoningConfig,
     SchedulerConfig,
     SpeculativeConfig,
@@ -1036,6 +1037,72 @@ def test_vllm_config_allows_generation_config_runtime_off_gb10(
     config = VllmConfig(model_config=model_config)
 
     assert config.model_config is model_config
+
+
+@pytest.mark.parametrize(
+    "profiler_config_kwargs",
+    [
+        {"profiler": "cuda"},
+        {"profiler": "torch"},
+    ],
+)
+def test_gb10_vllm_config_rejects_profiler_runtime(
+    monkeypatch, tmp_path, profiler_config_kwargs
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    if profiler_config_kwargs["profiler"] == "torch":
+        profiler_config_kwargs["torch_profiler_dir"] = str(tmp_path)
+
+    profiler_config = ProfilerConfig(**profiler_config_kwargs)
+
+    with pytest.raises(ValueError, match="profiler runtime.*GB10/SM12x"):
+        VllmConfig(profiler_config=profiler_config)
+
+
+@pytest.mark.parametrize(
+    "profiler_config_kwargs",
+    [
+        {"profiler": "cuda"},
+        {"profiler": "torch"},
+    ],
+)
+def test_vllm_config_allows_profiler_runtime_off_gb10(
+    monkeypatch, tmp_path, profiler_config_kwargs
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    if profiler_config_kwargs["profiler"] == "torch":
+        profiler_config_kwargs["torch_profiler_dir"] = str(tmp_path)
+
+    profiler_config = ProfilerConfig(**profiler_config_kwargs)
+
+    config = VllmConfig(profiler_config=profiler_config)
+
+    assert config.profiler_config is profiler_config
+
+
+def test_gb10_vllm_config_allows_default_profiler_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    config = VllmConfig()
+
+    assert config.profiler_config.profiler is None
 
 
 def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):

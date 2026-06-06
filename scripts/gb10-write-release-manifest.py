@@ -651,6 +651,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "generation-config correctness and runtime evidence exists."
                 ),
             },
+            "profiler_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Profiler runtime adds torch or CUDA profiler hooks, trace "
+                    "collection, CUDA profiler control, and profiler output "
+                    "handling outside the validated GB10 first release serving "
+                    "path. It must reject on GB10/SM12x until native SM12x "
+                    "profiler correctness and runtime evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (

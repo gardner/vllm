@@ -97,6 +97,14 @@ _GB10_GENERATION_CONFIG_RUNTIME_MESSAGE = (
     "override_generation_config on GB10 until native SM12x generation-config "
     "correctness and runtime evidence exists."
 )
+_GB10_PROFILER_RUNTIME_MESSAGE = (
+    "profiler runtime is not supported on GB10/SM12x in this fork: torch and "
+    "CUDA profiler modes add frontend and worker profiling hooks, trace "
+    "collection, CUDA profiler control, and profiler output handling outside "
+    "the validated native first-path NVFP4 serving release. Disable profiler "
+    "runtime on GB10 until native SM12x profiler correctness and runtime "
+    "evidence exists."
+)
 _GB10_REASONING_RUNTIME_MESSAGE = (
     "reasoning runtime is not supported on GB10/SM12x in this fork: "
     "ReasoningConfig enables reasoning token parsing and output extraction "
@@ -485,6 +493,10 @@ def _uses_generation_config_runtime(model_config: ModelConfig) -> bool:
         model_config.generation_config not in ("auto", "vllm")
         or bool(model_config.override_generation_config)
     )
+
+
+def _uses_profiler_runtime(profiler_config: ProfilerConfig) -> bool:
+    return profiler_config.profiler is not None
 
 
 _GB10_BASIC_MODEL_LOAD_FORMATS = frozenset(
@@ -1275,6 +1287,12 @@ class VllmConfig:
 
         if self.performance_mode != "balanced":
             logger.info_once("Performance mode set to '%s'.", self.performance_mode)
+
+        if (
+            _uses_profiler_runtime(self.profiler_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_PROFILER_RUNTIME_MESSAGE)
 
         if (
             self.cache_config.kv_offloading_size is not None
