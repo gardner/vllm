@@ -155,6 +155,14 @@ _GB10_UBATCHING_RUNTIME_MESSAGE = (
     "--ubatch-size at 0 or 1 on GB10 until native SM12x ubatching correctness "
     "and runtime evidence exists."
 )
+_GB10_PARTIAL_PREFILL_SCHEDULER_RUNTIME_MESSAGE = (
+    "partial prefill scheduler runtime is not supported on GB10/SM12x in this "
+    "fork: --max-num-partial-prefills, --max-long-partial-prefills, and "
+    "--long-prefill-token-threshold change concurrent partial prefill admission "
+    "and prefill chunking outside the validated native first-path NVFP4 serving "
+    "release. Use the default partial-prefill scheduler settings on GB10 until "
+    "native SM12x partial-prefill correctness and runtime evidence exists."
+)
 _GB10_ASYNC_SCHEDULING_RUNTIME_MESSAGE = (
     "async scheduling runtime is not supported on GB10/SM12x in this fork: "
     "--async-scheduling and direct scheduler_config.async_scheduling=True "
@@ -404,6 +412,19 @@ def _uses_model_weight_offload_runtime(offload_config: OffloadConfig) -> bool:
         or bool(offload_config.uva.cpu_offload_params)
         or offload_config.prefetch.offload_group_size > 0
         or bool(offload_config.prefetch.offload_params)
+    )
+
+
+def _uses_partial_prefill_scheduler_runtime(
+    scheduler_config: SchedulerConfig,
+) -> bool:
+    return (
+        scheduler_config.max_num_partial_prefills
+        != SchedulerConfig.max_num_partial_prefills
+        or scheduler_config.max_long_partial_prefills
+        != SchedulerConfig.max_long_partial_prefills
+        or scheduler_config.long_prefill_token_threshold
+        != SchedulerConfig.long_prefill_token_threshold
     )
 
 
@@ -1215,6 +1236,12 @@ class VllmConfig:
 
         if self.parallel_config.use_ubatching and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_UBATCHING_RUNTIME_MESSAGE)
+
+        if (
+            _uses_partial_prefill_scheduler_runtime(self.scheduler_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_PARTIAL_PREFILL_SCHEDULER_RUNTIME_MESSAGE)
 
         if _is_gb10_sm12x_cuda_platform():
             if self.scheduler_config.async_scheduling:

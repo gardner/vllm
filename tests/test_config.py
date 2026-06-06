@@ -1495,6 +1495,91 @@ def test_gb10_vllm_config_disables_default_async_scheduling(monkeypatch):
     assert config.scheduler_config.async_scheduling is False
 
 
+def test_gb10_vllm_config_rejects_partial_prefill_scheduler_runtime(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        max_num_partial_prefills=2,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="partial prefill scheduler runtime.*GB10/SM12x",
+    ):
+        VllmConfig(scheduler_config=scheduler_config)
+
+
+def test_gb10_vllm_config_rejects_long_prefill_threshold_runtime(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        long_prefill_token_threshold=128,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="partial prefill scheduler runtime.*GB10/SM12x",
+    ):
+        VllmConfig(scheduler_config=scheduler_config)
+
+
+def test_gb10_vllm_config_allows_default_partial_prefill_scheduler(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    config = VllmConfig()
+
+    assert config.scheduler_config.max_num_partial_prefills == 1
+    assert config.scheduler_config.max_long_partial_prefills == 1
+    assert config.scheduler_config.long_prefill_token_threshold == 0
+
+
+def test_vllm_config_allows_partial_prefill_scheduler_runtime_off_gb10(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        max_num_partial_prefills=2,
+    )
+    config = VllmConfig(scheduler_config=scheduler_config)
+
+    assert config.scheduler_config is scheduler_config
+    assert config.scheduler_config.max_num_partial_prefills == 2
+    assert config.scheduler_config.long_prefill_token_threshold > 0
+
+
 @pytest.mark.parametrize(
     "kv_events_config",
     [

@@ -839,6 +839,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "ubatching correctness evidence exists."
                 ),
             },
+            "partial_prefill_scheduler_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Concurrent partial-prefill controls and long-prefill "
+                    "token thresholds change prefill admission and chunking "
+                    "outside the validated GB10 first release serving path. "
+                    "They must reject until native SM12x partial-prefill "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "async_scheduling_runtime": {
                 "status": "not_supported",
                 "release_contract": (

@@ -130,6 +130,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
+    "partial_prefill_scheduler_runtime": "not_supported",
     "async_scheduling_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
@@ -2606,6 +2607,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["ubatching_runtime"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["partial_prefill_scheduler_runtime"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["async_scheduling_runtime"]["status"] == (
         "not_supported"
     )
@@ -9073,6 +9077,27 @@ def test_gb10_ubatching_runtime_is_reported():
     assert "DeepEP all-to-all" in vllm_config
 
 
+def test_gb10_partial_prefill_scheduler_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    scheduler_config = (
+        REPO_ROOT / "vllm" / "config" / "scheduler.py"
+    ).read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_PARTIAL_PREFILL_SCHEDULER_RUNTIME_MESSAGE" in vllm_config
+    assert "partial prefill scheduler runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--max-num-partial-prefills" in vllm_config
+    assert "--max-long-partial-prefills" in vllm_config
+    assert "--long-prefill-token-threshold" in vllm_config
+    assert "_uses_partial_prefill_scheduler_runtime" in vllm_config
+    assert "max_num_partial_prefills: int = Field(default=1" in scheduler_config
+    assert "long_prefill_token_threshold: int = 0" in scheduler_config
+    assert "--max-num-partial-prefills" in arg_utils
+    assert "--long-prefill-token-threshold" in arg_utils
+
+
 def test_gb10_async_scheduling_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     scheduler_config = (
@@ -11527,6 +11552,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "scheduler and DeepEP all-to-all correctness evidence"
                     ),
                 },
+                "partial_prefill_scheduler_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Concurrent partial-prefill scheduling lacks native "
+                        "SM12x scheduler and prefill correctness evidence"
+                    ),
+                },
                 "async_scheduling_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12495,6 +12528,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "kv_offload_runtime": {"status": "not_supported"},
                 "kv_transfer_runtime": {"status": "not_supported"},
                 "ubatching_runtime": {"status": "not_supported"},
+                "partial_prefill_scheduler_runtime": {"status": "not_supported"},
                 "async_scheduling_runtime": {"status": "not_supported"},
                 "distributed_parallel_runtime": {"status": "not_supported"},
                 "kv_sharing_fast_prefill_runtime": {"status": "not_supported"},
@@ -12781,6 +12815,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "online_mxfp4_quantization",
         "online_mxfp8_quantization",
         "openai_tool_calling_runtime",
+        "partial_prefill_scheduler_runtime",
         "pooling_runtime",
         "prompt_embeds_runtime",
         "public_flashattention_mla_runtime",
