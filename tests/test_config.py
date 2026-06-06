@@ -858,6 +858,59 @@ def test_vllm_config_allows_cascade_attention_runtime_off_gb10(monkeypatch):
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_disable_sliding_window_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        disable_sliding_window=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="disable sliding window runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_gb10_vllm_config_allows_default_sliding_window_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert not config.model_config.disable_sliding_window
+
+
+def test_vllm_config_allows_disable_sliding_window_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        disable_sliding_window=True,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert config.model_config.disable_sliding_window
+
+
 def test_gb10_vllm_config_rejects_fp64_gumbel_sampling_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

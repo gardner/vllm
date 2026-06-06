@@ -61,6 +61,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
     "cascade_attention_runtime": "not_supported",
+    "disable_sliding_window_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
@@ -304,6 +305,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "serving path; reject model_config.disable_cascade_attn=False until "
         "native SM12x cascade attention correctness and runtime evidence "
         "exists."
+    ),
+    "disable_sliding_window_runtime": (
+        "Explicit sliding-window disablement removes sliding-window attention "
+        "from the model config and changes attention masking plus KV-cache "
+        "length handling outside the validated GB10 first release serving "
+        "path; reject --disable-sliding-window until native SM12x disabled-"
+        "sliding-window correctness and runtime evidence exists."
     ),
     "speculative_decoding_runtime": (
         "Speculative decoding changes scheduling, attention metadata, "

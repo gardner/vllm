@@ -577,6 +577,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x reasoning correctness and runtime evidence exists."
                 ),
             },
+            "disable_sliding_window_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Explicit sliding-window disablement removes "
+                    "sliding-window attention from the model config and "
+                    "changes attention masking plus KV-cache length handling "
+                    "outside the validated GB10 first release serving path. "
+                    "It must reject until native SM12x disabled-sliding-window "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "structured_outputs_runtime": {
                 "status": "not_supported",
                 "release_contract": (

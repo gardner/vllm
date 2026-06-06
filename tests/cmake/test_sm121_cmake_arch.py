@@ -87,6 +87,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
     "cascade_attention_runtime": "not_supported",
+    "disable_sliding_window_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
@@ -2493,6 +2494,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["cascade_attention_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["disable_sliding_window_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["speculative_decoding_runtime"]["status"] == (
@@ -8901,6 +8905,23 @@ def test_gb10_cascade_attention_runtime_is_reported():
     assert "--disable-cascade-attn" in arg_utils
 
 
+def test_gb10_disable_sliding_window_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_DISABLE_SLIDING_WINDOW_RUNTIME_MESSAGE" in vllm_config
+    assert "disable sliding window runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--disable-sliding-window" in vllm_config
+    assert "model_config.disable_sliding_window=True" in vllm_config
+    assert "self.model_config.disable_sliding_window" in vllm_config
+    assert "disable_sliding_window: bool = False" in model_config
+    assert "hf_text_config.sliding_window = None" in model_config
+    assert "--disable-sliding-window" in arg_utils
+
+
 def test_gb10_pooling_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11417,6 +11438,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Cascade attention runtime lacks native SM12x evidence"
                     ),
                 },
+                "disable_sliding_window_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Disabled sliding-window attention lacks native SM12x "
+                        "attention masking and KV-cache length correctness evidence"
+                    ),
+                },
                 "speculative_decoding_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12525,6 +12554,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "short_conv_triton_runtime": {"status": "not_supported"},
                 "linear_attention_triton_runtime": {"status": "not_supported"},
                 "cascade_attention_runtime": {"status": "not_supported"},
+                "disable_sliding_window_runtime": {"status": "not_supported"},
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
@@ -12792,6 +12822,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "cutlass_mla_sm100_fallback",
         "deep_gemm_fp8_moe",
         "deepseek_v4_fp8_quantization",
+        "disable_sliding_window_runtime",
         "distributed_parallel_runtime",
         "ec_transfer_runtime",
         "enforce_eager_runtime",
