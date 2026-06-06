@@ -89,6 +89,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "cascade_attention_runtime": "not_supported",
     "disable_sliding_window_runtime": "not_supported",
     "attention_dtype_override_runtime": "not_supported",
+    "mla_prefill_query_quantization_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "multimodal_runtime": "not_supported",
@@ -8994,6 +8995,24 @@ def test_gb10_attention_dtype_override_runtime_is_reported():
     assert "--override-attention-dtype" in arg_utils
 
 
+def test_gb10_mla_prefill_query_quantization_runtime_is_reported():
+    mla_attention = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "attention"
+        / "mla_attention.py"
+    ).read_text()
+
+    assert "_gb10_prefill_query_quantization_unsupported_reason" in mla_attention
+    assert "MLA prefill query quantization is not supported on GB10/SM12x" in (
+        mla_attention
+    )
+    assert "use_prefill_query_quantization" in mla_attention
+    assert "determine_prefill_query_data_type" in mla_attention
+
+
 def test_gb10_pooling_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11884,6 +11903,15 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "dtype correctness evidence"
                     ),
                 },
+                "mla_prefill_query_quantization_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "MLA prefill query quantization silently falls back "
+                        "to the model dtype on GB10/SM12x instead of native "
+                        "FP8 prefill query quantization evidence"
+                    ),
+                },
                 "speculative_decoding_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -13040,6 +13068,9 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "cascade_attention_runtime": {"status": "not_supported"},
                 "disable_sliding_window_runtime": {"status": "not_supported"},
                 "attention_dtype_override_runtime": {"status": "not_supported"},
+                "mla_prefill_query_quantization_runtime": {
+                    "status": "not_supported"
+                },
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
                 "multimodal_runtime": {"status": "not_supported"},
@@ -13292,6 +13323,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "alternate_model_loader_runtime",
         "async_scheduling_runtime",
         "attention_dtype_override_runtime",
+        "mla_prefill_query_quantization_runtime",
         "awq_quantization",
         "bitsandbytes_quantization",
         "cascade_attention_runtime",

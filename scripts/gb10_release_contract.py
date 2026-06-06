@@ -68,6 +68,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "cascade_attention_runtime": "not_supported",
     "disable_sliding_window_runtime": "not_supported",
     "attention_dtype_override_runtime": "not_supported",
+    "mla_prefill_query_quantization_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "multimodal_runtime": "not_supported",
@@ -329,6 +330,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "outside the validated GB10 first release serving path; reject "
         "--override-attention-dtype until native SM12x attention dtype "
         "override correctness and runtime evidence exists."
+    ),
+    "mla_prefill_query_quantization_runtime": (
+        "MLA prefill query quantization can silently fall back to the model "
+        "dtype today; reject it on GB10/SM12x until native FP8 prefill "
+        "query-quantization evidence exists."
     ),
     "speculative_decoding_runtime": (
         "Speculative decoding changes scheduling, attention metadata, "

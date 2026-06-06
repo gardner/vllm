@@ -1357,6 +1357,23 @@ def backend_supports_prefill_query_quantization() -> bool:
     )
 
 
+def _is_sm12x_cuda_platform() -> bool:
+    return (
+        current_platform.is_cuda()
+        and current_platform.is_device_capability_family(120)
+    )
+
+
+def _gb10_prefill_query_quantization_unsupported_reason() -> str:
+    return (
+        "MLA prefill query quantization is not supported on GB10/SM12x. "
+        "The current path silently falls back to the model dtype instead of "
+        "native FP8 prefill query quantization. Disable "
+        "`--attention-config.use_prefill_query_quantization` or keep MLA "
+        "models unselected."
+    )
+
+
 class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
     """
     NOTE: Please read the comment at the top of the file before trying to
@@ -1419,6 +1436,12 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
         Return FP8 dtype if cache is FP8 and prefill query quantization
         is enabled, else model dtype.
         """
+        if (
+            vllm_config.attention_config.use_prefill_query_quantization
+            and _is_sm12x_cuda_platform()
+        ):
+            raise ValueError(_gb10_prefill_query_quantization_unsupported_reason())
+
         use_fp8 = (
             is_quantized_kv_cache(vllm_config.cache_config.cache_dtype)
             and vllm_config.attention_config.use_prefill_query_quantization
