@@ -536,6 +536,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "and runtime evidence exists."
                 ),
             },
+            "cascade_attention_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Cascade attention opt-in changes attention execution "
+                    "heuristics and uses split attention paths outside the "
+                    "validated GB10 first release serving path. "
+                    "model_config.disable_cascade_attn=False must reject "
+                    "until native SM12x cascade attention correctness and "
+                    "runtime evidence exists."
+                ),
+            },
             "speculative_decoding_runtime": {
                 "status": "not_supported",
                 "release_contract": (

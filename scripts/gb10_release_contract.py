@@ -60,6 +60,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mamba2_triton_ssd_runtime": "not_supported",
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
+    "cascade_attention_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
@@ -287,6 +288,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Linear attention runtime uses generic Triton lightning/decode kernels "
         "and is not native GB10 runtime evidence until SM12x linear-attention "
         "correctness, artifact, and runtime evidence exists."
+    ),
+    "cascade_attention_runtime": (
+        "Cascade attention opt-in changes attention execution heuristics and "
+        "uses split attention paths outside the validated GB10 first release "
+        "serving path; reject model_config.disable_cascade_attn=False until "
+        "native SM12x cascade attention correctness and runtime evidence "
+        "exists."
     ),
     "speculative_decoding_runtime": (
         "Speculative decoding changes scheduling, attention metadata, "

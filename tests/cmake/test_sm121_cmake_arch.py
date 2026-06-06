@@ -86,6 +86,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "mamba2_triton_ssd_runtime": "not_supported",
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
+    "cascade_attention_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
@@ -2480,6 +2481,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["linear_attention_triton_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["cascade_attention_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["speculative_decoding_runtime"]["status"] == (
@@ -8846,6 +8850,21 @@ def test_gb10_speculative_decoding_runtime_is_reported():
     assert "native first-path NVFP4 release" in vllm_config
 
 
+def test_gb10_cascade_attention_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_CASCADE_ATTENTION_RUNTIME_MESSAGE" in vllm_config
+    assert "cascade attention runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "model_config.disable_cascade_attn=False" in vllm_config
+    assert "not self.model_config.disable_cascade_attn" in vllm_config
+    assert "disable_cascade_attn" in model_config
+    assert "--disable-cascade-attn" in arg_utils
+
+
 def test_gb10_pooling_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11157,6 +11176,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Linear attention runtime lacks native GB10 evidence",
                 },
+                "cascade_attention_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Cascade attention runtime lacks native SM12x evidence"
+                    ),
+                },
                 "speculative_decoding_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12191,6 +12217,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "mamba2_triton_ssd_runtime": {"status": "not_supported"},
                 "short_conv_triton_runtime": {"status": "not_supported"},
                 "linear_attention_triton_runtime": {"status": "not_supported"},
+                "cascade_attention_runtime": {"status": "not_supported"},
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
@@ -12422,6 +12449,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     ] == [
         "awq_quantization",
         "bitsandbytes_quantization",
+        "cascade_attention_runtime",
         "compressed_tensors_fp4_kv_cache_loading",
         "compressed_tensors_qutlass_nvfp4_transform_loading",
         "compressed_tensors_w4a16_nvfp4_loading",
