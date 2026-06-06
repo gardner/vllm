@@ -22,6 +22,7 @@ from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
     GB10_DEFERRED_PATH_REASONS,
     GB10_NOT_SUPPORTED_PATH_REASONS,
+    GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS,
     GB10_SUPPORTED_ROUTED_PATH_REASONS,
     RELEASE_NVFP4_SMOKE_REPORT_FILE,
     RELEASE_OPENAI_SERVER_SMOKE_REPORT_FILE,
@@ -361,7 +362,10 @@ def _check_nvfp4_report(
                 "status",
             )
             == "passed",
-            message="offline NVFP4 smoke ran with FLASHINFER_DISABLE_JIT=1",
+            message=(
+                "offline NVFP4 smoke ran with FLASHINFER_DISABLE_JIT="
+                f"{GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS['FLASHINFER_DISABLE_JIT']}"
+            ),
             details=_nested_get(
                 report,
                 "gb10_release_summary",
@@ -372,13 +376,20 @@ def _check_nvfp4_report(
         ),
         _check(
             name="gb10_gpu_memory_utilization",
-            passed=gpu_memory_utilization == "0.88",
+            passed=(
+                gpu_memory_utilization
+                == GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "GB10_GPU_MEMORY_UTILIZATION"
+                ]
+            ),
             message=(
                 "offline NVFP4 smoke recorded the expected GB10 "
                 "gpu-memory-utilization contract"
             ),
             details={
-                "expected": "0.88",
+                "expected": GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "GB10_GPU_MEMORY_UTILIZATION"
+                ],
                 "configured": gpu_memory_utilization,
             },
         ),
@@ -506,20 +517,34 @@ def _check_openai_report(
         ),
         _check(
             name="openai_flashinfer_jit_disabled",
-            passed=_nested_get(report, "runtime", "env", "FLASHINFER_DISABLE_JIT")
-            == "1",
-            message="OpenAI-compatible server smoke ran with FLASHINFER_DISABLE_JIT=1",
+            passed=(
+                _nested_get(report, "runtime", "env", "FLASHINFER_DISABLE_JIT")
+                == GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "FLASHINFER_DISABLE_JIT"
+                ]
+            ),
+            message=(
+                "OpenAI-compatible server smoke ran with FLASHINFER_DISABLE_JIT="
+                f"{GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS['FLASHINFER_DISABLE_JIT']}"
+            ),
             details=_nested_get(report, "runtime", "env") or {},
         ),
         _check(
             name="openai_gpu_memory_utilization",
-            passed=gpu_memory_utilization == "0.88",
+            passed=(
+                gpu_memory_utilization
+                == GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "GB10_GPU_MEMORY_UTILIZATION"
+                ]
+            ),
             message=(
                 "OpenAI-compatible server smoke recorded the expected GB10 "
                 "gpu-memory-utilization contract"
             ),
             details={
-                "expected": "0.88",
+                "expected": GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "GB10_GPU_MEMORY_UTILIZATION"
+                ],
                 "configured": gpu_memory_utilization,
             },
         ),

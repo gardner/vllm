@@ -24,6 +24,11 @@ REQUIRED_SOURCE_DEPENDENCIES = (
     "triton_kernels",
 )
 
+GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS = {
+    "FLASHINFER_DISABLE_JIT": "1",
+    "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+}
+
 REQUIRED_GB10_SUPPORT_MATRIX = {
     "flashinfer_b12x_nvfp4_dense": "supported_native",
     "flashinfer_cutlass_nvfp4_dense": "supported_native",

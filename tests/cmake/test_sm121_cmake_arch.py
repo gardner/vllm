@@ -2342,6 +2342,7 @@ def test_gb10_vllm_release_asset_validator_rejects_bad_assets(tmp_path):
 
 def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     manifest = _load_gb10_release_manifest_module()
+    contract = _load_gb10_release_contract_module()
     env = {
         "GITHUB_WORKFLOW": "GB10 vLLM wheel and image",
         "GITHUB_REPOSITORY": "gardner/vllm",
@@ -2410,6 +2411,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert data["build"]["cache_refs"]["runtime"] == (
         "ghcr.io/gardner/vllm-gb10-buildcache:runtime"
     )
+    assert data["runtime_contract"] == {
+        "smoke_env_defaults": contract.GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS
+    }
 
     wheels = data["dependencies"]["flashinfer"]["wheels"]
     assert [wheel["component"] for wheel in wheels] == [
@@ -3318,6 +3322,19 @@ def test_gb10_release_manifest_validates_durable_inputs(tmp_path):
         "GB10 release manifest support matrix status mismatch" in err
         and "trtllm_gen_attention" in err
         and "supported_native" in err
+        for err in errors
+    )
+
+    runtime_contract_mismatch_manifest = copy.deepcopy(good_manifest)
+    runtime_contract_mismatch_manifest["runtime_contract"][
+        "smoke_env_defaults"
+    ]["GB10_GPU_MEMORY_UTILIZATION"] = "0.7"
+
+    errors = manifest.validate_manifest(runtime_contract_mismatch_manifest)
+
+    assert any(
+        "GB10 release manifest runtime contract smoke_env_defaults must match"
+        in err
         for err in errors
     )
 
@@ -9893,21 +9910,37 @@ def test_gb10_nvfp4_backend_recorder_can_fail_fast(monkeypatch):
 def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     script = (REPO_ROOT / "scripts" / "gb10-smoke-nvfp4.py").read_text()
     smoke = _load_gb10_smoke_module()
+    contract = _load_gb10_release_contract_module()
 
     assert "VLLM_FAIL_ON_NVFP4_FALLBACK" in script
     assert 'os.environ["VLLM_FAIL_ON_NVFP4_FALLBACK"] = "1"' in script
     assert "VLLM_ENABLE_V1_MULTIPROCESSING" in script
     assert 'os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")' in script
     assert "FLASHINFER_DISABLE_JIT" in script
-    assert 'os.environ.setdefault("FLASHINFER_DISABLE_JIT", "1")' in script
+    assert "GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS" in script
+    normalized_script = "".join(script.split())
+    assert (
+        'GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS["FLASHINFER_DISABLE_JIT"]'
+        in script
+    )
     assert "GB10_GPU_MEMORY_UTILIZATION" in script
     assert "gpu_memory_utilization=float(" in script
-    assert 'os.environ.get("GB10_GPU_MEMORY_UTILIZATION", "0.88")' in script
+    assert (
+        'gpu_memory_utilization=float(os.environ.get('
+        '"GB10_GPU_MEMORY_UTILIZATION",'
+        'GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS['
+        '"GB10_GPU_MEMORY_UTILIZATION"],))'
+        in normalized_script
+    )
     assert "GB10_NVFP4_MODEL" in script
     assert 'parser.error("--model or GB10_NVFP4_MODEL is required")' in script
 
     assert "engine_args_cls.add_cli_args" in script
     assert "EngineArgs.from_cli_args" in script
+    assert contract.GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS == {
+        "FLASHINFER_DISABLE_JIT": "1",
+        "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+    }
     assert "LLM.from_engine_args" in script
     assert "SamplingParams" in script
     assert 'quantization="modelopt_fp4"' in script
@@ -10956,6 +10989,12 @@ def test_gb10_release_evidence_bundle_builds_metadata_and_tarball(tmp_path):
         json.dumps(
             {
                 "schema_version": 1,
+                "runtime_contract": {
+                    "smoke_env_defaults": {
+                        "FLASHINFER_DISABLE_JIT": "1",
+                        "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+                    }
+                },
                 "dependencies": {
                     "flashinfer": {
                         "all_required_components_present": True,
@@ -12840,6 +12879,12 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     }
     release_manifest = {
         "schema_version": 1,
+        "runtime_contract": {
+            "smoke_env_defaults": {
+                "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+            }
+        },
         "git": {"commit": "abcdef1234567890abcdef1234567890abcdef12"},
         "release": {"tag": "gb10-vllm-test", "preflight_only": False},
         "image": {

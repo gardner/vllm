@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from gb10_release_contract import (
+    GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS,
     GB10_SUPPORT_STATUSES,
     REQUIRED_FLASHINFER_COMPONENTS,
     REQUIRED_GB10_SUPPORT_MATRIX,
@@ -1747,6 +1748,11 @@ def build_manifest(env: Mapping[str, str] | None = None) -> dict[str, object]:
         "vllm": {
             "version": _env(env, "GB10_VLLM_VERSION"),
         },
+        "runtime_contract": {
+            "smoke_env_defaults": dict(
+                GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS
+            ),
+        },
         "dependencies": {
             "flashinfer": {
                 "required_components": list(REQUIRED_FLASHINFER_COMPONENTS),
@@ -1985,6 +1991,17 @@ def validate_manifest(manifest: Mapping[str, object]) -> list[str]:
                 errors.append(f"{name} ref must be a full Git SHA.")
     else:
         errors.append("GB10 release manifest must list pinned source dependencies.")
+
+    runtime_contract = _mapping_value(manifest, "runtime_contract")
+    if isinstance(runtime_contract, Mapping):
+        smoke_env_defaults = _mapping_value(runtime_contract, "smoke_env_defaults")
+        if smoke_env_defaults != GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS:
+            errors.append(
+                "GB10 release manifest runtime contract smoke_env_defaults "
+                "must match the GB10 release smoke defaults."
+            )
+    else:
+        errors.append("GB10 release manifest must include a runtime contract.")
 
     support_matrix = _mapping_value(manifest, "gb10_support_matrix")
     if isinstance(support_matrix, Mapping):

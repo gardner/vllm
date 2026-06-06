@@ -25,6 +25,7 @@ from gb10_release_contract import (
     FLASHINFER_RUNTIME_DISTRIBUTIONS,
     GB10_DEFERRED_PATH_REASONS,
     GB10_NOT_SUPPORTED_PATH_REASONS,
+    GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS,
     GB10_SUPPORTED_ROUTED_PATH_REASONS,
 )
 
@@ -65,7 +66,10 @@ def _preparse_allow_fallback(argv: Sequence[str] | None) -> bool:
 def _configure_env(*, allow_fallback: bool) -> None:
     os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
     os.environ.setdefault("VLLM_NO_USAGE_STATS", "1")
-    os.environ.setdefault("FLASHINFER_DISABLE_JIT", "1")
+    os.environ.setdefault(
+        "FLASHINFER_DISABLE_JIT",
+        GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS["FLASHINFER_DISABLE_JIT"],
+    )
 
     if allow_fallback:
         os.environ["VLLM_FAIL_ON_NVFP4_FALLBACK"] = "0"
@@ -151,7 +155,12 @@ def _build_parser(engine_args_cls: Any) -> argparse.ArgumentParser:
         kv_cache_dtype="fp8_e4m3",
         enable_prefix_caching=False,
         gpu_memory_utilization=float(
-            os.environ.get("GB10_GPU_MEMORY_UTILIZATION", "0.88")
+            os.environ.get(
+                "GB10_GPU_MEMORY_UTILIZATION",
+                GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "GB10_GPU_MEMORY_UTILIZATION"
+                ],
+            )
         ),
     )
     return parser
@@ -744,7 +753,8 @@ def _build_gb10_release_summary(
     else:
         attention_backend_status = "mismatched"
     flashinfer_jit_disabled = (
-        runtime_metadata.get("env", {}).get("FLASHINFER_DISABLE_JIT") == "1"
+        runtime_metadata.get("env", {}).get("FLASHINFER_DISABLE_JIT")
+        == GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS["FLASHINFER_DISABLE_JIT"]
     )
     gpu_memory_utilization = runtime_metadata.get("env", {}).get(
         "GB10_GPU_MEMORY_UTILIZATION"
@@ -806,7 +816,9 @@ def _build_gb10_release_summary(
         },
         "flashinfer_jit_disabled": {
             "status": "passed" if flashinfer_jit_disabled else "failed",
-            "expected": "1",
+            "expected": GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                "FLASHINFER_DISABLE_JIT"
+            ],
             "configured": runtime_metadata.get("env", {}).get(
                 "FLASHINFER_DISABLE_JIT"
             ),
@@ -814,10 +826,15 @@ def _build_gb10_release_summary(
         "gpu_memory_utilization": {
             "status": (
                 "passed"
-                if gpu_memory_utilization == "0.88"
+                if gpu_memory_utilization
+                == GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                    "GB10_GPU_MEMORY_UTILIZATION"
+                ]
                 else "failed"
             ),
-            "expected": "0.88",
+            "expected": GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS[
+                "GB10_GPU_MEMORY_UTILIZATION"
+            ],
             "configured": gpu_memory_utilization,
         },
         "cuda_graph": cuda_graph_check,
