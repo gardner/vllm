@@ -173,6 +173,8 @@ class GptOssMxfp4MoEMethod(FusedMoEMethodBase):
     """MXFP4 MoE quantization method."""
 
     def __init__(self, moe: FusedMoEConfig):
+        if reason := _gb10_public_mxfp4_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         self.weight_dtype = "gpt_oss_mxfp4"
         self.mxfp4_backend, self.experts_cls = select_mxfp4_moe_backend(moe)
@@ -507,6 +509,8 @@ class Mxfp4MoEMethod(FusedMoEMethodBase):
     """MXFP4 MoE quantization method."""
 
     def __init__(self, moe: FusedMoEConfig):
+        if reason := _gb10_public_mxfp4_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         self.weight_dtype = "mxfp4"
         self.mxfp4_backend, self.experts_cls = select_deepseek_v4_mxfp4_moe_backend(moe)
