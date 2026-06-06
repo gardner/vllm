@@ -492,6 +492,14 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "artifact, and runtime evidence exists."
                 ),
             },
+            "mla_prefill_query_quantization_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "MLA prefill query quantization can silently fall back "
+                    "to the model dtype today; reject it on GB10/SM12x until "
+                    "native FP8 prefill query-quantization evidence exists."
+                ),
+            },
             "triton_mamba_ssu_fallback": {
                 "status": "not_supported",
                 "release_contract": (
