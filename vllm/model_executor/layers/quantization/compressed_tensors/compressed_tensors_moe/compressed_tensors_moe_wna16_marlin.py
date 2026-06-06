@@ -24,8 +24,9 @@ from vllm.model_executor.layers.fused_moe.oracle.int_wna16 import (
     make_wna16_moe_quant_config,
     select_wna16_moe_backend,
 )
-from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa E501
+from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe.compressed_tensors_moe import (  # noqa E501
     CompressedTensorsMoEMethod,
+    _gb10_compressed_tensors_wna16_marlin_moe_unsupported_reason,
 )
 from vllm.model_executor.layers.quantization.compressed_tensors.schemes.compressed_tensors_wNa16 import (  # noqa
     WNA16_SUPPORTED_TYPES_MAP,
@@ -53,6 +54,11 @@ class CompressedTensorsWNA16MarlinMoEMethod(CompressedTensorsMoEMethod):
         moe: FusedMoEConfig,
         layer_name: str | None = None,
     ):
+        unsupported_reason = (
+            _gb10_compressed_tensors_wna16_marlin_moe_unsupported_reason()
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         super().__init__(moe)
         self.weight_quant = weight_quant
         self.input_quant = input_quant

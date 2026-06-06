@@ -43,6 +43,18 @@ def _gb10_compressed_tensors_wna16_moe_unsupported_reason() -> str | None:
     )
 
 
+def _gb10_compressed_tensors_wna16_marlin_moe_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "CompressedTensors WNA16 MoE Marlin fallback is not supported on "
+        "GB10/SM12x. The Marlin and batched Marlin WNA16/MXINT MoE paths can "
+        "prove reachability, but they are not native GB10 WNA16/MXINT MoE "
+        "evidence. Use a native SM12x WNA16/MXINT MoE backend after "
+        "correctness evidence exists, or keep the path unselected."
+    )
+
+
 def _gb10_w8a8_fp8_moe_loading_unsupported_reason() -> str | None:
     if not _is_sm12x_device():
         return None
@@ -209,6 +221,11 @@ class CompressedTensorsMoEMethod(FusedMoEMethodBase):
                 from .compressed_tensors_moe_wna16_marlin import (
                     CompressedTensorsWNA16MarlinMoEMethod,
                 )
+
+                if reason := (
+                    _gb10_compressed_tensors_wna16_marlin_moe_unsupported_reason()
+                ):
+                    raise ValueError(reason)
 
                 logger.info_once("Using CompressedTensorsWNA16MarlinMoEMethod")
                 return CompressedTensorsWNA16MarlinMoEMethod(
