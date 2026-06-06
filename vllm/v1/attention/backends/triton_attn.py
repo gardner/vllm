@@ -501,6 +501,14 @@ class TritonAttentionImpl(AttentionImpl):
         use_alibi_sqrt: bool = False,
         chunk_lookback: int = -1,
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_triton_attention_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         self.num_heads = num_heads
         self.head_size = head_size
         self.scale = float(scale)

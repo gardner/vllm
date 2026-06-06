@@ -29,6 +29,7 @@ from vllm.config.cache import CacheDType
 from vllm.model_executor.layers.quantization.turboquant.centroids import (
     get_centroids,
 )
+from vllm.platforms import current_platform
 from vllm.platforms.interface import DeviceCapability
 from vllm.triton_utils import triton
 from vllm.v1.attention.backend import (
@@ -296,6 +297,14 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         kv_sharing_target_layer_name: str | None = None,
         **kwargs,
     ):
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_turboquant_attention_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         self.num_heads = num_heads
         self.head_size = head_size
         self.scale = scale

@@ -8846,14 +8846,24 @@ def test_gb10_unvalidated_attention_fallbacks_are_reported():
     assert "Triton attention backend" in triton_attn
     assert "generic Triton attention fallback" in triton_attn
     assert "not supported on GB10/SM12x" in triton_attn
+    assert "gb10_reason = _gb10_triton_attention_unsupported_reason(" in (
+        triton_attn
+    )
+    assert "raise ValueError(gb10_reason)" in triton_attn
     assert "_gb10_flex_attention_unsupported_reason" in flex_attn
     assert "FlexAttention backend" in flex_attn
     assert "PyTorch FlexAttention fallback" in flex_attn
     assert "not supported on GB10/SM12x" in flex_attn
+    assert "gb10_reason = _gb10_flex_attention_unsupported_reason(" in flex_attn
+    assert "raise ValueError(gb10_reason)" in flex_attn
     assert "_gb10_turboquant_attention_unsupported_reason" in turboquant_attn
     assert "TurboQuant attention backend" in turboquant_attn
     assert "TurboQuant KV-cache compression" in turboquant_attn
     assert "not supported on GB10/SM12x" in turboquant_attn
+    assert "gb10_reason = _gb10_turboquant_attention_unsupported_reason(" in (
+        turboquant_attn
+    )
+    assert "raise ValueError(gb10_reason)" in turboquant_attn
 
 
 def test_gb10_mla_backend_selection_is_reported():
