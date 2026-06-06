@@ -62,6 +62,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "linear_attention_triton_runtime": "not_supported",
     "cascade_attention_runtime": "not_supported",
     "disable_sliding_window_runtime": "not_supported",
+    "attention_dtype_override_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
@@ -312,6 +313,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "length handling outside the validated GB10 first release serving "
         "path; reject --disable-sliding-window until native SM12x disabled-"
         "sliding-window correctness and runtime evidence exists."
+    ),
+    "attention_dtype_override_runtime": (
+        "Explicit attention dtype override changes attention execution dtype "
+        "outside the validated GB10 first release serving path; reject "
+        "--override-attention-dtype until native SM12x attention dtype "
+        "override correctness and runtime evidence exists."
     ),
     "speculative_decoding_runtime": (
         "Speculative decoding changes scheduling, attention metadata, "

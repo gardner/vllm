@@ -588,6 +588,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness and runtime evidence exists."
                 ),
             },
+            "attention_dtype_override_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Explicit attention dtype override changes attention "
+                    "execution dtype outside the validated GB10 first release "
+                    "serving path. It must reject until native SM12x attention "
+                    "dtype override correctness and runtime evidence exists."
+                ),
+            },
             "structured_outputs_runtime": {
                 "status": "not_supported",
                 "release_contract": (

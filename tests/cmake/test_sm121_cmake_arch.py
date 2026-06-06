@@ -88,6 +88,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "linear_attention_triton_runtime": "not_supported",
     "cascade_attention_runtime": "not_supported",
     "disable_sliding_window_runtime": "not_supported",
+    "attention_dtype_override_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
@@ -2499,6 +2500,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["disable_sliding_window_runtime"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["attention_dtype_override_runtime"][
+        "status"
+    ] == "not_supported"
     assert support_matrix["entries"]["speculative_decoding_runtime"]["status"] == (
         "not_supported"
     )
@@ -8922,6 +8926,25 @@ def test_gb10_disable_sliding_window_runtime_is_reported():
     assert "--disable-sliding-window" in arg_utils
 
 
+def test_gb10_attention_dtype_override_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_ATTENTION_DTYPE_OVERRIDE_RUNTIME_MESSAGE" in vllm_config
+    assert "attention dtype override runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--override-attention-dtype" in vllm_config
+    assert "model_config.override_attention_dtype" in vllm_config
+    assert "self.model_config.override_attention_dtype is not None" in vllm_config
+    assert "override_attention_dtype: str | None = None" in model_config
+    assert "override-attention-dtype is set but not using ROCm platform" in (
+        model_config
+    )
+    assert "--override-attention-dtype" in arg_utils
+
+
 def test_gb10_pooling_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11446,6 +11469,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "attention masking and KV-cache length correctness evidence"
                     ),
                 },
+                "attention_dtype_override_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Attention dtype override lacks native SM12x attention "
+                        "dtype correctness evidence"
+                    ),
+                },
                 "speculative_decoding_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12555,6 +12586,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "linear_attention_triton_runtime": {"status": "not_supported"},
                 "cascade_attention_runtime": {"status": "not_supported"},
                 "disable_sliding_window_runtime": {"status": "not_supported"},
+                "attention_dtype_override_runtime": {"status": "not_supported"},
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
@@ -12795,6 +12827,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     ] == [
         "alternate_model_loader_runtime",
         "async_scheduling_runtime",
+        "attention_dtype_override_runtime",
         "awq_quantization",
         "bitsandbytes_quantization",
         "cascade_attention_runtime",
