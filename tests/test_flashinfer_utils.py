@@ -72,3 +72,22 @@ def test_has_flashinfer_accepts_cubin_when_jit_is_disabled(
     )
 
     assert flashinfer.has_flashinfer() is True
+
+
+def test_has_flashinfer_warm_cache_survives_jit_env_toggle(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("FLASHINFER_DISABLE_JIT", raising=False)
+    _patch_flashinfer_specs(
+        monkeypatch,
+        flashinfer_found=True,
+        flashinfer_cubin_found=False,
+    )
+
+    assert flashinfer.has_flashinfer() is True
+
+    monkeypatch.setenv("FLASHINFER_DISABLE_JIT", "1")
+    assert flashinfer.has_flashinfer() is True
+
+    flashinfer.has_flashinfer.cache_clear()
+    assert flashinfer.has_flashinfer() is False
