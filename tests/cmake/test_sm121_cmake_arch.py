@@ -125,6 +125,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
     "unvalidated_kv_cache_runtime": "not_supported",
+    "kv_scale_calculation_runtime": "not_supported",
     "kv_events_runtime": "not_supported",
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
@@ -2587,6 +2588,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["unvalidated_kv_cache_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["kv_scale_calculation_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["kv_events_runtime"]["status"] == "not_supported"
@@ -9007,6 +9011,32 @@ def test_gb10_unvalidated_kv_cache_runtime_is_reported():
     assert "fp8_ds_mla" in vllm_config
 
 
+def test_gb10_kv_scale_calculation_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    cache_config = (REPO_ROOT / "vllm" / "config" / "cache.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+    kv_cache_quant = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "quantization"
+        / "kv_cache.py"
+    ).read_text()
+
+    assert "_GB10_KV_SCALE_CALCULATION_RUNTIME_MESSAGE" in vllm_config
+    assert "KV scale calculation runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--calculate-kv-scales" in vllm_config
+    assert "cache_config.calculate_kv_scales" in vllm_config
+    assert "calculate_kv_scales" in cache_config
+    assert "--calculate-kv-scales" in arg_utils
+    assert "layer.calculate_kv_scales" in kv_cache_quant
+    assert "k_scale" in kv_cache_quant
+    assert "v_scale" in kv_cache_quant
+
+
 def test_gb10_kv_transfer_and_offload_runtime_are_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11388,6 +11418,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "runtime dtypes lack native SM12x correctness evidence"
                     ),
                 },
+                "kv_scale_calculation_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "dynamic KV scale calculation lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "kv_events_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12359,6 +12397,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "modelopt_nvfp4_kv_cache_loading": {"status": "not_supported"},
                 "nvfp4_kv_cache_runtime": {"status": "not_supported"},
                 "unvalidated_kv_cache_runtime": {"status": "not_supported"},
+                "kv_scale_calculation_runtime": {"status": "not_supported"},
                 "kv_events_runtime": {"status": "not_supported"},
                 "kv_offload_runtime": {"status": "not_supported"},
                 "kv_transfer_runtime": {"status": "not_supported"},
@@ -12613,6 +12652,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "io_processor_plugin_runtime",
         "kv_events_runtime",
         "kv_offload_runtime",
+        "kv_scale_calculation_runtime",
         "kv_sharing_fast_prefill_runtime",
         "kv_transfer_runtime",
         "linear_attention_triton_runtime",

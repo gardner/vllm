@@ -117,6 +117,14 @@ _GB10_UNVALIDATED_KV_CACHE_MESSAGE = (
     "--kv-cache-dtype fp8_e4m3 or auto for GB10 until native SM12x "
     "correctness evidence exists for this dtype."
 )
+_GB10_KV_SCALE_CALCULATION_RUNTIME_MESSAGE = (
+    "KV scale calculation runtime is not supported on GB10/SM12x in this fork: "
+    "--calculate-kv-scales and direct cache_config.calculate_kv_scales=True "
+    "enable dynamic k_scale/v_scale calculation for FP8 KV cache outside the "
+    "validated native first-path NVFP4 serving release. Load checkpoint KV "
+    "scales or use the default FP8 KV-cache scale path on GB10 until native "
+    "SM12x dynamic KV-scale correctness and runtime evidence exists."
+)
 _GB10_KV_EVENTS_RUNTIME_MESSAGE = (
     "KV events runtime is not supported on GB10/SM12x in this fork: "
     "--kv-events-config, KVEventsConfig.enable_kv_cache_events, and non-null "
@@ -1365,6 +1373,12 @@ class VllmConfig:
 
         if self.lora_config is not None and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_LORA_RUNTIME_MESSAGE)
+
+        if (
+            self.cache_config.calculate_kv_scales
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_KV_SCALE_CALCULATION_RUNTIME_MESSAGE)
 
         if (
             self.cache_config.cache_dtype == "nvfp4"

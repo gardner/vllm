@@ -791,6 +791,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "kv_scale_calculation_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Dynamic KV scale calculation changes FP8 KV-cache "
+                    "k_scale/v_scale handling outside the validated GB10 "
+                    "first release serving path. --calculate-kv-scales must "
+                    "reject until native SM12x dynamic KV-scale correctness "
+                    "and runtime evidence exists."
+                ),
+            },
             "kv_events_runtime": {
                 "status": "not_supported",
                 "release_contract": (

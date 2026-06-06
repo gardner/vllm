@@ -1082,6 +1082,56 @@ def test_vllm_config_allows_alternate_model_loader_runtime_off_gb10(
     assert config.load_config is load_config
 
 
+def test_gb10_vllm_config_rejects_kv_scale_calculation_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    cache_config = CacheConfig(cache_dtype="fp8", calculate_kv_scales=True)
+
+    with pytest.raises(
+        ValueError,
+        match="KV scale calculation runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config, cache_config=cache_config)
+
+
+def test_gb10_vllm_config_allows_default_kv_scale_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    cache_config = CacheConfig(cache_dtype="fp8")
+    config = VllmConfig(model_config=model_config, cache_config=cache_config)
+
+    assert config.model_config is model_config
+    assert config.cache_config is cache_config
+
+
+def test_vllm_config_allows_kv_scale_calculation_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    cache_config = CacheConfig(cache_dtype="fp8", calculate_kv_scales=True)
+    config = VllmConfig(model_config=model_config, cache_config=cache_config)
+
+    assert config.model_config is model_config
+    assert config.cache_config is cache_config
+
+
 def _noop_hf_overrides(config):
     return config
 
