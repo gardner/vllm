@@ -1809,7 +1809,7 @@ def test_gb10_vllm_config_rejects_custom_worker_runtime(
         VllmConfig(parallel_config=parallel_config)
 
 
-def test_gb10_vllm_config_allows_default_cuda_worker_runtime(monkeypatch):
+def test_gb10_vllm_config_allows_platform_default_cuda_worker_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(
         platforms.current_platform,
@@ -1817,9 +1817,7 @@ def test_gb10_vllm_config_allows_default_cuda_worker_runtime(monkeypatch):
         lambda family, device_id=0: family == 120,
     )
 
-    parallel_config = ParallelConfig(
-        worker_cls="vllm.v1.worker.gpu_worker.Worker",
-    )
+    parallel_config = ParallelConfig()
     config = VllmConfig(parallel_config=parallel_config)
 
     assert config.parallel_config.worker_cls == "vllm.v1.worker.gpu_worker.Worker"
