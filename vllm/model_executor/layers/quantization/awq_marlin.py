@@ -395,6 +395,8 @@ class AWQMarlinLinearMethod(LinearMethodBase):
     _kernel_backends_being_used: set[str] = set()
 
     def __init__(self, quant_config: AWQMarlinConfig) -> None:
+        if reason := _gb10_awq_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
         self.quant_type = scalar_types.uint4
         self.input_dtype = None
@@ -519,6 +521,8 @@ class AWQMarlinMoEMethod(FusedMoEMethodBase):
         quant_config: AWQMarlinConfig,
         moe: FusedMoEConfig,
     ):
+        if reason := _gb10_awq_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         self.quant_config = quant_config
         if self.quant_config.weight_bits != 4:

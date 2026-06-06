@@ -213,6 +213,8 @@ class AWQLinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: AWQConfig):
+        if reason := _gb10_awq_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
 
     def create_weights(
