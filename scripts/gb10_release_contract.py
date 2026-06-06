@@ -109,6 +109,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "ec_transfer_runtime": "not_supported",
     "weight_transfer_runtime": "not_supported",
     "model_weight_offload_runtime": "not_supported",
+    "enforce_eager_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "fp64_gumbel_sampling_runtime": "not_supported",
@@ -491,6 +492,11 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "paths and can patch model forward execution outside the validated "
         "GB10 first release serving path; reject it until native SM12x "
         "offload correctness and runtime evidence exists."
+    ),
+    "enforce_eager_runtime": (
+        "Enforce eager disables vLLM torch.compile and CUDAGraph execution "
+        "outside the validated GB10 first release serving path; reject it "
+        "until native SM12x eager-mode correctness and runtime evidence exists."
     ),
     "return_routed_experts_runtime": (
         "Routed experts capture changes MoE scheduler and model-runner "

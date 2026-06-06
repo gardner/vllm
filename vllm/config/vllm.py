@@ -337,6 +337,15 @@ _GB10_STOCK_TORCH_COMPILE_RUNTIME_MESSAGE = (
     "Use the default vLLM compile path on GB10 until "
     "native SM12x stock torch.compile correctness and runtime evidence exists."
 )
+_GB10_ENFORCE_EAGER_RUNTIME_MESSAGE = (
+    "enforce eager runtime is not supported on GB10/SM12x in this fork: "
+    "--enforce-eager and direct model_config.enforce_eager=True set "
+    "CompilationMode.NONE and CUDAGraphMode.NONE, disabling vLLM "
+    "torch.compile and CUDAGraph execution outside the validated native "
+    "first-path NVFP4 serving release. Use the default vLLM compile and "
+    "CUDAGraph path on GB10 until native SM12x eager-mode correctness and "
+    "runtime evidence exists."
+)
 _GB10_MAMBA_ALIGN_CACHE_RUNTIME_MESSAGE = (
     "Mamba align cache runtime is not supported on GB10/SM12x in this fork: "
     "mamba_cache_mode='align' changes Mamba state copy, preprocessing, and "
@@ -1358,6 +1367,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.enforce_eager
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_ENFORCE_EAGER_RUNTIME_MESSAGE)
 
         if (
             self.compilation_config.mode == CompilationMode.STOCK_TORCH_COMPILE

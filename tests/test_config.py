@@ -1412,6 +1412,55 @@ def test_vllm_config_allows_custom_worker_runtime_off_gb10(monkeypatch):
     assert config.parallel_config is parallel_config
 
 
+def test_gb10_vllm_config_rejects_enforce_eager_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", enforce_eager=True)
+
+    with pytest.raises(
+        ValueError,
+        match="enforce eager runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_gb10_vllm_config_allows_default_eager_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert not config.model_config.enforce_eager
+
+
+def test_vllm_config_allows_enforce_eager_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", enforce_eager=True)
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert config.model_config.enforce_eager
+    assert config.compilation_config.mode == CompilationMode.NONE
+    assert config.compilation_config.cudagraph_mode == CUDAGraphMode.NONE
+
+
 @pytest.mark.parametrize(
     "kv_events_config",
     [

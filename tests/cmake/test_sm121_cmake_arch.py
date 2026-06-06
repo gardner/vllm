@@ -135,6 +135,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "ec_transfer_runtime": "not_supported",
     "weight_transfer_runtime": "not_supported",
     "model_weight_offload_runtime": "not_supported",
+    "enforce_eager_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "fp64_gumbel_sampling_runtime": "not_supported",
@@ -2617,6 +2618,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["model_weight_offload_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["enforce_eager_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["return_routed_experts_runtime"]["status"] == (
@@ -9416,6 +9420,21 @@ def test_gb10_stock_torch_compile_runtime_is_reported():
     assert "native SM12x stock torch.compile correctness" in vllm_config
 
 
+def test_gb10_enforce_eager_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_ENFORCE_EAGER_RUNTIME_MESSAGE" in vllm_config
+    assert "enforce eager runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--enforce-eager" in vllm_config
+    assert "model_config.enforce_eager" in vllm_config
+    assert "CompilationMode.NONE" in vllm_config
+    assert "CUDAGraphMode.NONE" in vllm_config
+    assert "enforce_eager: bool = False" in model_config
+    assert "--enforce-eager" in arg_utils
+
+
 def test_gb10_mamba_align_cache_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11526,6 +11545,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "evidence"
                     ),
                 },
+                "enforce_eager_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "enforce eager lacks native SM12x correctness and "
+                        "runtime evidence"
+                    ),
+                },
                 "return_routed_experts_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12443,6 +12470,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "ec_transfer_runtime": {"status": "not_supported"},
                 "weight_transfer_runtime": {"status": "not_supported"},
                 "model_weight_offload_runtime": {"status": "not_supported"},
+                "enforce_eager_runtime": {"status": "not_supported"},
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "fp64_gumbel_sampling_runtime": {"status": "not_supported"},
@@ -12662,6 +12690,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "deepseek_v4_fp8_quantization",
         "distributed_parallel_runtime",
         "ec_transfer_runtime",
+        "enforce_eager_runtime",
         "experts_int8_quantization",
         "fbgemm_fp8_quantization",
         "fbgemm_nvfp4_dense",

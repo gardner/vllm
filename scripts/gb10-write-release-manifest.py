@@ -887,6 +887,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness and runtime evidence exists."
                 ),
             },
+            "enforce_eager_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Enforce eager disables vLLM torch.compile and CUDAGraph "
+                    "execution outside the validated GB10 first release "
+                    "serving path. It must reject until native SM12x "
+                    "eager-mode correctness and runtime evidence exists."
+                ),
+            },
             "return_routed_experts_runtime": {
                 "status": "not_supported",
                 "release_contract": (
