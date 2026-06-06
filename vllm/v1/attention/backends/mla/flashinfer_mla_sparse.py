@@ -25,6 +25,7 @@ from vllm.logger import init_logger
 from vllm.model_executor.layers.attention.mla_attention import (
     get_mla_dims,
 )
+from vllm.platforms import current_platform
 from vllm.platforms.interface import DeviceCapability
 from vllm.utils.torch_utils import is_quantized_kv_cache
 from vllm.v1.attention.backend import (
@@ -50,6 +51,19 @@ if TYPE_CHECKING:
 logger = init_logger(__name__)
 
 FLASHINFER_MLA_SPARSE_WORKSPACE_BUFFER_SIZE = 128 * 1024 * 1024
+
+
+def _gb10_flashinfer_trtllm_sparse_mla_runtime_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if capability.major != 12:
+        return None
+    return (
+        "FlashInfer TRT-LLM Sparse MLA backend is not supported on "
+        "GB10/SM12x. It is an SM100-family sparse MLA path today and "
+        "must not satisfy GB10 sparse MLA correctness, artifact, or "
+        "runtime evidence. Use native FlashMLA sparse MLA on SM12x instead."
+    )
 
 
 class FlashInferMLASparseBackend(AttentionBackend):
@@ -113,6 +127,12 @@ class FlashInferMLASparseBackend(AttentionBackend):
         use_sparse: bool,
         device_capability: DeviceCapability,
     ) -> str | None:
+        gb10_reason = _gb10_flashinfer_trtllm_sparse_mla_runtime_unsupported_reason(
+            device_capability
+        )
+        if gb10_reason is not None:
+            return gb10_reason
+
         # FlashInfer MLA sparse kernel requires qk_nope_head_dim in [128, 192]
         from vllm.config import get_current_vllm_config
 
@@ -274,6 +294,14 @@ class FlashInferMLASparseImpl(SparseMLAAttentionImpl[FlashInferMLASparseMetadata
         indexer: "Indexer | None" = None,
         **mla_args,
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_flashinfer_trtllm_sparse_mla_runtime_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         unsupported_features = [alibi_slopes, sliding_window, logits_soft_cap]
         if any(unsupported_features):
             raise NotImplementedError(

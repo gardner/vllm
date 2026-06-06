@@ -15,6 +15,7 @@ from vllm.model_executor.layers.attention.mla_attention import (
     MLACommonMetadataBuilder,
     QueryLenSupport,
 )
+from vllm.platforms import current_platform
 from vllm.platforms.interface import DeviceCapability
 from vllm.utils.torch_utils import is_quantized_kv_cache
 from vllm.v1.attention.backend import (
@@ -28,6 +29,19 @@ from vllm.v1.attention.backends.utils import KVCacheLayoutType
 logger = init_logger(__name__)
 
 FLASHINFER_MLA_WORKSPACE_BUFFER_SIZE = 128 * 1024 * 1024
+
+
+def _gb10_flashinfer_trtllm_mla_runtime_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if capability.major != 12:
+        return None
+    return (
+        "FlashInfer TRT-LLM MLA backend is not supported on GB10/SM12x. "
+        "It is an SM100-family MLA path today and must not satisfy GB10 "
+        "MLA correctness, artifact, or runtime evidence. Use native FlashMLA "
+        "MLA on SM12x instead."
+    )
 
 
 class FlashInferMLAMetadataBuilder(MLACommonMetadataBuilder[MLACommonMetadata]):
@@ -77,6 +91,12 @@ class FlashInferMLABackend(MLACommonBackend):
         use_sparse: bool,
         device_capability: DeviceCapability,
     ) -> str | None:
+        gb10_reason = _gb10_flashinfer_trtllm_mla_runtime_unsupported_reason(
+            device_capability
+        )
+        if gb10_reason is not None:
+            return gb10_reason
+
         # FlashInfer MLA kernel requires qk_nope_head_dim in [64, 128, 192]
         from vllm.config import get_current_vllm_config
 
@@ -119,6 +139,14 @@ class FlashInferMLAImpl(MLACommonImpl[MLACommonMetadata]):
         # MLA Specific Arguments
         **mla_args,
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_flashinfer_trtllm_mla_runtime_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         super().__init__(
             num_heads,
             head_size,

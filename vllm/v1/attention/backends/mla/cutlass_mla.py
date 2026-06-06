@@ -15,6 +15,7 @@ from vllm.model_executor.layers.attention.mla_attention import (
     MLACommonMetadata,
     MLACommonMetadataBuilder,
 )
+from vllm.platforms import current_platform
 from vllm.platforms.interface import DeviceCapability
 from vllm.utils.platform_utils import num_compute_units
 from vllm.utils.torch_utils import is_quantized_kv_cache
@@ -26,6 +27,19 @@ from vllm.v1.attention.backend import (
 )
 
 logger = init_logger(__name__)
+
+
+def _gb10_cutlass_mla_runtime_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if capability.major != 12:
+        return None
+    return (
+        "SM100 CUTLASS MLA backend is not supported on GB10/SM12x. It can "
+        "prove Blackwell-family MLA reachability, but it is not native "
+        "GB10 MLA correctness, artifact, or runtime evidence. Use native "
+        "FlashMLA MLA on SM12x instead."
+    )
 
 
 class CutlassMLAMetadataBuilder(MLACommonMetadataBuilder[MLACommonMetadata]):
@@ -64,6 +78,20 @@ class CutlassMLABackend(MLACommonBackend):
     @classmethod
     def supports_compute_capability(cls, capability: DeviceCapability) -> bool:
         return capability.major == 10
+
+    @classmethod
+    def supports_combination(
+        cls,
+        head_size: int,
+        dtype: torch.dtype,
+        kv_cache_dtype: CacheDType | None,
+        block_size: int | None,
+        use_mla: bool,
+        has_sink: bool,
+        use_sparse: bool,
+        device_capability: DeviceCapability,
+    ) -> str | None:
+        return _gb10_cutlass_mla_runtime_unsupported_reason(device_capability)
 
 
 class SM100Workspace:
@@ -119,6 +147,14 @@ class CutlassMLAImpl(MLACommonImpl[MLACommonMetadata]):
         # MLA Specific Arguments
         **mla_args,
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_cutlass_mla_runtime_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         super().__init__(
             num_heads,
             head_size,

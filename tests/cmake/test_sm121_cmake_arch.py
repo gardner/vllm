@@ -8880,6 +8880,18 @@ def test_gb10_mla_backend_selection_is_reported():
         REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
         "triton_mla.py"
     ).read_text()
+    flashinfer_mla = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
+        "flashinfer_mla.py"
+    ).read_text()
+    flashinfer_sparse_mla = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
+        "flashinfer_mla_sparse.py"
+    ).read_text()
+    cutlass_mla = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
+        "cutlass_mla.py"
+    ).read_text()
     tokenspeed_mla = (
         REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
         "tokenspeed_mla.py"
@@ -8915,6 +8927,26 @@ def test_gb10_mla_backend_selection_is_reported():
     assert "Triton MLA backend is not supported on GB10/SM12x" in triton_mla
     assert "_gb10_triton_mla_runtime_unsupported_reason" in triton_mla
     assert "raise ValueError(gb10_reason)" in triton_mla
+    assert "FlashInfer TRT-LLM MLA backend is not supported on GB10/SM12x" in (
+        flashinfer_mla
+    )
+    assert "_gb10_flashinfer_trtllm_mla_runtime_unsupported_reason" in (
+        flashinfer_mla
+    )
+    assert "raise ValueError(gb10_reason)" in flashinfer_mla
+    assert "FlashInfer TRT-LLM Sparse MLA backend is not supported on " in (
+        flashinfer_sparse_mla
+    )
+    assert "GB10/SM12x" in flashinfer_sparse_mla
+    assert "_gb10_flashinfer_trtllm_sparse_mla_runtime_unsupported_reason" in (
+        flashinfer_sparse_mla
+    )
+    assert "raise ValueError(gb10_reason)" in flashinfer_sparse_mla
+    assert "SM100 CUTLASS MLA backend is not supported on GB10/SM12x" in (
+        cutlass_mla
+    )
+    assert "_gb10_cutlass_mla_runtime_unsupported_reason" in cutlass_mla
+    assert "raise ValueError(gb10_reason)" in cutlass_mla
     assert "TokenSpeed CuTe DSL MLA backend is not supported on GB10/SM12x" in (
         tokenspeed_mla
     )
