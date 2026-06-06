@@ -650,6 +650,34 @@ def _source_refs_pinned(manifest: dict[str, Any]) -> tuple[bool, dict[str, Any]]
     return not missing, {"refs": refs, "unpinned": missing}
 
 
+def _release_manifest_runtime_contract(
+    manifest: dict[str, Any],
+) -> tuple[bool, dict[str, Any]]:
+    expected = {
+        "smoke_env_defaults": GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS,
+    }
+    runtime_contract = manifest.get("runtime_contract")
+    if not isinstance(runtime_contract, dict):
+        return False, {
+            "expected": expected,
+            "present": None,
+            "reason": "runtime_contract object missing",
+        }
+
+    smoke_env_defaults = runtime_contract.get("smoke_env_defaults")
+    if not isinstance(smoke_env_defaults, dict):
+        return False, {
+            "expected": expected,
+            "present": runtime_contract,
+            "reason": "runtime_contract.smoke_env_defaults object missing",
+        }
+
+    return smoke_env_defaults == GB10_RELEASE_SMOKE_RUNTIME_ENV_DEFAULTS, {
+        "expected": expected,
+        "present": runtime_contract,
+    }
+
+
 def _source_dependencies_present(
     manifest: dict[str, Any],
 ) -> tuple[bool, dict[str, Any]]:
@@ -1377,6 +1405,9 @@ def _check_release_manifest(
     support_matrix_present, support_matrix_details = _gb10_support_matrix_present(
         manifest
     )
+    runtime_contract_present, runtime_contract_details = (
+        _release_manifest_runtime_contract(manifest)
+    )
     source_refs_pinned, source_refs_details = _source_refs_pinned(manifest)
     manifest_validation_errors = _release_manifest_validation_errors(manifest)
     release_tag = _nested_get(manifest, "release", "tag")
@@ -1413,6 +1444,15 @@ def _check_release_manifest(
                 "checkouts, and pushed images for tagged full releases"
             ),
             details={"errors": manifest_validation_errors},
+        ),
+        _check(
+            name="release_manifest_runtime_contract",
+            passed=runtime_contract_present,
+            message=(
+                "release manifest records the shared GB10 smoke runtime "
+                "defaults"
+            ),
+            details=runtime_contract_details,
         ),
         _check(
             name="release_manifest_source_dependencies_present",

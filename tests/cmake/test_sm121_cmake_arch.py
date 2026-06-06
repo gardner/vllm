@@ -11661,6 +11661,7 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"nvfp4_backend_selections_allowed_by_support_matrix"' in script
     assert '"release_manifest_flashinfer_components"' in script
     assert '"release_manifest_durable_inputs"' in script
+    assert '"release_manifest_runtime_contract"' in script
     assert '"release_manifest_source_dependencies_present"' in script
     assert '"release_manifest_gb10_support_matrix"' in script
     assert '"release_manifest_source_refs_pinned"' in script
@@ -13423,6 +13424,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
     assert check_statuses["release_manifest_durable_inputs"] == "passed"
+    assert check_statuses["release_manifest_runtime_contract"] == "passed"
     assert (
         check_statuses["release_manifest_source_dependencies_present"] == "passed"
     )
@@ -13968,6 +13970,31 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "release_manifest_durable_inputs"
         for failure in durable_manifest_failed_summary["failures"]
+    )
+
+    runtime_contract_failed_manifest = copy.deepcopy(release_manifest)
+    runtime_contract_failed_manifest["runtime_contract"]["smoke_env_defaults"][
+        "GB10_GPU_MEMORY_UTILIZATION"
+    ] = "0.7"
+    runtime_contract_failed_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=runtime_contract_failed_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert runtime_contract_failed_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "release_manifest_runtime_contract"
+        for failure in runtime_contract_failed_summary["failures"]
     )
 
     release_manifest["dependencies"]["flashinfer"]["wheels"][0][
