@@ -58,6 +58,23 @@ def test_modelopt_fp8_moe_constructor_rejects_on_sm12x_before_backend_selection(
     selector.assert_not_called()
 
 
+def test_modelopt_kv_cache_method_rejects_nvfp4_on_sm12x(
+    sm12x_platform,
+) -> None:
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        modelopt.ModelOptKVCacheMethod(
+            SimpleNamespace(kv_cache_quant_algo="NVFP4")
+        )
+
+
+def test_modelopt_kv_cache_method_allows_fp8_on_sm12x(
+    sm12x_platform,
+) -> None:
+    modelopt.ModelOptKVCacheMethod(
+        SimpleNamespace(kv_cache_quant_method="FP8")
+    )
+
+
 def test_modelopt_mxfp8_linear_constructor_rejects_on_sm12x(
     sm12x_platform,
 ) -> None:

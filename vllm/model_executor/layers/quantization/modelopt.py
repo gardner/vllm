@@ -230,6 +230,16 @@ class ModelOptKVCacheMethod(BaseKVCacheMethod):
     """
 
     def __init__(self, quant_config: "ModelOptQuantConfigBase"):
+        kv_cache_quant_method = getattr(quant_config, "kv_cache_quant_method", None)
+        if kv_cache_quant_method is None:
+            kv_cache_quant_method = getattr(
+                quant_config, "kv_cache_quant_algo", None
+            )
+        unsupported_reason = _gb10_modelopt_nvfp4_kv_cache_unsupported_reason(
+            kv_cache_quant_method
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         super().__init__(quant_config)
 
 
