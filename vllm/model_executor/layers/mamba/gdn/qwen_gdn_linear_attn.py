@@ -332,10 +332,6 @@ def fi_chunk_gated_delta_rule(
         chunk_gated_delta_rule as chunk_gated_delta_rule_fi,
     )
 
-    if use_qk_l2norm_in_kernel:
-        q = l2norm_fwd(q)
-        k = l2norm_fwd(k)
-
     # use flashinfer implementation
     q = q.squeeze(0).contiguous()
     k = k.squeeze(0).contiguous()
