@@ -144,7 +144,11 @@ def test_deepseek_v4_mega_moe_requires_explicit_expert_parallel(monkeypatch):
     monkeypatch.setattr(
         deepseek_model,
         "get_tensor_model_parallel_world_size",
-        lambda: 1,
+        lambda: (_ for _ in ()).throw(
+            AssertionError(
+                "tensor-parallel state should not be queried before the EP gate"
+            )
+        ),
     )
     vllm_config = SimpleNamespace(
         model_config=SimpleNamespace(

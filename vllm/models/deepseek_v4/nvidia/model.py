@@ -403,7 +403,6 @@ class DeepseekV4MoE(nn.Module):
     ):
         super().__init__()
 
-        self.tp_size = get_tensor_model_parallel_world_size()
         config = vllm_config.model_config.hf_config
         quant_config = vllm_config.quant_config
         self.prefix = prefix
@@ -416,6 +415,8 @@ class DeepseekV4MoE(nn.Module):
                 "Enable it with --enable-expert-parallel, or pick a different "
                 "moe backend."
             )
+
+        self.tp_size = get_tensor_model_parallel_world_size()
 
         self.routed_scaling_factor = getattr(config, "routed_scaling_factor", 1.0)
         self.hidden_size = config.hidden_size
