@@ -7,6 +7,7 @@ from vllm.model_executor.layers.quantization.utils.nvfp4_emulation_utils import 
     kE2M1ToFloat_handle,
     run_nvfp4_emulations,
 )
+from vllm.platforms import current_platform
 
 from .base import NvFp4LinearKernel, NvFp4LinearLayerConfig
 
@@ -18,7 +19,18 @@ class EmulationNvFp4LinearKernel(NvFp4LinearKernel):
     def is_supported(
         cls, compute_capability: int | None = None
     ) -> tuple[bool, str | None]:
-        # Always available as a last-resort fallback.
+        if compute_capability is None:
+            is_sm12x = current_platform.is_device_capability_family(120)
+        else:
+            is_sm12x = compute_capability // 10 == 12
+        if is_sm12x:
+            return (
+                False,
+                "NVFP4 emulation fallback is not supported on GB10/SM12x; "
+                "use FlashInfer b12x, FlashInfer CUTLASS, or CUTLASS native "
+                "NVFP4 dense backends instead.",
+            )
+        # Always available as a last-resort fallback off GB10.
         return True, None
 
     @classmethod

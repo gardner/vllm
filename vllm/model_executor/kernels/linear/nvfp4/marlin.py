@@ -9,6 +9,7 @@ from vllm.model_executor.layers.quantization.utils.marlin_utils_fp4 import (
     is_fp4_marlin_supported,
     prepare_fp4_layer_for_marlin,
 )
+from vllm.platforms import current_platform
 
 from .base import NvFp4LinearKernel, NvFp4LinearLayerConfig
 
@@ -22,6 +23,17 @@ class MarlinNvFp4LinearKernel(NvFp4LinearKernel):
     def is_supported(
         cls, compute_capability: int | None = None
     ) -> tuple[bool, str | None]:
+        if compute_capability is None:
+            is_sm12x = current_platform.is_device_capability_family(120)
+        else:
+            is_sm12x = compute_capability // 10 == 12
+        if is_sm12x:
+            return (
+                False,
+                "Marlin NVFP4 dense fallback is not supported on GB10/SM12x; "
+                "use FlashInfer b12x, FlashInfer CUTLASS, or CUTLASS native "
+                "NVFP4 dense backends instead.",
+            )
         if is_fp4_marlin_supported():
             return True, None
         return False, "Marlin FP4 not available"
