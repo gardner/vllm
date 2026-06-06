@@ -111,6 +111,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
+    "custom_worker_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
     "mamba_align_cache_runtime": "not_supported",
@@ -489,6 +490,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "user-provided scheduling code outside the validated GB10 first "
         "release serving path; reject --scheduler-cls until native SM12x "
         "custom scheduler correctness and runtime evidence exists."
+    ),
+    "custom_worker_runtime": (
+        "Custom worker classes and extensions replace or extend the vLLM "
+        "worker implementation with user-provided code outside the validated "
+        "GB10 first release serving path; reject --worker-cls and "
+        "--worker-extension-cls until native SM12x custom worker correctness "
+        "and runtime evidence exists."
     ),
     "prompt_embeds_runtime": (
         "Prompt embeds input handling changes request input batching and "

@@ -137,6 +137,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
+    "custom_worker_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
     "mamba_align_cache_runtime": "not_supported",
@@ -2612,6 +2613,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["custom_scheduler_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["custom_worker_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["prompt_embeds_runtime"]["status"] == (
@@ -9103,6 +9107,23 @@ def test_gb10_custom_scheduler_runtime_is_reported():
     assert "--scheduler-cls" in arg_utils
 
 
+def test_gb10_custom_worker_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    parallel_config = (REPO_ROOT / "vllm" / "config" / "parallel.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_CUSTOM_WORKER_RUNTIME_MESSAGE" in vllm_config
+    assert "custom worker runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--worker-cls" in vllm_config
+    assert "--worker-extension-cls" in vllm_config
+    assert "parallel_config.worker_cls" in vllm_config
+    assert "parallel_config.worker_extension_cls" in vllm_config
+    assert "worker_cls" in parallel_config
+    assert "worker_extension_cls" in parallel_config
+    assert "--worker-cls" in arg_utils
+    assert "--worker-extension-cls" in arg_utils
+
+
 def test_gb10_prompt_embeds_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11251,6 +11272,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "custom_worker_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "custom worker class runtime lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "prompt_embeds_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12050,6 +12079,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "transformers_model_impl_runtime": {"status": "not_supported"},
                 "trust_remote_code_runtime": {"status": "not_supported"},
                 "custom_scheduler_runtime": {"status": "not_supported"},
+                "custom_worker_runtime": {"status": "not_supported"},
                 "prompt_embeds_runtime": {"status": "not_supported"},
                 "stock_torch_compile_runtime": {"status": "not_supported"},
                 "mamba_align_cache_runtime": {"status": "not_supported"},
@@ -12246,6 +12276,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "compressed_tensors_wna16_moe_fallback",
         "custom_logits_processors_runtime",
         "custom_scheduler_runtime",
+        "custom_worker_runtime",
         "cutlass_mla_sm100_fallback",
         "deep_gemm_fp8_moe",
         "deepseek_v4_fp8_quantization",

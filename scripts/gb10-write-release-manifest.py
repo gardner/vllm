@@ -905,6 +905,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "and runtime evidence exists."
                 ),
             },
+            "custom_worker_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Custom worker classes and extensions replace or extend "
+                    "the vLLM worker implementation with user-provided code "
+                    "outside the validated GB10 first release serving path. "
+                    "They must reject until native SM12x custom worker "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "prompt_embeds_runtime": {
                 "status": "not_supported",
                 "release_contract": (

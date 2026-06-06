@@ -147,6 +147,14 @@ _GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE = (
     "GB10 worker for this release until native SM12x distributed correctness "
     "and runtime evidence exists."
 )
+_GB10_CUSTOM_WORKER_RUNTIME_MESSAGE = (
+    "custom worker runtime is not supported on GB10/SM12x in this fork: "
+    "--worker-cls, --worker-extension-cls, and direct parallel_config worker "
+    "class overrides replace or extend the vLLM worker implementation with "
+    "user-provided code outside the validated native first-path NVFP4 serving "
+    "release. Use the default worker classes on GB10 until native SM12x custom "
+    "worker correctness and runtime evidence exists."
+)
 _GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE = (
     "KV sharing fast prefill runtime is not supported on GB10/SM12x in this "
     "fork: this WIP path overrides attention metadata and logits indexing for "
@@ -253,6 +261,14 @@ def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
         parallel_config.world_size_across_dp > 1
         or parallel_config.nnodes > 1
         or parallel_config.distributed_executor_backend == "external_launcher"
+    )
+
+
+def _uses_custom_worker_runtime(parallel_config: ParallelConfig) -> bool:
+    return (
+        parallel_config.worker_cls != "auto"
+        or parallel_config.sd_worker_cls != "auto"
+        or bool(parallel_config.worker_extension_cls)
     )
 
 
@@ -1053,6 +1069,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE)
+
+        if (
+            _uses_custom_worker_runtime(self.parallel_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_CUSTOM_WORKER_RUNTIME_MESSAGE)
 
         if (
             self.cache_config.kv_sharing_fast_prefill

@@ -713,6 +713,50 @@ def test_vllm_config_allows_custom_scheduler_runtime_off_gb10(monkeypatch):
     assert config.scheduler_config is scheduler_config
 
 
+@pytest.mark.parametrize(
+    "parallel_config",
+    [
+        ParallelConfig(worker_cls="tests.worker.DummyWorker"),
+        ParallelConfig(worker_extension_cls="tests.worker.DummyWorkerExtension"),
+        ParallelConfig(sd_worker_cls="tests.worker.DummySpecDecodeWorker"),
+    ],
+)
+def test_gb10_vllm_config_rejects_custom_worker_runtime(
+    monkeypatch,
+    parallel_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="custom worker runtime.*GB10/SM12x",
+    ):
+        VllmConfig(parallel_config=parallel_config)
+
+
+def test_vllm_config_allows_custom_worker_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    parallel_config = ParallelConfig(
+        worker_cls="tests.worker.DummyWorker",
+        worker_extension_cls="tests.worker.DummyWorkerExtension",
+        sd_worker_cls="tests.worker.DummySpecDecodeWorker",
+    )
+    config = VllmConfig(parallel_config=parallel_config)
+
+    assert config.parallel_config is parallel_config
+
+
 def test_gb10_vllm_config_rejects_prompt_embeds_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(
