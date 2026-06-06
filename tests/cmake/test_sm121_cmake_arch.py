@@ -10151,6 +10151,28 @@ def test_gb10_trtllm_gen_moe_expert_constructors_are_reported():
         assert "raise ValueError(gb10_reason)" in source
 
 
+def test_gb10_deep_gemm_moe_expert_constructors_are_reported():
+    experts_dir = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+    )
+    deep_gemm = (experts_dir / "deep_gemm_moe.py").read_text()
+    batched = (experts_dir / "batched_deep_gemm_moe.py").read_text()
+    triton_or_deep_gemm = (experts_dir / "triton_deep_gemm_moe.py").read_text()
+
+    for source in (deep_gemm, batched, triton_or_deep_gemm):
+        assert "_gb10_deep_gemm_moe_runtime_unsupported_reason" in source
+        assert "DeepGEMM MoE runtime is not supported on GB10/SM12x" in source
+        assert "raise ValueError(gb10_reason)" in source
+
+    # Both DeepGemm expert constructors in deep_gemm_moe.py are guarded.
+    assert deep_gemm.count("raise ValueError(gb10_reason)") == 2
+
+
 def test_gb10_attention_selector_logs_backend_and_kv_cache_dtype():
     selector = (REPO_ROOT / "vllm" / "v1" / "attention" / "selector.py").read_text()
 

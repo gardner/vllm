@@ -34,6 +34,7 @@ from vllm.model_executor.layers.quantization.utils.quant_utils import (
     kFp8Static128BlockSym,
     kMxfp4Static,
 )
+from vllm.platforms import current_platform
 from vllm.utils.deep_gemm import (
     DeepGemmQuantScaleFMT,
     get_mk_alignment_for_contiguous_layout,
@@ -44,6 +45,36 @@ from vllm.utils.deep_gemm import (
 from vllm.utils.import_utils import has_deep_gemm
 
 logger = init_logger(__name__)
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_deep_gemm_moe_runtime_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "DeepGEMM MoE runtime is not supported on GB10/SM12x. "
+        "DeepGEMM FP8/FP4 MoE kernels lack GB10 artifacts, correctness, "
+        "and runtime evidence; use a validated GB10-safe routed MoE "
+        "backend instead."
+    )
 
 
 def _valid_deep_gemm_shape(M: int, N: int, K: int) -> bool:
@@ -122,6 +153,10 @@ class DeepGemmExperts(mk.FusedMoEExpertsModular):
     """DeepGemm-based fused MoE expert implementation."""
 
     def __init__(self, moe_config: FusedMoEConfig, quant_config: FusedMoEQuantConfig):
+        if (
+            gb10_reason := _gb10_deep_gemm_moe_runtime_unsupported_reason()
+        ) is not None:
+            raise ValueError(gb10_reason)
         super().__init__(moe_config=moe_config, quant_config=quant_config)
         assert quant_config.block_shape == get_mk_alignment_for_contiguous_layout()
         assert quant_config.quant_dtype == torch.float8_e4m3fn
@@ -340,6 +375,10 @@ class DeepGemmFP4Experts(mk.FusedMoEExpertsModular):
     _WEIGHT_BLOCK_K = 32
 
     def __init__(self, moe_config: FusedMoEConfig, quant_config: FusedMoEQuantConfig):
+        if (
+            gb10_reason := _gb10_deep_gemm_moe_runtime_unsupported_reason()
+        ) is not None:
+            raise ValueError(gb10_reason)
         super().__init__(moe_config=moe_config, quant_config=quant_config)
         assert quant_config.weight_quant_dtype == "mxfp4"
         assert not quant_config.per_act_token_quant
@@ -353,8 +392,6 @@ class DeepGemmFP4Experts(mk.FusedMoEExpertsModular):
 
     @staticmethod
     def _supports_current_device() -> bool:
-        from vllm.platforms import current_platform
-
         return (
             is_deep_gemm_supported()
             and current_platform.is_device_capability_family(100)

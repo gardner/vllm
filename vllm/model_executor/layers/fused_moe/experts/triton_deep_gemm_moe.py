@@ -16,15 +16,50 @@ from vllm.model_executor.layers.fused_moe.experts.deep_gemm_moe import (
 )
 from vllm.model_executor.layers.fused_moe.experts.fallback import FallbackExperts
 from vllm.model_executor.layers.fused_moe.experts.triton_moe import TritonExperts
+from vllm.platforms import current_platform
 from vllm.utils.deep_gemm import (
     is_deep_gemm_e8m0_used,
 )
+
+
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_deep_gemm_moe_runtime_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "DeepGEMM MoE runtime is not supported on GB10/SM12x. "
+        "DeepGEMM FP8/FP4 MoE kernels lack GB10 artifacts, correctness, "
+        "and runtime evidence; use a validated GB10-safe routed MoE "
+        "backend instead."
+    )
 
 
 class TritonOrDeepGemmExperts(FallbackExperts):
     """DeepGemm with fallback to Triton for low latency shapes."""
 
     def __init__(self, moe_config: FusedMoEConfig, quant_config: FusedMoEQuantConfig):
+        if (
+            gb10_reason := _gb10_deep_gemm_moe_runtime_unsupported_reason()
+        ) is not None:
+            raise ValueError(gb10_reason)
         super().__init__(
             experts=DeepGemmExperts(moe_config, quant_config),
             fallback_experts=TritonExperts(moe_config, quant_config),

@@ -37,6 +37,36 @@ from vllm.utils.math_utils import cdiv, round_up
 logger = init_logger(__name__)
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_deep_gemm_moe_runtime_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "DeepGEMM MoE runtime is not supported on GB10/SM12x. "
+        "DeepGEMM FP8/FP4 MoE kernels lack GB10 artifacts, correctness, "
+        "and runtime evidence; use a validated GB10-safe routed MoE "
+        "backend instead."
+    )
+
+
 def scales_shape_stride_dtype(
     E: int, T: int, G: int, quant_scale_fmt: DeepGemmQuantScaleFMT
 ) -> tuple[tuple[int, ...], tuple[int, ...], torch.dtype]:
@@ -279,6 +309,10 @@ class BatchedDeepGemmExperts(mk.FusedMoEExpertsModular):
         num_dispatchers: The number of DP dispatchers.
         quant_config: Quantization configuration
         """
+        if (
+            gb10_reason := _gb10_deep_gemm_moe_runtime_unsupported_reason()
+        ) is not None:
+            raise ValueError(gb10_reason)
         super().__init__(
             moe_config=moe_config,
             quant_config=quant_config,
