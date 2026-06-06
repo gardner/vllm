@@ -780,6 +780,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "kv_events_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "KV cache event publishing and replay expose KV block "
+                    "lifecycle through external event publishers outside the "
+                    "validated GB10 first release serving path. It must reject "
+                    "until native SM12x KV event correctness and runtime "
+                    "evidence exists."
+                ),
+            },
             "kv_offload_runtime": {
                 "status": "not_supported",
                 "release_contract": (

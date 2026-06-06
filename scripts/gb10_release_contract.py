@@ -98,6 +98,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
     "unvalidated_kv_cache_runtime": "not_supported",
+    "kv_events_runtime": "not_supported",
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
@@ -416,6 +417,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "FlashMLA sparse fp8_ds_mla are not validated; reject E5M2, Gaudi "
         "FP8, and per-token-head KV-cache formats until native SM12x "
         "correctness evidence exists."
+    ),
+    "kv_events_runtime": (
+        "KV cache event publishing and replay expose KV block lifecycle through "
+        "external event publishers outside the validated GB10 first release "
+        "serving path; reject --kv-events-config until native SM12x KV event "
+        "correctness and runtime evidence exists."
     ),
     "kv_offload_runtime": (
         "Single-instance KV offload changes KV allocation, slot-mapping, and "

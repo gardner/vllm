@@ -124,6 +124,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "modelopt_nvfp4_kv_cache_loading": "not_supported",
     "nvfp4_kv_cache_runtime": "not_supported",
     "unvalidated_kv_cache_runtime": "not_supported",
+    "kv_events_runtime": "not_supported",
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
@@ -2576,6 +2577,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     assert support_matrix["entries"]["unvalidated_kv_cache_runtime"]["status"] == (
         "not_supported"
     )
+    assert support_matrix["entries"]["kv_events_runtime"]["status"] == "not_supported"
     assert support_matrix["entries"]["kv_offload_runtime"]["status"] == (
         "not_supported"
     )
@@ -9124,6 +9126,23 @@ def test_gb10_custom_worker_runtime_is_reported():
     assert "--worker-extension-cls" in arg_utils
 
 
+def test_gb10_kv_events_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    kv_events_config = (
+        REPO_ROOT / "vllm" / "config" / "kv_events.py"
+    ).read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_KV_EVENTS_RUNTIME_MESSAGE" in vllm_config
+    assert "KV events runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--kv-events-config" in vllm_config
+    assert "kv_events_config.enable_kv_cache_events" in vllm_config
+    assert "kv_events_config.publisher" in vllm_config
+    assert "enable_kv_cache_events" in kv_events_config
+    assert "publisher" in kv_events_config
+    assert "--kv-events-config" in arg_utils
+
+
 def test_gb10_prompt_embeds_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11168,6 +11187,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "runtime dtypes lack native SM12x correctness evidence"
                     ),
                 },
+                "kv_events_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "KV cache event publishing lacks native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "kv_offload_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12066,6 +12093,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "modelopt_nvfp4_kv_cache_loading": {"status": "not_supported"},
                 "nvfp4_kv_cache_runtime": {"status": "not_supported"},
                 "unvalidated_kv_cache_runtime": {"status": "not_supported"},
+                "kv_events_runtime": {"status": "not_supported"},
                 "kv_offload_runtime": {"status": "not_supported"},
                 "kv_transfer_runtime": {"status": "not_supported"},
                 "ubatching_runtime": {"status": "not_supported"},
@@ -12303,6 +12331,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "humming_quantization",
         "inc_quantization",
         "int8_moe_triton_fallback",
+        "kv_events_runtime",
         "kv_offload_runtime",
         "kv_sharing_fast_prefill_runtime",
         "kv_transfer_runtime",

@@ -117,6 +117,14 @@ _GB10_UNVALIDATED_KV_CACHE_MESSAGE = (
     "--kv-cache-dtype fp8_e4m3 or auto for GB10 until native SM12x "
     "correctness evidence exists for this dtype."
 )
+_GB10_KV_EVENTS_RUNTIME_MESSAGE = (
+    "KV events runtime is not supported on GB10/SM12x in this fork: "
+    "--kv-events-config, KVEventsConfig.enable_kv_cache_events, and non-null "
+    "KVEventsConfig.publisher publish or replay KV cache block events outside "
+    "the validated native first-path NVFP4 serving release. Disable KV events "
+    "on GB10 until native SM12x KV event correctness and runtime evidence "
+    "exists."
+)
 _GB10_KV_TRANSFER_RUNTIME_MESSAGE = (
     "KV transfer runtime is not supported on GB10/SM12x in this fork: "
     "distributed KV connectors, disaggregated prefill/decode, and external "
@@ -269,6 +277,16 @@ def _uses_custom_worker_runtime(parallel_config: ParallelConfig) -> bool:
         parallel_config.worker_cls != "auto"
         or parallel_config.sd_worker_cls != "auto"
         or bool(parallel_config.worker_extension_cls)
+    )
+
+
+def _uses_kv_events_runtime(kv_events_config: KVEventsConfig | None) -> bool:
+    return (
+        kv_events_config is not None
+        and (
+            kv_events_config.enable_kv_cache_events
+            or kv_events_config.publisher not in (None, "null")
+        )
     )
 
 
@@ -1075,6 +1093,11 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CUSTOM_WORKER_RUNTIME_MESSAGE)
+
+        if _uses_kv_events_runtime(
+            self.kv_events_config
+        ) and _is_gb10_sm12x_cuda_platform():
+            raise ValueError(_GB10_KV_EVENTS_RUNTIME_MESSAGE)
 
         if (
             self.cache_config.kv_sharing_fast_prefill

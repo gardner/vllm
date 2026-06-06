@@ -22,6 +22,7 @@ from vllm.config import (
     CompilationConfig,
     ECTransferConfig,
     KernelConfig,
+    KVEventsConfig,
     KVTransferConfig,
     LoRAConfig,
     ModelConfig,
@@ -755,6 +756,45 @@ def test_vllm_config_allows_custom_worker_runtime_off_gb10(monkeypatch):
     config = VllmConfig(parallel_config=parallel_config)
 
     assert config.parallel_config is parallel_config
+
+
+@pytest.mark.parametrize(
+    "kv_events_config",
+    [
+        KVEventsConfig(enable_kv_cache_events=True),
+        KVEventsConfig(publisher="zmq"),
+    ],
+)
+def test_gb10_vllm_config_rejects_kv_events_runtime(
+    monkeypatch,
+    kv_events_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="KV events runtime.*GB10/SM12x",
+    ):
+        VllmConfig(kv_events_config=kv_events_config)
+
+
+def test_vllm_config_allows_kv_events_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    kv_events_config = KVEventsConfig(enable_kv_cache_events=True)
+    config = VllmConfig(kv_events_config=kv_events_config)
+
+    assert config.kv_events_config is kv_events_config
 
 
 def test_gb10_vllm_config_rejects_prompt_embeds_runtime(monkeypatch):
