@@ -877,6 +877,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "weight-transfer correctness evidence exists."
                 ),
             },
+            "model_weight_offload_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Model weight offload uses UVA zero-copy or prefetch "
+                    "CPU/GPU transfer paths and can patch model forward "
+                    "execution outside the validated GB10 first release "
+                    "serving path. It must reject until native SM12x offload "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "return_routed_experts_runtime": {
                 "status": "not_supported",
                 "release_contract": (

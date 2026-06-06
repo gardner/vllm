@@ -134,6 +134,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "kv_sharing_fast_prefill_runtime": "not_supported",
     "ec_transfer_runtime": "not_supported",
     "weight_transfer_runtime": "not_supported",
+    "model_weight_offload_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "fp64_gumbel_sampling_runtime": "not_supported",
@@ -2613,6 +2614,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["weight_transfer_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["model_weight_offload_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["return_routed_experts_runtime"]["status"] == (
@@ -9107,6 +9111,30 @@ def test_gb10_weight_transfer_runtime_is_reported():
     assert "weight_transfer_config is not None" in vllm_config
 
 
+def test_gb10_model_weight_offload_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    offload_config = (REPO_ROOT / "vllm" / "config" / "offload.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+    offloader_base = (
+        REPO_ROOT / "vllm" / "model_executor" / "offloader" / "base.py"
+    ).read_text()
+
+    assert "_GB10_MODEL_WEIGHT_OFFLOAD_RUNTIME_MESSAGE" in vllm_config
+    assert "_uses_model_weight_offload_runtime" in vllm_config
+    assert "model weight offload runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--cpu-offload-gb" in vllm_config
+    assert "--offload-backend" in vllm_config
+    assert "UVAOffloadConfig" in offload_config
+    assert "PrefetchOffloadConfig" in offload_config
+    assert "--cpu-offload-gb" in arg_utils
+    assert "--offload-backend" in arg_utils
+    assert "--offload-group-size" in arg_utils
+    assert "UVAOffloader" in offloader_base
+    assert "PrefetchOffloader" in offloader_base
+
+
 def test_gb10_return_routed_experts_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11490,6 +11518,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "model_weight_offload_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "model weight offload lacks native SM12x correctness "
+                        "evidence"
+                    ),
+                },
                 "return_routed_experts_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12406,6 +12442,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "kv_sharing_fast_prefill_runtime": {"status": "not_supported"},
                 "ec_transfer_runtime": {"status": "not_supported"},
                 "weight_transfer_runtime": {"status": "not_supported"},
+                "model_weight_offload_runtime": {"status": "not_supported"},
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "fp64_gumbel_sampling_runtime": {"status": "not_supported"},
@@ -12667,6 +12704,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "mm_encoder_public_flashattention_backend",
         "mm_encoder_torch_sdpa_attention_fallback",
         "mm_encoder_triton_attention_fallback",
+        "model_weight_offload_runtime",
         "modelopt_fp8_quantization",
         "modelopt_mixed_quantization",
         "modelopt_mxfp8_quantization",

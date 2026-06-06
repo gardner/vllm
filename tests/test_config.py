@@ -27,11 +27,14 @@ from vllm.config import (
     KVTransferConfig,
     LoRAConfig,
     ModelConfig,
+    OffloadConfig,
     ParallelConfig,
     PoolerConfig,
+    PrefetchOffloadConfig,
     ReasoningConfig,
     SchedulerConfig,
     SpeculativeConfig,
+    UVAOffloadConfig,
     VllmConfig,
     WeightTransferConfig,
     update_config,
@@ -1130,6 +1133,77 @@ def test_vllm_config_allows_kv_scale_calculation_runtime_off_gb10(monkeypatch):
 
     assert config.model_config is model_config
     assert config.cache_config is cache_config
+
+
+@pytest.mark.parametrize(
+    "offload_config",
+    [
+        OffloadConfig(uva=UVAOffloadConfig(cpu_offload_gb=1.0)),
+        OffloadConfig(prefetch=PrefetchOffloadConfig(offload_group_size=2)),
+        OffloadConfig(offload_backend="uva"),
+    ],
+)
+def test_gb10_vllm_config_rejects_model_weight_offload_runtime(
+    monkeypatch,
+    offload_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+
+    with pytest.raises(
+        ValueError,
+        match="model weight offload runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config, offload_config=offload_config)
+
+
+def test_gb10_vllm_config_allows_default_model_weight_offload_runtime(
+    monkeypatch,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    offload_config = OffloadConfig()
+    config = VllmConfig(model_config=model_config, offload_config=offload_config)
+
+    assert config.model_config is model_config
+    assert config.offload_config is offload_config
+
+
+@pytest.mark.parametrize(
+    "offload_config",
+    [
+        OffloadConfig(uva=UVAOffloadConfig(cpu_offload_gb=1.0)),
+        OffloadConfig(prefetch=PrefetchOffloadConfig(offload_group_size=2)),
+    ],
+)
+def test_vllm_config_allows_model_weight_offload_runtime_off_gb10(
+    monkeypatch,
+    offload_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config, offload_config=offload_config)
+
+    assert config.model_config is model_config
+    assert config.offload_config is offload_config
 
 
 def _noop_hf_overrides(config):

@@ -192,6 +192,14 @@ _GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE = (
     "--weight-transfer-config on GB10 until native SM12x weight-transfer "
     "correctness and runtime evidence exists."
 )
+_GB10_MODEL_WEIGHT_OFFLOAD_RUNTIME_MESSAGE = (
+    "model weight offload runtime is not supported on GB10/SM12x in this fork: "
+    "--cpu-offload-gb, --offload-backend, and prefetch offload settings create "
+    "UVA or prefetch offloaders that move model weights through CPU/GPU "
+    "transfer paths and patch model forward execution outside the validated "
+    "native first-path NVFP4 serving release. Disable model weight offload on "
+    "GB10 until native SM12x offload correctness and runtime evidence exists."
+)
 _GB10_RETURN_ROUTED_EXPERTS_RUNTIME_MESSAGE = (
     "return routed experts runtime is not supported on GB10/SM12x in this "
     "fork: routed experts capture changes MoE scheduler and model-runner "
@@ -369,6 +377,16 @@ def _uses_kv_events_runtime(kv_events_config: KVEventsConfig | None) -> bool:
             kv_events_config.enable_kv_cache_events
             or kv_events_config.publisher not in (None, "null")
         )
+    )
+
+
+def _uses_model_weight_offload_runtime(offload_config: OffloadConfig) -> bool:
+    return (
+        offload_config.offload_backend != "auto"
+        or offload_config.uva.cpu_offload_gb > 0
+        or bool(offload_config.uva.cpu_offload_params)
+        or offload_config.prefetch.offload_group_size > 0
+        or bool(offload_config.prefetch.offload_params)
     )
 
 
@@ -1216,6 +1234,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_WEIGHT_TRANSFER_RUNTIME_MESSAGE)
+
+        if (
+            _uses_model_weight_offload_runtime(self.offload_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_MODEL_WEIGHT_OFFLOAD_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None
