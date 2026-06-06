@@ -306,6 +306,8 @@ class Fp8LinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: Fp8Config):
+        if reason := _gb10_public_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
         self.is_scale_e8m0 = getattr(quant_config, "is_scale_e8m0", False)
         self.cutlass_block_fp8_supported = cutlass_block_fp8_supported()
@@ -611,6 +613,8 @@ class Fp8MoEMethod(FusedMoEMethodBase):
     """
 
     def __init__(self, quant_config: Fp8Config, layer: RoutedExperts):
+        if reason := _gb10_public_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(layer.moe_config)
         self.quant_config = quant_config
         self.weight_block_size = self.quant_config.weight_block_size
@@ -1092,4 +1096,6 @@ class Fp8KVCacheMethod(BaseKVCacheMethod):
     """
 
     def __init__(self, quant_config: Fp8Config):
+        if reason := _gb10_public_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(quant_config)

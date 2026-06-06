@@ -6843,6 +6843,17 @@ def test_gb10_public_fp8_quantization_rejects_sm12x(monkeypatch):
             }
         )
 
+    ctor_cases = (
+        (fp8.Fp8LinearMethod, (SimpleNamespace(),)),
+        (fp8.Fp8OnlineLinearMethod, (SimpleNamespace(),)),
+        (fp8.Fp8MoEMethod, (SimpleNamespace(), SimpleNamespace())),
+        (fp8.Fp8OnlineMoEMethod, (SimpleNamespace(), SimpleNamespace())),
+        (fp8.Fp8KVCacheMethod, (SimpleNamespace(),)),
+    )
+    for ctor, args in ctor_cases:
+        with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+            ctor(*args)
+
     monkeypatch.setattr(
         fp8,
         "_is_sm12x_device",
