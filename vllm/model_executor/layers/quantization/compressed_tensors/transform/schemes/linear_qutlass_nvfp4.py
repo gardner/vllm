@@ -46,6 +46,17 @@ def is_qutlass_fp4_scheme(
 
 
 class QutlassNvFP4LinearMethod(CompressedTensorsLinearTransformMethod):
+    def __init__(
+        self,
+        quant_method,
+        input_tfms,
+        output_tfms,
+    ):
+        unsupported_reason = _gb10_qutlass_nvfp4_transform_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+        super().__init__(quant_method, input_tfms, output_tfms)
+
     def create_weights(
         self,
         layer,
