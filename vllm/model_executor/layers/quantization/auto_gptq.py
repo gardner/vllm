@@ -346,6 +346,8 @@ class AutoGPTQLinearMethod(LinearMethodBase):
     _kernel_backends_being_used: set[str] = set()
 
     def __init__(self, quant_config: AutoGPTQConfig) -> None:
+        if reason := _gb10_gptq_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
         self.input_dtype = None
         self.quant_type = self.quant_config.quant_type
@@ -505,6 +507,8 @@ class AutoGPTQMoEMethod(FusedMoEMethodBase):
         quant_config: AutoGPTQConfig,
         moe: FusedMoEConfig,
     ) -> None:
+        if reason := _gb10_gptq_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         self.quant_config = quant_config
         if self.quant_config.quant_type.size_bits == 4:
