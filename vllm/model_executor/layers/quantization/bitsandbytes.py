@@ -235,6 +235,8 @@ class BitsAndBytesLinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: BitsAndBytesConfig):
+        if reason := _gb10_bitsandbytes_quantization_unsupported_reason():
+            raise ValueError(reason)
         _check_bitsandbytes_version()
         self.quant_config = quant_config
 
@@ -479,6 +481,8 @@ class BitsAndBytesMoEMethod(FusedMoEMethodBase):
         quant_config: BitsAndBytesConfig,
         moe: FusedMoEConfig,
     ):
+        if reason := _gb10_bitsandbytes_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         _check_bitsandbytes_version()
         self.quant_config = quant_config
