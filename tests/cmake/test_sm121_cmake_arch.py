@@ -8880,6 +8880,20 @@ def test_gb10_mla_backend_selection_is_reported():
         REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
         "triton_mla.py"
     ).read_text()
+    tokenspeed_mla = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
+        "tokenspeed_mla.py"
+    ).read_text()
+    tokenspeed_prefill = (
+        REPO_ROOT
+        / "vllm"
+        / "v1"
+        / "attention"
+        / "backends"
+        / "mla"
+        / "prefill"
+        / "tokenspeed_mla.py"
+    ).read_text()
     flashmla_ops = (
         REPO_ROOT / "vllm" / "v1" / "attention" / "ops" / "flashmla.py"
     ).read_text()
@@ -8899,6 +8913,17 @@ def test_gb10_mla_backend_selection_is_reported():
     assert "capability.major in [9, 10, 12]" in flashmla
     assert "capability.major in [9, 10, 12]" in flashmla_sparse
     assert "Triton MLA backend is not supported on GB10/SM12x" in triton_mla
+    assert "_gb10_triton_mla_runtime_unsupported_reason" in triton_mla
+    assert "raise ValueError(gb10_reason)" in triton_mla
+    assert "TokenSpeed CuTe DSL MLA backend is not supported on GB10/SM12x" in (
+        tokenspeed_mla
+    )
+    assert "_gb10_tokenspeed_mla_runtime_unsupported_reason" in tokenspeed_mla
+    assert "raise ValueError(gb10_reason)" in tokenspeed_mla
+    assert "_gb10_tokenspeed_mla_runtime_unsupported_reason" in (
+        tokenspeed_prefill
+    )
+    assert "raise ValueError(gb10_reason)" in tokenspeed_prefill
     assert "current_platform.is_device_capability_family(120)" in flashmla_ops
 
 

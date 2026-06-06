@@ -29,6 +29,20 @@ from vllm.v1.attention.ops.triton_decode_attention import decode_attention_fwd
 logger = init_logger(__name__)
 
 
+def _gb10_triton_mla_runtime_unsupported_reason(
+    capability: DeviceCapability,
+) -> str | None:
+    if capability.major != 12:
+        return None
+    return (
+        "Triton MLA backend is not supported on GB10/SM12x. It can "
+        "prove MLA fallback reachability, but it is not native GB10 "
+        "MLA correctness, artifact, and runtime evidence. Use native "
+        "FlashMLA MLA after SM12x evidence exists, or keep the MLA "
+        "attention backend unset."
+    )
+
+
 class TritonMLAMetadataBuilder(MLACommonMetadataBuilder[MLACommonMetadata]):
     _cudagraph_support: ClassVar[AttentionCGSupport] = AttentionCGSupport.UNIFORM_BATCH
 
@@ -89,15 +103,7 @@ class TritonMLABackend(MLACommonBackend):
         use_sparse: bool,
         device_capability: DeviceCapability,
     ) -> str | None:
-        if device_capability.major == 12:
-            return (
-                "Triton MLA backend is not supported on GB10/SM12x. It can "
-                "prove MLA fallback reachability, but it is not native GB10 "
-                "MLA correctness, artifact, and runtime evidence. Use native "
-                "FlashMLA MLA after SM12x evidence exists, or keep the MLA "
-                "attention backend unset."
-            )
-        return None
+        return _gb10_triton_mla_runtime_unsupported_reason(device_capability)
 
 
 class TritonMLAImpl(MLACommonImpl[MLACommonMetadata]):
@@ -118,6 +124,14 @@ class TritonMLAImpl(MLACommonImpl[MLACommonMetadata]):
         # MLA Specific Arguments
         **mla_args,
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_triton_mla_runtime_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         super().__init__(
             num_heads,
             head_size,

@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from vllm.platforms import current_platform
 from vllm.v1.attention.backends.mla.prefill.base import MLAPrefillBackend
+from vllm.v1.attention.backends.mla.tokenspeed_mla import (
+    _gb10_tokenspeed_mla_runtime_unsupported_reason,
+)
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
@@ -71,6 +75,14 @@ class TokenspeedMLAPrefillBackend(MLAPrefillBackend):
         v_head_dim: int,
         vllm_config: "VllmConfig",
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_tokenspeed_mla_runtime_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         super().__init__(
             num_heads=num_heads,
             scale=scale,
