@@ -633,6 +633,13 @@ class FlashAttentionImpl(AttentionImpl):
 
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
 
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None and device_capability.major == 12:
+            raise ValueError(
+                "public FlashAttention runtime is not supported on GB10/SM12x "
+                "in this fork: use FlashInfer or FlashMLA instead"
+            )
+
         self.attn_type = attn_type
         self.vllm_flash_attn_version = get_flash_attn_version(
             requires_alibi=alibi_slopes is not None,

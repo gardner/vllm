@@ -8944,6 +8944,20 @@ def test_gb10_mamba_attention_backend_selection_is_reported():
     )[1].split("}", 1)[0]
 
 
+def test_gb10_public_flashattention_runtime_is_reported():
+    flash_attn = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "flash_attn.py"
+    ).read_text()
+
+    assert "Public FlashAttention does not cover the SM12x runtime surface" in (
+        flash_attn
+    )
+    assert "public FlashAttention runtime is not supported on GB10/SM12x" in (
+        flash_attn
+    )
+    assert "use FlashInfer or FlashMLA instead" in flash_attn
+
+
 def test_gb10_mamba_triton_runtimes_are_reported():
     mamba_utils = (
         REPO_ROOT
