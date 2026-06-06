@@ -23,6 +23,7 @@ from vllm.model_executor.layers.fused_moe.oracle.mxfp8 import (
 )
 from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe.compressed_tensors_moe import (  # noqa: E501
     CompressedTensorsMoEMethod,
+    _gb10_w8a8_mxfp8_moe_loading_unsupported_reason,
 )
 from vllm.model_executor.layers.quantization.utils.mxfp8_utils import (
     MXFP8_BLOCK_SIZE,
@@ -41,6 +42,9 @@ class CompressedTensorsW8A8Mxfp8MoEMethod(CompressedTensorsMoEMethod):
     """
 
     def __init__(self, moe: FusedMoEConfig):
+        unsupported_reason = _gb10_w8a8_mxfp8_moe_loading_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         super().__init__(moe)
         self.weight_block_size = [1, MXFP8_BLOCK_SIZE]
         self.fp8_backend, self.experts_cls = select_mxfp8_moe_backend(config=self.moe)
