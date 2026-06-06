@@ -263,6 +263,15 @@ _GB10_FP64_GUMBEL_SAMPLING_RUNTIME_MESSAGE = (
     "Gumbel sampling on GB10 until native SM12x FP64 Gumbel sampling "
     "correctness and runtime evidence exists."
 )
+_GB10_SLEEP_MODE_RUNTIME_MESSAGE = (
+    "sleep mode runtime is not supported on GB10/SM12x in this fork: "
+    "--enable-sleep-mode, --enable-cumem-allocator, and direct "
+    "model_config sleep/cumem allocator flags select custom CUDA memory "
+    "allocator sleep/wake behavior outside the validated native first-path "
+    "NVFP4 serving release. Disable sleep mode and the cuMem allocator on "
+    "GB10 until native SM12x sleep/wake allocator correctness and runtime "
+    "evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -1252,6 +1261,16 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_FP64_GUMBEL_SAMPLING_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and (
+                self.model_config.enable_sleep_mode
+                or self.model_config.enable_cumem_allocator
+            )
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_SLEEP_MODE_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

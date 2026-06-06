@@ -136,6 +136,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "fp64_gumbel_sampling_runtime": "not_supported",
+    "sleep_mode_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
     "hf_config_path_runtime": "not_supported",
@@ -2616,6 +2617,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["fp64_gumbel_sampling_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["sleep_mode_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
@@ -9115,6 +9119,26 @@ def test_gb10_fp64_gumbel_sampling_runtime_is_reported():
     assert "tl_rand64" in gumbel
 
 
+def test_gb10_sleep_mode_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+    cumem = (REPO_ROOT / "vllm" / "device_allocator" / "cumem.py").read_text()
+
+    assert "_GB10_SLEEP_MODE_RUNTIME_MESSAGE" in vllm_config
+    assert "sleep mode runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--enable-sleep-mode" in vllm_config
+    assert "--enable-cumem-allocator" in vllm_config
+    assert "model_config.enable_sleep_mode" in vllm_config
+    assert "model_config.enable_cumem_allocator" in vllm_config
+    assert "enable_sleep_mode" in model_config
+    assert "enable_cumem_allocator" in model_config
+    assert "--enable-sleep-mode" in arg_utils
+    assert "--enable-cumem-allocator" in arg_utils
+    assert "Put the allocator in sleep mode" in cumem
+    assert "Wake up the allocator from sleep mode" in cumem
+
+
 def test_gb10_custom_logits_processors_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11421,6 +11445,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "sleep_mode_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "sleep-mode cuMem allocator paths lack native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "custom_logits_processors_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12299,6 +12331,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "fp64_gumbel_sampling_runtime": {"status": "not_supported"},
+                "sleep_mode_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
                 "io_processor_plugin_runtime": {"status": "not_supported"},
                 "hf_config_path_runtime": {"status": "not_supported"},
@@ -12589,6 +12622,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "rocm_aiter_unquantized_moe",
         "short_conv_triton_runtime",
         "skip_tokenizer_init_runtime",
+        "sleep_mode_runtime",
         "specialized_tokenizer_runtime",
         "speculative_decoding_runtime",
         "stock_torch_compile_runtime",

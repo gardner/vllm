@@ -12,6 +12,7 @@ import pytest
 import torch
 from pydantic import ValidationError
 
+import vllm.config.model as model_config_module
 import vllm.config.parallel as parallel_config_module
 import vllm.config.vllm as vllm_config_module
 import vllm.envs as envs
@@ -903,6 +904,88 @@ def test_vllm_config_allows_fp64_gumbel_sampling_runtime_off_gb10(monkeypatch):
         "facebook/opt-125m",
         use_fp64_gumbel=True,
     )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
+@pytest.mark.parametrize(
+    "model_kwargs",
+    [
+        {"enable_sleep_mode": True},
+        {"enable_cumem_allocator": True},
+    ],
+)
+def test_gb10_vllm_config_rejects_sleep_mode_runtime(monkeypatch, model_kwargs):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_sleep_mode_available",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        model_config_module,
+        "is_cumem_allocator_available",
+        lambda: True,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", **model_kwargs)
+
+    with pytest.raises(
+        ValueError,
+        match="sleep mode runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_gb10_vllm_config_allows_disabled_sleep_mode_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
+@pytest.mark.parametrize(
+    "model_kwargs",
+    [
+        {"enable_sleep_mode": True},
+        {"enable_cumem_allocator": True},
+    ],
+)
+def test_vllm_config_allows_sleep_mode_runtime_off_gb10(
+    monkeypatch,
+    model_kwargs,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_sleep_mode_available",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        model_config_module,
+        "is_cumem_allocator_available",
+        lambda: True,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", **model_kwargs)
     config = VllmConfig(model_config=model_config)
 
     assert config.model_config is model_config

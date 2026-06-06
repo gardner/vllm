@@ -896,6 +896,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "Gumbel sampling correctness and runtime evidence exists."
                 ),
             },
+            "sleep_mode_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Sleep mode and direct cuMem allocator selection use "
+                    "custom CUDA memory allocator sleep/wake behavior outside "
+                    "the validated GB10 first release serving path. "
+                    "--enable-sleep-mode and --enable-cumem-allocator must "
+                    "reject until native SM12x allocator correctness and "
+                    "runtime evidence exists."
+                ),
+            },
             "custom_logits_processors_runtime": {
                 "status": "not_supported",
                 "release_contract": (
