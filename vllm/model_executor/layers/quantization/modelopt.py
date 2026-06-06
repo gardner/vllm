@@ -572,6 +572,11 @@ class ModelOptFp8LinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: ModelOptFp8Config) -> None:
+        unsupported_reason = _gb10_modelopt_fp8_quantization_unsupported_reason(
+            getattr(quant_config, "quant_method", None)
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.quant_config = quant_config
         self.out_dtype = torch.get_default_dtype()
         self.input_dtype = get_current_vllm_config().model_config.dtype
@@ -664,6 +669,11 @@ class ModelOptFp8PcPtLinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: ModelOptFp8Config) -> None:
+        unsupported_reason = _gb10_modelopt_fp8_quantization_unsupported_reason(
+            getattr(quant_config, "quant_method", None)
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.quant_config = quant_config
         self.out_dtype = torch.get_default_dtype()
         self.input_dtype = get_current_vllm_config().model_config.dtype
@@ -748,6 +758,11 @@ class ModelOptFp8PbWoLinearMethod(LinearMethodBase):
     _WEIGHT_BLOCK_SIZE: tuple[int, int] = (128, 128)
 
     def __init__(self, quant_config: ModelOptFp8Config) -> None:
+        unsupported_reason = _gb10_modelopt_fp8_quantization_unsupported_reason(
+            getattr(quant_config, "quant_method", None)
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.quant_config = quant_config
         block_n, block_k = self._WEIGHT_BLOCK_SIZE
         self.weight_block_size = list(self._WEIGHT_BLOCK_SIZE)
@@ -877,6 +892,11 @@ class ModelOptFp8MoEMethod(FusedMoEMethodBase):
         quant_config: ModelOptFp8Config,
         moe_config: FusedMoEConfig,
     ) -> None:
+        unsupported_reason = _gb10_modelopt_fp8_quantization_unsupported_reason(
+            getattr(quant_config, "quant_method", None)
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         super().__init__(moe_config)
         self.quant_config = quant_config
         assert self.quant_config.is_checkpoint_fp8_serialized
@@ -1903,6 +1923,9 @@ class ModelOptMxFp8LinearMethod(LinearMethodBase):
     """Linear method for ModelOpt MXFP8 quantization."""
 
     def __init__(self, quant_config: ModelOptMxFp8Config) -> None:
+        unsupported_reason = _gb10_modelopt_mxfp8_quantization_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         self.quant_config = quant_config
 
         if not self.quant_config.is_checkpoint_mxfp8_serialized:
@@ -2012,6 +2035,9 @@ class ModelOptMxFp8FusedMoE(FusedMoEMethodBase):
         quant_config: ModelOptMxFp8Config,
         moe_config: FusedMoEConfig,
     ) -> None:
+        unsupported_reason = _gb10_modelopt_mxfp8_quantization_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         super().__init__(moe_config)
         self.weight_block_size = [1, MXFP8_BLOCK_SIZE]
         self.quant_config = quant_config
