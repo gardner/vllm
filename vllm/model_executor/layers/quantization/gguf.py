@@ -470,6 +470,8 @@ class GGUFLinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: GGUFConfig):
+        if reason := _gb10_gguf_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
 
     def create_weights(
@@ -606,9 +608,10 @@ class GGUFMoEMethod(FusedMoEMethodBase):
         quant_config: GGUFConfig,
         moe: FusedMoEConfig,
     ):
+        if reason := _gb10_gguf_quantization_unsupported_reason():
+            raise ValueError(reason)
         super().__init__(moe)
         self.quant_config = quant_config
-
     def create_weights(
         self,
         layer: RoutedExperts,
