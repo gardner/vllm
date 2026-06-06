@@ -1105,6 +1105,50 @@ def test_gb10_vllm_config_allows_default_profiler_runtime(monkeypatch):
     assert config.profiler_config.profiler is None
 
 
+@pytest.mark.parametrize("performance_mode", ["throughput", "interactivity"])
+def test_gb10_vllm_config_rejects_performance_mode_runtime(
+    monkeypatch, performance_mode
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    with pytest.raises(ValueError, match="performance mode runtime.*GB10/SM12x"):
+        VllmConfig(performance_mode=performance_mode)
+
+
+@pytest.mark.parametrize("performance_mode", ["throughput", "interactivity"])
+def test_vllm_config_allows_performance_mode_runtime_off_gb10(
+    monkeypatch, performance_mode
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    config = VllmConfig(performance_mode=performance_mode)
+
+    assert config.performance_mode == performance_mode
+
+
+def test_gb10_vllm_config_allows_default_performance_mode_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    config = VllmConfig(performance_mode="balanced")
+
+    assert config.performance_mode == "balanced"
+
+
 def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

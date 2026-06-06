@@ -68,6 +68,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "multimodal_runtime": "not_supported",
     "generation_config_runtime": "not_supported",
     "profiler_runtime": "not_supported",
+    "performance_mode_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
     "openai_tool_calling_runtime": "not_supported",
@@ -355,6 +356,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "CUDA profiler control, and profiler output handling outside the "
         "validated GB10 first release serving path; reject it on GB10/SM12x "
         "until native SM12x profiler correctness and runtime evidence exists."
+    ),
+    "performance_mode_runtime": (
+        "Throughput and interactivity performance modes change scheduler batch "
+        "defaults, CUDA graph behavior, and runtime latency/throughput policy "
+        "outside the validated GB10 first release serving path; reject them "
+        "on GB10/SM12x until native SM12x performance-mode correctness and "
+        "runtime evidence exists."
     ),
     "reasoning_runtime": (
         "Reasoning runtime changes token parsing and output extraction outside "

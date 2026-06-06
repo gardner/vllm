@@ -94,6 +94,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "multimodal_runtime": "not_supported",
     "generation_config_runtime": "not_supported",
     "profiler_runtime": "not_supported",
+    "performance_mode_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
     "openai_tool_calling_runtime": "not_supported",
@@ -2519,6 +2520,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["profiler_runtime"]["status"] == "not_supported"
+    assert support_matrix["entries"]["performance_mode_runtime"]["status"] == (
+        "not_supported"
+    )
     assert support_matrix["entries"]["reasoning_runtime"]["status"] == (
         "not_supported"
     )
@@ -9032,6 +9036,26 @@ def test_gb10_profiler_runtime_is_reported():
     assert "--profiler-config" in arg_utils
 
 
+def test_gb10_performance_mode_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_PERFORMANCE_MODE_RUNTIME_MESSAGE" in vllm_config
+    assert "performance mode runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "_uses_performance_mode_runtime" in vllm_config
+    assert 'performance_mode != "balanced"' in vllm_config
+    assert "scheduler batch defaults" in vllm_config
+    assert "CUDA " in vllm_config
+    assert "graph behavior" in vllm_config
+    assert 'performance_mode: PerformanceMode = "balanced"' in vllm_config
+    assert 'PerformanceMode = Literal["balanced", "interactivity", "throughput"]' in (
+        vllm_config
+    )
+    assert "--performance-mode" in arg_utils
+
+
 def test_gb10_reasoning_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11583,6 +11607,13 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Profiler runtime lacks native GB10 evidence",
                 },
+                "performance_mode_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Performance mode runtime lacks native GB10 evidence"
+                    ),
+                },
                 "reasoning_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12686,6 +12717,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "multimodal_runtime": {"status": "not_supported"},
                 "generation_config_runtime": {"status": "not_supported"},
                 "profiler_runtime": {"status": "not_supported"},
+                "performance_mode_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
                 "structured_outputs_runtime": {"status": "not_supported"},
                 "openai_tool_calling_runtime": {"status": "not_supported"},
@@ -13018,6 +13050,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "online_mxfp8_quantization",
         "openai_tool_calling_runtime",
         "partial_prefill_scheduler_runtime",
+        "performance_mode_runtime",
         "pooling_runtime",
         "profiler_runtime",
         "prompt_embeds_runtime",

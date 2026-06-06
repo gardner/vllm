@@ -661,6 +661,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "profiler correctness and runtime evidence exists."
                 ),
             },
+            "performance_mode_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Throughput and interactivity performance modes change "
+                    "scheduler batch defaults, CUDA graph behavior, and runtime "
+                    "latency/throughput policy outside the validated GB10 first "
+                    "release serving path. They must reject on GB10/SM12x until "
+                    "native SM12x performance-mode correctness and runtime "
+                    "evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (

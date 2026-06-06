@@ -105,6 +105,14 @@ _GB10_PROFILER_RUNTIME_MESSAGE = (
     "runtime on GB10 until native SM12x profiler correctness and runtime "
     "evidence exists."
 )
+_GB10_PERFORMANCE_MODE_RUNTIME_MESSAGE = (
+    "performance mode runtime is not supported on GB10/SM12x in this fork: "
+    "throughput and interactivity modes change scheduler batch defaults, CUDA "
+    "graph behavior, and runtime latency/throughput policy outside the "
+    "validated native first-path NVFP4 serving release. Use balanced "
+    "performance mode on GB10 until native SM12x performance-mode correctness "
+    "and runtime evidence exists."
+)
 _GB10_REASONING_RUNTIME_MESSAGE = (
     "reasoning runtime is not supported on GB10/SM12x in this fork: "
     "ReasoningConfig enables reasoning token parsing and output extraction "
@@ -497,6 +505,10 @@ def _uses_generation_config_runtime(model_config: ModelConfig) -> bool:
 
 def _uses_profiler_runtime(profiler_config: ProfilerConfig) -> bool:
     return profiler_config.profiler is not None
+
+
+def _uses_performance_mode_runtime(performance_mode: str) -> bool:
+    return performance_mode != "balanced"
 
 
 _GB10_BASIC_MODEL_LOAD_FORMATS = frozenset(
@@ -1284,6 +1296,12 @@ class VllmConfig:
 
         # To give each torch profile run a unique instance name.
         self.instance_id = f"{time.time_ns()}"
+
+        if (
+            _uses_performance_mode_runtime(self.performance_mode)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_PERFORMANCE_MODE_RUNTIME_MESSAGE)
 
         if self.performance_mode != "balanced":
             logger.info_once("Performance mode set to '%s'.", self.performance_mode)
