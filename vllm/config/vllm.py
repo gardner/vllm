@@ -89,6 +89,14 @@ _GB10_MULTIMODAL_RUNTIME_MESSAGE = (
     "first-path NVFP4 text serving release. Use text-only generation on GB10 "
     "until native SM12x multimodal correctness and runtime evidence exists."
 )
+_GB10_GENERATION_CONFIG_RUNTIME_MESSAGE = (
+    "generation config runtime is not supported on GB10/SM12x in this fork: "
+    "--generation-config custom paths and --override-generation-config mutate "
+    "server-wide sampling defaults outside the validated native first-path "
+    "NVFP4 serving release. Use generation_config='auto' or 'vllm' with no "
+    "override_generation_config on GB10 until native SM12x generation-config "
+    "correctness and runtime evidence exists."
+)
 _GB10_REASONING_RUNTIME_MESSAGE = (
     "reasoning runtime is not supported on GB10/SM12x in this fork: "
     "ReasoningConfig enables reasoning token parsing and output extraction "
@@ -470,6 +478,13 @@ def _uses_hybrid_kv_cache_manager_runtime(
 
 def _uses_specialized_tokenizer_runtime(model_config: ModelConfig) -> bool:
     return model_config.tokenizer_mode not in ("auto", "hf", "slow")
+
+
+def _uses_generation_config_runtime(model_config: ModelConfig) -> bool:
+    return (
+        model_config.generation_config not in ("auto", "vllm")
+        or bool(model_config.override_generation_config)
+    )
 
 
 _GB10_BASIC_MODEL_LOAD_FORMATS = frozenset(
@@ -1366,6 +1381,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and _uses_generation_config_runtime(self.model_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_GENERATION_CONFIG_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

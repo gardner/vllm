@@ -66,6 +66,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
     "multimodal_runtime": "not_supported",
+    "generation_config_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
     "openai_tool_calling_runtime": "not_supported",
@@ -341,6 +342,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "outside the validated GB10 first release text serving path; reject it "
         "on GB10/SM12x until native SM12x multimodal correctness and runtime "
         "evidence exists."
+    ),
+    "generation_config_runtime": (
+        "Custom generation-config paths and override_generation_config mutate "
+        "server-wide sampling defaults outside the validated GB10 first "
+        "release serving path; reject them on GB10/SM12x until native SM12x "
+        "generation-config correctness and runtime evidence exists."
     ),
     "reasoning_runtime": (
         "Reasoning runtime changes token parsing and output extraction outside "

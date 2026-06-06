@@ -641,6 +641,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "generation_config_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Custom generation-config paths and "
+                    "override_generation_config mutate server-wide sampling "
+                    "defaults outside the validated GB10 first release serving "
+                    "path. They must reject on GB10/SM12x until native SM12x "
+                    "generation-config correctness and runtime evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (

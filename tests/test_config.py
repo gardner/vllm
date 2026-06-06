@@ -967,6 +967,77 @@ def test_vllm_config_allows_attention_dtype_override_runtime_off_gb10(
     assert config.model_config.override_attention_dtype == "float16"
 
 
+@pytest.mark.parametrize(
+    "model_kwargs",
+    [
+        {"generation_config": "/tmp/gb10-generation-config"},
+        {"override_generation_config": {"temperature": 0.5}},
+    ],
+)
+def test_gb10_vllm_config_rejects_generation_config_runtime(
+    monkeypatch,
+    model_kwargs,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", **model_kwargs)
+
+    with pytest.raises(ValueError, match="generation config runtime.*GB10/SM12x"):
+        VllmConfig(model_config=model_config)
+
+
+@pytest.mark.parametrize("generation_config", ["auto", "vllm"])
+def test_gb10_vllm_config_allows_default_generation_config_runtime(
+    monkeypatch,
+    generation_config,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        generation_config=generation_config,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert config.model_config.generation_config == generation_config
+    assert config.model_config.override_generation_config == {}
+
+
+@pytest.mark.parametrize(
+    "model_kwargs",
+    [
+        {"generation_config": "/tmp/gb10-generation-config"},
+        {"override_generation_config": {"temperature": 0.5}},
+    ],
+)
+def test_vllm_config_allows_generation_config_runtime_off_gb10(
+    monkeypatch,
+    model_kwargs,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", **model_kwargs)
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(
