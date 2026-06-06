@@ -24,6 +24,35 @@ from vllm.platforms import current_platform
 from vllm.utils.flashinfer import has_flashinfer
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_trtllm_gen_moe_runtime_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "TRTLLM Gen MoE runtime is not supported on GB10/SM12x. "
+        "TRTLLM Gen MoE kernels are SM100-family paths today; "
+        "use a validated GB10-safe routed MoE backend instead."
+    )
+
+
 class TrtLlmMxfp4ExpertsBase:
     """
     MXFP4 TRTLLM-Gen MoE kernels. Shared base for modular and monolithic.
@@ -35,6 +64,10 @@ class TrtLlmMxfp4ExpertsBase:
         quant_config: FusedMoEQuantConfig,
         **kwargs,
     ):
+        if (
+            gb10_reason := _gb10_trtllm_gen_moe_runtime_unsupported_reason()
+        ) is not None:
+            raise ValueError(gb10_reason)
         self.moe_config = moe_config
         self.quant_config = quant_config
 

@@ -10098,6 +10098,59 @@ def test_gb10_flashinfer_cutedsl_moe_constructors_are_reported():
         assert "raise ValueError(reason)" in source
 
 
+def test_gb10_trtllm_gen_moe_expert_constructors_are_reported():
+    bf16 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "trtllm_bf16_moe.py"
+    ).read_text()
+    fp8 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "trtllm_fp8_moe.py"
+    ).read_text()
+    mxfp4 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "trtllm_mxfp4_moe.py"
+    ).read_text()
+    nvfp4 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "trtllm_nvfp4_moe.py"
+    ).read_text()
+    mxint4 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "trtllm_mxint4_moe.py"
+    ).read_text()
+
+    for source in (bf16, fp8, mxfp4, nvfp4, mxint4):
+        assert "_gb10_trtllm_gen_moe_runtime_unsupported_reason" in source
+        assert "TRTLLM Gen MoE runtime is not supported on GB10/SM12x" in source
+        assert "raise ValueError(gb10_reason)" in source
+
+
 def test_gb10_attention_selector_logs_backend_and_kv_cache_dtype():
     selector = (REPO_ROOT / "vllm" / "v1" / "attention" / "selector.py").read_text()
 
