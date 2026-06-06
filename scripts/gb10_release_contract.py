@@ -104,6 +104,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
+    "async_scheduling_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
     "ec_transfer_runtime": "not_supported",
@@ -464,6 +465,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "microbatching, cascade-attention handling, and DeepEP all-to-all "
         "assumptions outside the validated GB10 first release path; reject "
         "them until native SM12x ubatching correctness evidence exists."
+    ),
+    "async_scheduling_runtime": (
+        "Async scheduling changes scheduler, executor, and model-runner "
+        "control flow outside the validated GB10 first release path; reject "
+        "explicit opt-in and disable auto-selection until native SM12x async "
+        "scheduling correctness and runtime evidence exists."
     ),
     "distributed_parallel_runtime": (
         "Data parallel, tensor parallel, pipeline parallel, context parallel, "

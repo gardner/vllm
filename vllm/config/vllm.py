@@ -155,6 +155,14 @@ _GB10_UBATCHING_RUNTIME_MESSAGE = (
     "--ubatch-size at 0 or 1 on GB10 until native SM12x ubatching correctness "
     "and runtime evidence exists."
 )
+_GB10_ASYNC_SCHEDULING_RUNTIME_MESSAGE = (
+    "async scheduling runtime is not supported on GB10/SM12x in this fork: "
+    "--async-scheduling and direct scheduler_config.async_scheduling=True "
+    "change scheduler, executor, and model-runner control flow outside the "
+    "validated native first-path NVFP4 serving release. Use synchronous "
+    "scheduling on GB10 until native SM12x async scheduling correctness and "
+    "runtime evidence exists."
+)
 _GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE = (
     "distributed parallel runtime is not supported on GB10/SM12x in this fork: "
     "data parallel, tensor parallel, pipeline parallel, context parallel, "
@@ -1207,6 +1215,16 @@ class VllmConfig:
 
         if self.parallel_config.use_ubatching and _is_gb10_sm12x_cuda_platform():
             raise ValueError(_GB10_UBATCHING_RUNTIME_MESSAGE)
+
+        if _is_gb10_sm12x_cuda_platform():
+            if self.scheduler_config.async_scheduling:
+                raise ValueError(_GB10_ASYNC_SCHEDULING_RUNTIME_MESSAGE)
+            if self.scheduler_config.async_scheduling is None:
+                logger.info_once(
+                    "Disabling asynchronous scheduling by default on GB10/SM12x "
+                    "until native async scheduling evidence exists."
+                )
+                self.scheduler_config.async_scheduling = False
 
         if (
             _uses_distributed_parallel_runtime(self.parallel_config)

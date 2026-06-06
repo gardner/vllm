@@ -839,6 +839,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "ubatching correctness evidence exists."
                 ),
             },
+            "async_scheduling_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Async scheduling changes scheduler, executor, and "
+                    "model-runner control flow outside the validated GB10 "
+                    "first release path. Explicit opt-in must reject and "
+                    "auto-selection must be disabled until native SM12x async "
+                    "scheduling correctness and runtime evidence exists."
+                ),
+            },
             "distributed_parallel_runtime": {
                 "status": "not_supported",
                 "release_contract": (

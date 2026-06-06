@@ -130,6 +130,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "kv_offload_runtime": "not_supported",
     "kv_transfer_runtime": "not_supported",
     "ubatching_runtime": "not_supported",
+    "async_scheduling_runtime": "not_supported",
     "distributed_parallel_runtime": "not_supported",
     "kv_sharing_fast_prefill_runtime": "not_supported",
     "ec_transfer_runtime": "not_supported",
@@ -2603,6 +2604,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["ubatching_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["async_scheduling_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["distributed_parallel_runtime"]["status"] == (
@@ -9069,6 +9073,24 @@ def test_gb10_ubatching_runtime_is_reported():
     assert "DeepEP all-to-all" in vllm_config
 
 
+def test_gb10_async_scheduling_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    scheduler_config = (
+        REPO_ROOT / "vllm" / "config" / "scheduler.py"
+    ).read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_ASYNC_SCHEDULING_RUNTIME_MESSAGE" in vllm_config
+    assert "async scheduling runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--async-scheduling" in vllm_config
+    assert "scheduler_config.async_scheduling=True" in vllm_config
+    assert "scheduler, executor, and model-runner control flow" in vllm_config
+    assert "async_scheduling: bool | None = None" in scheduler_config
+    assert "--async-scheduling" in arg_utils
+
+
 def test_gb10_distributed_parallel_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11505,6 +11527,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "scheduler and DeepEP all-to-all correctness evidence"
                     ),
                 },
+                "async_scheduling_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Async scheduling lacks native SM12x scheduler, "
+                        "executor, and model-runner correctness evidence"
+                    ),
+                },
                 "distributed_parallel_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12465,6 +12495,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "kv_offload_runtime": {"status": "not_supported"},
                 "kv_transfer_runtime": {"status": "not_supported"},
                 "ubatching_runtime": {"status": "not_supported"},
+                "async_scheduling_runtime": {"status": "not_supported"},
                 "distributed_parallel_runtime": {"status": "not_supported"},
                 "kv_sharing_fast_prefill_runtime": {"status": "not_supported"},
                 "ec_transfer_runtime": {"status": "not_supported"},
@@ -12661,6 +12692,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "reported_not_supported_entries"
     ] == [
         "alternate_model_loader_runtime",
+        "async_scheduling_runtime",
         "awq_quantization",
         "bitsandbytes_quantization",
         "cascade_attention_runtime",

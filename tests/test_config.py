@@ -1461,6 +1461,40 @@ def test_vllm_config_allows_enforce_eager_runtime_off_gb10(monkeypatch):
     assert config.compilation_config.cudagraph_mode == CUDAGraphMode.NONE
 
 
+def test_gb10_vllm_config_rejects_async_scheduling_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        async_scheduling=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="async scheduling runtime.*GB10/SM12x",
+    ):
+        VllmConfig(scheduler_config=scheduler_config)
+
+
+def test_gb10_vllm_config_disables_default_async_scheduling(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    config = VllmConfig()
+
+    assert config.scheduler_config.async_scheduling is False
+
+
 @pytest.mark.parametrize(
     "kv_events_config",
     [
