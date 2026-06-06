@@ -8933,6 +8933,59 @@ def test_gb10_mamba_attention_backend_selection_is_reported():
     )[1].split("}", 1)[0]
 
 
+def test_gb10_mamba_triton_runtimes_are_reported():
+    mamba_utils = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "mamba_utils.py"
+    ).read_text()
+    mamba1 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "mamba_mixer.py"
+    ).read_text()
+    mamba2 = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "mamba_mixer2.py"
+    ).read_text()
+    short_conv = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "short_conv.py"
+    ).read_text()
+    linear_attn = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "mamba"
+        / "linear_attn.py"
+    ).read_text()
+
+    assert "gb10_mamba_triton_runtime_unsupported_reason" in mamba_utils
+    assert "gb10_mamba_triton_runtime_unsupported_reason" in mamba1
+    assert "Mamba1 triton runtime" in mamba1
+    assert "gb10_mamba_triton_runtime_unsupported_reason" in mamba2
+    assert "Mamba2 triton SSD runtime" in mamba2
+    assert "gb10_mamba_triton_runtime_unsupported_reason" in short_conv
+    assert "short_conv triton runtime" in short_conv
+    assert "gb10_mamba_triton_runtime_unsupported_reason" in linear_attn
+    assert "linear attention triton runtime" in linear_attn
+
+
 def test_gb10_speculative_decoding_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
