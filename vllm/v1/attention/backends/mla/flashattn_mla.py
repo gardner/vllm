@@ -18,6 +18,7 @@ from vllm.model_executor.layers.attention.mla_attention import (
     MLACommonMetadataBuilder,
     QueryLenSupport,
 )
+from vllm.platforms import current_platform
 from vllm.platforms.interface import DeviceCapability
 from vllm.utils.math_utils import round_up
 from vllm.utils.torch_utils import is_quantized_kv_cache
@@ -38,6 +39,16 @@ from vllm.vllm_flash_attn import (  # type: ignore[attr-defined]
 )
 
 logger = init_logger(__name__)
+
+
+def _gb10_public_flashattention_mla_runtime_unsupported_reason() -> str | None:
+    device_capability = current_platform.get_device_capability()
+    if device_capability is not None and device_capability.major == 12:
+        return (
+            "public FlashAttention MLA runtime is not supported on GB10/SM12x "
+            "in this fork: use FlashInfer MLA or FlashMLA instead"
+        )
+    return None
 
 
 class FlashAttnMLABackend(MLACommonBackend):
@@ -270,6 +281,10 @@ class FlashAttnMLAImpl(MLACommonImpl[FlashAttnMLAMetadata]):
         # MLA Specific Arguments
         **mla_args,
     ) -> None:
+        gb10_reason = _gb10_public_flashattention_mla_runtime_unsupported_reason()
+        if gb10_reason is not None:
+            raise ValueError(gb10_reason)
+
         super().__init__(
             num_heads,
             head_size,

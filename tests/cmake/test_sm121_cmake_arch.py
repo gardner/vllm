@@ -8958,6 +8958,34 @@ def test_gb10_public_flashattention_runtime_is_reported():
     assert "use FlashInfer or FlashMLA instead" in flash_attn
 
 
+def test_gb10_public_flashattention_mla_runtime_is_reported():
+    flashattn_mla = (
+        REPO_ROOT / "vllm" / "v1" / "attention" / "backends" / "mla" /
+        "flashattn_mla.py"
+    ).read_text()
+    flashattn_prefill = (
+        REPO_ROOT
+        / "vllm"
+        / "v1"
+        / "attention"
+        / "backends"
+        / "mla"
+        / "prefill"
+        / "flash_attn.py"
+    ).read_text()
+
+    assert "_gb10_public_flashattention_mla_runtime_unsupported_reason" in (
+        flashattn_mla
+    )
+    assert "public FlashAttention MLA runtime is not supported on GB10/SM12x" in (
+        flashattn_mla
+    )
+    assert "use FlashInfer MLA or FlashMLA instead" in flashattn_mla
+    assert "_gb10_public_flashattention_mla_runtime_unsupported_reason" in (
+        flashattn_prefill
+    )
+
+
 def test_gb10_mamba_triton_runtimes_are_reported():
     mamba_utils = (
         REPO_ROOT

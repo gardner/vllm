@@ -13,6 +13,9 @@ from vllm.v1.attention.backends.fa_utils import (
     get_flash_attn_version,
     is_flash_attn_varlen_func_available,
 )
+from vllm.v1.attention.backends.mla.flashattn_mla import (
+    _gb10_public_flashattention_mla_runtime_unsupported_reason,
+)
 from vllm.v1.attention.backends.mla.prefill.base import MLAPrefillBackend
 
 if TYPE_CHECKING:
@@ -59,6 +62,10 @@ class FlashAttnPrefillBackend(MLAPrefillBackend):
             v_head_dim=v_head_dim,
             vllm_config=vllm_config,
         )
+
+        gb10_reason = _gb10_public_flashattention_mla_runtime_unsupported_reason()
+        if gb10_reason is not None:
+            raise ValueError(gb10_reason)
 
         # Handle the differences between the flash_attn_varlen from
         # flash_attn and the one from vllm_flash_attn
