@@ -10162,6 +10162,21 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
         },
     }
 
+    monkeypatch.setattr(
+        smoke,
+        "_collect_runtime_metadata",
+        lambda: {
+            "compilation_counter": {
+                "num_cudagraph_captured": 2,
+                "num_cudagraph_replayed": 1,
+            },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+            },
+        },
+    )
+
     report = smoke._build_report(
         args=args,
         required_paths=("linear", "moe"),
@@ -10245,6 +10260,7 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
             },
             "env": {
                 "FLASHINFER_DISABLE_JIT": "0",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
             },
         },
     )
@@ -10263,11 +10279,66 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
         "expected": "1",
         "configured": "0",
     }
+    assert failed_release_summary["checks"]["gpu_memory_utilization"] == {
+        "status": "passed",
+        "expected": "0.88",
+        "configured": "0.88",
+    }
     assert (
         "FlashInfer runtime JIT was not disabled for the GB10 smoke"
         in failed_release_summary["smoke_blockers"]
     )
     assert failed_release_summary["first_path_smoke_passed"] is False
+
+    monkeypatch.setattr(
+        smoke,
+        "_collect_runtime_metadata",
+        lambda: {
+            "compilation_counter": {
+                "num_cudagraph_captured": 2,
+                "num_cudagraph_replayed": 1,
+            },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.7",
+            },
+        },
+    )
+    memory_failed_report = smoke._build_report(
+        args=args,
+        required_paths=("linear", "moe"),
+        selections=selections,
+        fallbacks=(),
+        outputs=(),
+        status="passed",
+        vllm_config_summary=vllm_config_summary,
+    )
+    memory_failed_release_summary = memory_failed_report["gb10_release_summary"]
+    assert memory_failed_release_summary["checks"]["gpu_memory_utilization"] == {
+        "status": "failed",
+        "expected": "0.88",
+        "configured": "0.7",
+    }
+    assert (
+        "GB10 gpu-memory-utilization did not match the release contract default"
+        in memory_failed_release_summary["smoke_blockers"]
+    )
+    assert memory_failed_release_summary["first_path_smoke_passed"] is False
+
+    monkeypatch.setattr(
+        smoke,
+        "_collect_runtime_metadata",
+        lambda: {
+            "compilation_counter": {
+                "num_cudagraph_captured": 2,
+                "num_cudagraph_replayed": 1,
+            },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
+            },
+        },
+    )
 
     missing_shape_summary = copy.deepcopy(vllm_config_summary)
     missing_shape_summary["model"].pop("head_size")
@@ -10296,6 +10367,10 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
             "compilation_counter": {
                 "num_cudagraph_captured": 2,
                 "num_cudagraph_replayed": 0,
+            },
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
             },
         },
     )
@@ -10401,7 +10476,10 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
     assert "--gb10-require-deterministic" in script
     assert "GB10_OPENAI_IMAGE_REQUIRE_DETERMINISTIC" in script
     assert '--gpu-memory-utilization "$GB10_GPU_MEMORY_UTILIZATION"' in script
-    assert 'FLASHINFER_DISABLE_JIT=1 python3 "$smoke_script" "${smoke_args[@]}"' in script
+    assert (
+        'FLASHINFER_DISABLE_JIT=1 python3 "$smoke_script" "${smoke_args[@]}"'
+        in script
+    )
     assert 'python3 "$smoke_script" "${smoke_args[@]}"' in script
 
 
@@ -11528,10 +11606,12 @@ def test_gb10_release_evidence_verifier_checks_required_smoke_reports():
     assert '"native_nvfp4_moe_non_ep_observed"' in script
     assert '"openai_deterministic_generation"' in script
     assert '"openai_flashinfer_jit_disabled"' in script
+    assert '"openai_gpu_memory_utilization"' in script
     assert '"gb10_device_sm121"' in script
     assert '"flashinfer_gb10_runtime_version"' in script
     assert '"flashinfer_gb10_distribution_versions"' in script
     assert '"flashinfer_jit_disabled"' in script
+    assert '"gb10_gpu_memory_utilization"' in script
     assert '"kv_cache_fp8_e4m3"' in script
     assert '"attention_backend_flashinfer"' in script
     assert '"attention_backend_allowed_by_support_matrix"' in script
@@ -13098,6 +13178,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert check_statuses["flashinfer_gb10_runtime_version"] == "passed"
     assert check_statuses["flashinfer_gb10_distribution_versions"] == "passed"
     assert check_statuses["flashinfer_jit_disabled"] == "passed"
+    assert check_statuses["gb10_gpu_memory_utilization"] == "passed"
+    assert checks_by_name["gb10_gpu_memory_utilization"]["details"] == {
+        "expected": "0.88",
+        "configured": "0.88",
+    }
     assert check_statuses["cuda_graph_capture_replay"] == "passed"
     assert check_statuses["model_shape_reported"] == "passed"
     assert checks_by_name["model_shape_reported"]["details"] == {
@@ -13285,6 +13370,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         == "passed"
     )
     assert check_statuses["openai_flashinfer_jit_disabled"] == "passed"
+    assert check_statuses["openai_gpu_memory_utilization"] == "passed"
+    assert checks_by_name["openai_gpu_memory_utilization"]["details"] == {
+        "expected": "0.88",
+        "configured": "0.88",
+    }
     assert check_statuses["openai_deterministic_generation"] == "passed"
     assert check_statuses["release_manifest_flashinfer_components"] == "passed"
     assert check_statuses["release_manifest_durable_inputs"] == "passed"
@@ -13660,6 +13750,31 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         for failure in openai_missing_jit_disable_summary["failures"]
     )
 
+    openai_missing_gpu_memory_utilization_report = copy.deepcopy(openai_report)
+    openai_missing_gpu_memory_utilization_report["runtime"]["env"][
+        "GB10_GPU_MEMORY_UTILIZATION"
+    ] = "0.7"
+    openai_missing_gpu_memory_utilization_summary = verifier._build_summary(
+        nvfp4_report={**nvfp4_report, "fallback_events": []},
+        nvfp4_error=None,
+        openai_report=openai_missing_gpu_memory_utilization_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert openai_missing_gpu_memory_utilization_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "openai_gpu_memory_utilization"
+        for failure in openai_missing_gpu_memory_utilization_summary["failures"]
+    )
+
     missing_jit_disable_report = {
         **nvfp4_report,
         "fallback_events": [],
@@ -13667,6 +13782,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             **nvfp4_report["runtime"],
             "env": {
                 "FLASHINFER_DISABLE_JIT": "0",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.88",
             },
         },
         "gb10_release_summary": {
@@ -13677,6 +13793,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "status": "failed",
                     "expected": "1",
                     "configured": "0",
+                },
+                "gpu_memory_utilization": {
+                    "status": "passed",
+                    "expected": "0.88",
+                    "configured": "0.88",
                 },
             },
         },
@@ -13700,6 +13821,49 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
     assert any(
         failure["name"] == "flashinfer_jit_disabled"
         for failure in missing_jit_disable_summary["failures"]
+    )
+
+    missing_gpu_memory_utilization_report = {
+        **nvfp4_report,
+        "fallback_events": [],
+        "runtime": {
+            **nvfp4_report["runtime"],
+            "env": {
+                "FLASHINFER_DISABLE_JIT": "1",
+                "GB10_GPU_MEMORY_UTILIZATION": "0.7",
+            },
+        },
+        "gb10_release_summary": {
+            **nvfp4_report["gb10_release_summary"],
+            "checks": {
+                **nvfp4_report["gb10_release_summary"]["checks"],
+                "gpu_memory_utilization": {
+                    "status": "failed",
+                    "expected": "0.88",
+                    "configured": "0.7",
+                },
+            },
+        },
+    }
+    missing_gpu_memory_utilization_summary = verifier._build_summary(
+        nvfp4_report=missing_gpu_memory_utilization_report,
+        nvfp4_error=None,
+        openai_report=openai_report,
+        openai_error=None,
+        release_manifest=release_manifest,
+        release_manifest_error=None,
+        image_ref="ghcr.io/gardner/vllm-gb10:gb10-vllm-test",
+        release_tag="gb10-vllm-test",
+        require_release_manifest=True,
+        require_moe=True,
+        require_openai_deterministic=True,
+        allow_partial=False,
+    )
+
+    assert missing_gpu_memory_utilization_summary["status"] == "failed"
+    assert any(
+        failure["name"] == "gb10_gpu_memory_utilization"
+        for failure in missing_gpu_memory_utilization_summary["failures"]
     )
 
     release_manifest["dependencies"]["flashinfer"][

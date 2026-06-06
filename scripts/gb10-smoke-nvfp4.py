@@ -746,6 +746,9 @@ def _build_gb10_release_summary(
     flashinfer_jit_disabled = (
         runtime_metadata.get("env", {}).get("FLASHINFER_DISABLE_JIT") == "1"
     )
+    gpu_memory_utilization = runtime_metadata.get("env", {}).get(
+        "GB10_GPU_MEMORY_UTILIZATION"
+    )
     cuda_graph_check = _build_cuda_graph_check(
         runtime_metadata=runtime_metadata,
         vllm_config_summary=vllm_config_summary,
@@ -808,6 +811,15 @@ def _build_gb10_release_summary(
                 "FLASHINFER_DISABLE_JIT"
             ),
         },
+        "gpu_memory_utilization": {
+            "status": (
+                "passed"
+                if gpu_memory_utilization == "0.88"
+                else "failed"
+            ),
+            "expected": "0.88",
+            "configured": gpu_memory_utilization,
+        },
         "cuda_graph": cuda_graph_check,
     }
 
@@ -845,6 +857,10 @@ def _build_gb10_release_summary(
     if smoke_checks["flashinfer_jit_disabled"]["status"] != "passed":
         smoke_blockers.append(
             "FlashInfer runtime JIT was not disabled for the GB10 smoke"
+        )
+    if smoke_checks["gpu_memory_utilization"]["status"] != "passed":
+        smoke_blockers.append(
+            "GB10 gpu-memory-utilization did not match the release contract default"
         )
 
     unsupported_paths = {

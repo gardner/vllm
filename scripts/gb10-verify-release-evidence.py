@@ -242,6 +242,12 @@ def _check_nvfp4_report(
         )
         for distribution in FLASHINFER_RUNTIME_DISTRIBUTIONS
     }
+    gpu_memory_utilization = _nested_get(
+        report,
+        "runtime",
+        "env",
+        "GB10_GPU_MEMORY_UTILIZATION",
+    )
     attention_backend_check = _nested_get(
         report,
         "gb10_release_summary",
@@ -365,6 +371,18 @@ def _check_nvfp4_report(
             or {},
         ),
         _check(
+            name="gb10_gpu_memory_utilization",
+            passed=gpu_memory_utilization == "0.88",
+            message=(
+                "offline NVFP4 smoke recorded the expected GB10 "
+                "gpu-memory-utilization contract"
+            ),
+            details={
+                "expected": "0.88",
+                "configured": gpu_memory_utilization,
+            },
+        ),
+        _check(
             name="kv_cache_fp8_e4m3",
             passed=_nested_get(
                 report,
@@ -456,6 +474,12 @@ def _check_openai_report(
 
     generated_text = _nested_get(report, "response", "generated_text")
     deterministic_status = _nested_get(report, "deterministic_generation", "status")
+    gpu_memory_utilization = _nested_get(
+        report,
+        "runtime",
+        "env",
+        "GB10_GPU_MEMORY_UTILIZATION",
+    )
     checks = [
         _check(
             name="openai_report_status",
@@ -486,6 +510,18 @@ def _check_openai_report(
             == "1",
             message="OpenAI-compatible server smoke ran with FLASHINFER_DISABLE_JIT=1",
             details=_nested_get(report, "runtime", "env") or {},
+        ),
+        _check(
+            name="openai_gpu_memory_utilization",
+            passed=gpu_memory_utilization == "0.88",
+            message=(
+                "OpenAI-compatible server smoke recorded the expected GB10 "
+                "gpu-memory-utilization contract"
+            ),
+            details={
+                "expected": "0.88",
+                "configured": gpu_memory_utilization,
+            },
         ),
         _check(
             name="openai_http_200",
