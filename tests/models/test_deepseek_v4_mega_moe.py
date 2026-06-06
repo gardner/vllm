@@ -8,6 +8,7 @@ import torch
 
 from vllm.models.deepseek_v4.nvidia.model import (
     DeepseekV4MegaMoEExperts,
+    DeepseekV4MoE,
     make_deepseek_v4_expert_params_mapping,
 )
 from vllm.models.deepseek_v4.nvidia.ops.prepare_megamoe import prepare_megamoe_inputs
@@ -135,6 +136,46 @@ def test_deepseek_v4_mega_moe_runtime_allows_sm100_and_sm120(monkeypatch):
     )
     with pytest.raises(NotImplementedError, match="SM100 or SM120"):
         experts._check_runtime_supported()
+
+
+def test_deepseek_v4_mega_moe_requires_explicit_expert_parallel(monkeypatch):
+    from vllm.models.deepseek_v4.nvidia import model as deepseek_model
+
+    monkeypatch.setattr(
+        deepseek_model,
+        "get_tensor_model_parallel_world_size",
+        lambda: 1,
+    )
+    vllm_config = SimpleNamespace(
+        model_config=SimpleNamespace(
+            hf_config=SimpleNamespace(
+                hidden_size=128,
+                n_routed_experts=8,
+                num_experts_per_tok=2,
+                moe_intermediate_size=256,
+                swiglu_limit=0,
+                norm_topk_prob=True,
+                expert_dtype="fp4",
+                scoring_func="sqrtsoftplus",
+                num_hash_layers=0,
+                vocab_size=32000,
+                index_topk=2,
+                hc_eps=1e-5,
+                hc_mult=4,
+                hc_dim=512,
+                rms_norm_eps=1e-5,
+            )
+        ),
+        quant_config=SimpleNamespace(),
+        kernel_config=SimpleNamespace(moe_backend="deep_gemm_mega_moe"),
+        parallel_config=SimpleNamespace(enable_expert_parallel=False),
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match="DeepSeek V4 MegaMoE currently requires expert parallel",
+    ):
+        DeepseekV4MoE(vllm_config=vllm_config, prefix="model")
 
 
 @pytest.mark.skipif(
