@@ -2,32 +2,10 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 import torch
-
-from vllm.platforms import current_platform
-
-if not current_platform.is_device_capability_family(120):
-    pytest.skip(
-        reason="FlashInfer CuteDSL SM12x MoE requires SM120 "
-        "(RTX Pro 6000 / DGX Spark).",
-        allow_module_level=True,
-    )
-
-from vllm.utils.flashinfer import has_flashinfer_b12x_moe
-
-if not has_flashinfer_b12x_moe():
-    pytest.skip(
-        reason=(
-            "FlashInfer cute_dsl_fused_moe_nvfp4 / convert_sf_to_mma_layout "
-            "not available in installed FlashInfer (needs PRs #3051 and #3066)."
-        ),
-        allow_module_level=True,
-    )
-
-# Import fp4_quantize after the skip guard — FlashInfer must be installed.
-from flashinfer.fp4_quantization import fp4_quantize
 
 import vllm.model_executor.layers.fused_moe.modular_kernel as mk
 from tests.kernels.moe.utils import make_dummy_moe_config
@@ -45,17 +23,52 @@ from vllm.model_executor.layers.fused_moe.config import (
 from vllm.model_executor.layers.fused_moe.experts.flashinfer_b12x_moe import (
     FlashInferB12xExperts,
 )
-from vllm.utils.flashinfer import flashinfer_convert_sf_to_mma_layout
+from vllm.platforms import current_platform
+from vllm.utils.flashinfer import (
+    flashinfer_convert_sf_to_mma_layout,
+    has_flashinfer_b12x_moe,
+)
 from vllm.utils.torch_utils import set_random_seed
 
+if not current_platform.is_device_capability_family(120):
+    pytest.skip(
+        reason="FlashInfer CuteDSL SM12x MoE requires SM120 "
+        "(RTX Pro 6000 / DGX Spark).",
+        allow_module_level=True,
+    )
+
+if not has_flashinfer_b12x_moe():
+    pytest.skip(
+        reason=(
+            "FlashInfer cute_dsl_fused_moe_nvfp4 / convert_sf_to_mma_layout "
+            "not available in installed FlashInfer (needs PRs #3051 and #3066)."
+        ),
+        allow_module_level=True,
+    )
+
 # Dimensions chosen to satisfy FP4 alignment requirements (k multiple of 256,
-# n multiple of 128) while keeping tests fast.
+# n multiple of 128) while keeping tests fast. The added 1-token and
+# 128-token cases broaden the decode/prefill matrix without changing the
+# single-Spark contract.
 MNK_FACTORS = [
+    (1, 128, 256),
     (2, 128, 256),
     (2, 256, 512),
     (16, 128, 256),
+    (128, 128, 256),
     (64, 256, 512),
 ]
+
+
+@pytest.fixture(autouse=True)
+def _set_triton_cache_dirs(monkeypatch: pytest.MonkeyPatch) -> None:
+    triton_cache_dir = Path("/tmp/triton-cache")
+    triton_cache_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("TRITON_CACHE_DIR", str(triton_cache_dir))
+
+    torchinductor_cache_dir = Path("/tmp/torchinductor-cache")
+    torchinductor_cache_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("TORCHINDUCTOR_CACHE_DIR", str(torchinductor_cache_dir))
 
 
 def test_flashinfer_b12x_moe_blocks_ep_until_validated():
@@ -122,6 +135,8 @@ def test_flashinfer_b12x_moe(
     ``w_gs`` into block-scale values and compensating with
     ``g1_alphas = 1/w_gs`` — is incompatible with this kernel.
     """
+    from flashinfer.fp4_quantization import fp4_quantize
+
     set_random_seed(7)
     with set_current_vllm_config(
         VllmConfig(parallel_config=ParallelConfig(pipeline_parallel_size=1))
