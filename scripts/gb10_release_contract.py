@@ -109,6 +109,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "weight_transfer_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
+    "fp64_gumbel_sampling_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
     "hf_config_path_runtime": "not_supported",
@@ -486,6 +487,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "through sampler and model-runner output paths outside the validated "
         "GB10 first release serving path; reject them until native SM12x "
         "logits-return correctness evidence exists."
+    ),
+    "fp64_gumbel_sampling_runtime": (
+        "FP64 Gumbel sampling selects FP64 Gumbel noise in sampler and "
+        "speculative decoding Triton kernels outside the validated GB10 first "
+        "release serving path; reject --use-fp64-gumbel until native SM12x "
+        "FP64 Gumbel sampling correctness and runtime evidence exists."
     ),
     "custom_logits_processors_runtime": (
         "Custom logits processor hooks mutate sampler logits outside the "

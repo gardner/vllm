@@ -135,6 +135,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "weight_transfer_runtime": "not_supported",
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
+    "fp64_gumbel_sampling_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
     "hf_config_path_runtime": "not_supported",
@@ -2612,6 +2613,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["logprobs_logits_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["fp64_gumbel_sampling_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
@@ -9088,6 +9092,29 @@ def test_gb10_logprobs_logits_runtime_is_reported():
     assert "native SM12x logits-return correctness" in vllm_config
 
 
+def test_gb10_fp64_gumbel_sampling_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+    sampler = (
+        REPO_ROOT / "vllm" / "v1" / "worker" / "gpu" / "sample" / "sampler.py"
+    ).read_text()
+    gumbel = (
+        REPO_ROOT / "vllm" / "v1" / "worker" / "gpu" / "sample" / "gumbel.py"
+    ).read_text()
+
+    assert "_GB10_FP64_GUMBEL_SAMPLING_RUNTIME_MESSAGE" in vllm_config
+    assert "FP64 Gumbel sampling runtime is not supported on GB10/SM12x" in (
+        vllm_config
+    )
+    assert "--use-fp64-gumbel" in vllm_config
+    assert "model_config.use_fp64_gumbel" in vllm_config
+    assert "use_fp64_gumbel" in model_config
+    assert "--use-fp64-gumbel" in arg_utils
+    assert "use_fp64=self.use_fp64_gumbel" in sampler
+    assert "tl_rand64" in gumbel
+
+
 def test_gb10_custom_logits_processors_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11386,6 +11413,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "native SM12x logits-return correctness evidence"
                     ),
                 },
+                "fp64_gumbel_sampling_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "FP64 Gumbel sampler kernels lack native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "custom_logits_processors_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12263,6 +12298,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "weight_transfer_runtime": {"status": "not_supported"},
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
+                "fp64_gumbel_sampling_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
                 "io_processor_plugin_runtime": {"status": "not_supported"},
                 "hf_config_path_runtime": {"status": "not_supported"},
@@ -12485,6 +12521,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "flashinfer_trtllm_nvfp4_dense",
         "flashinfer_trtllm_sparse_mla_attention",
         "flex_attention_fallback",
+        "fp64_gumbel_sampling_runtime",
         "fp8_w8a16_marlin_fallback",
         "fp8_w8a16_moe_fallback",
         "fp_quant_fp4_quantization",

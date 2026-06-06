@@ -886,6 +886,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness evidence exists."
                 ),
             },
+            "fp64_gumbel_sampling_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "FP64 Gumbel sampling selects FP64 Gumbel noise in "
+                    "sampler and speculative decoding Triton kernels outside "
+                    "the validated GB10 first release serving path. "
+                    "--use-fp64-gumbel must reject until native SM12x FP64 "
+                    "Gumbel sampling correctness and runtime evidence exists."
+                ),
+            },
             "custom_logits_processors_runtime": {
                 "status": "not_supported",
                 "release_contract": (

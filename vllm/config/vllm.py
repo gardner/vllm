@@ -255,6 +255,14 @@ _GB10_CASCADE_ATTENTION_RUNTIME_MESSAGE = (
     "until native SM12x cascade attention correctness and runtime evidence "
     "exists."
 )
+_GB10_FP64_GUMBEL_SAMPLING_RUNTIME_MESSAGE = (
+    "FP64 Gumbel sampling runtime is not supported on GB10/SM12x in this fork: "
+    "--use-fp64-gumbel and direct model_config.use_fp64_gumbel select FP64 "
+    "Gumbel noise in sampler and speculative decoding Triton kernels outside "
+    "the validated native first-path NVFP4 serving release. Use default FP32 "
+    "Gumbel sampling on GB10 until native SM12x FP64 Gumbel sampling "
+    "correctness and runtime evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -1237,6 +1245,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CASCADE_ATTENTION_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.use_fp64_gumbel
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_FP64_GUMBEL_SAMPLING_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

@@ -854,6 +854,60 @@ def test_vllm_config_allows_cascade_attention_runtime_off_gb10(monkeypatch):
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_fp64_gumbel_sampling_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        use_fp64_gumbel=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="FP64 Gumbel sampling runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_gb10_vllm_config_allows_default_gumbel_sampling_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        use_fp64_gumbel=False,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
+def test_vllm_config_allows_fp64_gumbel_sampling_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        use_fp64_gumbel=True,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 def _noop_hf_overrides(config):
     return config
 
