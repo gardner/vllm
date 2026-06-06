@@ -231,6 +231,14 @@ _GB10_HF_CONFIG_PATH_RUNTIME_MESSAGE = (
     "NVFP4 serving release. Disable alternate HF config paths on GB10 until "
     "native SM12x HF config path correctness and runtime evidence exists."
 )
+_GB10_SPECIALIZED_TOKENIZER_RUNTIME_MESSAGE = (
+    "specialized tokenizer runtime is not supported on GB10/SM12x in this fork: "
+    "--tokenizer-mode values outside auto, hf, and slow, plus auto-resolved "
+    "specialized tokenizer modes, can load Mistral, DeepSeek, Grok, Kimi, Qwen-VL, "
+    "TerraTorch, or custom tokenizer code outside the validated native first-path "
+    "NVFP4 serving release. Use auto, hf, or slow tokenizer modes on GB10 until "
+    "native SM12x specialized tokenizer correctness and runtime evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -312,6 +320,10 @@ def _uses_kv_events_runtime(kv_events_config: KVEventsConfig | None) -> bool:
             or kv_events_config.publisher not in (None, "null")
         )
     )
+
+
+def _uses_specialized_tokenizer_runtime(model_config: ModelConfig) -> bool:
+    return model_config.tokenizer_mode not in ("auto", "hf", "slow")
 
 
 def _uses_transformers_model_impl_runtime(model_config: ModelConfig) -> bool:
@@ -1188,6 +1200,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_HF_CONFIG_PATH_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and _uses_specialized_tokenizer_runtime(self.model_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_SPECIALIZED_TOKENIZER_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

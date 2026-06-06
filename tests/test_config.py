@@ -687,6 +687,82 @@ def test_vllm_config_allows_hf_config_path_runtime_off_gb10(monkeypatch):
     assert config.model_config is model_config
 
 
+@pytest.mark.parametrize(
+    "tokenizer_mode",
+    [
+        "mistral",
+        "deepseek_v32",
+        "custom_tokenizer",
+    ],
+)
+def test_gb10_vllm_config_rejects_specialized_tokenizer_runtime(
+    monkeypatch,
+    tokenizer_mode,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        tokenizer_mode=tokenizer_mode,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="specialized tokenizer runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+@pytest.mark.parametrize(
+    "tokenizer_mode",
+    [
+        "auto",
+        "hf",
+        "slow",
+    ],
+)
+def test_gb10_vllm_config_allows_standard_tokenizer_runtime(
+    monkeypatch,
+    tokenizer_mode,
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        tokenizer_mode=tokenizer_mode,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
+def test_vllm_config_allows_specialized_tokenizer_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        tokenizer_mode="mistral",
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 def _noop_hf_overrides(config):
     return config
 

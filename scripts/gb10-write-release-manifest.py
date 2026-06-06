@@ -915,6 +915,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness and runtime evidence exists."
                 ),
             },
+            "specialized_tokenizer_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Specialized tokenizer modes can load Mistral, DeepSeek, "
+                    "Grok, Kimi, Qwen-VL, TerraTorch, or custom tokenizer code "
+                    "outside the validated GB10 first release serving path. "
+                    "They must reject until native SM12x specialized tokenizer "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "transformers_model_impl_runtime": {
                 "status": "not_supported",
                 "release_contract": (

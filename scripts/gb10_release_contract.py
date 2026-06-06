@@ -112,6 +112,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "io_processor_plugin_runtime": "not_supported",
     "hf_config_path_runtime": "not_supported",
     "hf_overrides_runtime": "not_supported",
+    "specialized_tokenizer_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
     "custom_scheduler_runtime": "not_supported",
@@ -500,6 +501,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "native vLLM model/backend selection outside the validated GB10 first "
         "release serving path; reject --hf-overrides until native SM12x HF "
         "config override correctness and runtime evidence exists."
+    ),
+    "specialized_tokenizer_runtime": (
+        "Specialized tokenizer modes can load Mistral, DeepSeek, Grok, Kimi, "
+        "Qwen-VL, TerraTorch, or custom tokenizer code outside the validated "
+        "GB10 first release serving path; reject tokenizer modes outside auto, "
+        "hf, and slow until native SM12x specialized tokenizer correctness and "
+        "runtime evidence exists."
     ),
     "transformers_model_impl_runtime": (
         "Transformers model implementation runtime bypasses native vLLM model "
