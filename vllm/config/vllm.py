@@ -237,6 +237,7 @@ _GB10_CUSTOM_WORKER_RUNTIME_MESSAGE = (
     "release. Use the default worker classes on GB10 until native SM12x custom "
     "worker correctness and runtime evidence exists."
 )
+_GB10_DEFAULT_WORKER_CLASS = "vllm.v1.worker.gpu_worker.Worker"
 _GB10_KV_SHARING_FAST_PREFILL_RUNTIME_MESSAGE = (
     "KV sharing fast prefill runtime is not supported on GB10/SM12x in this "
     "fork: this WIP path overrides attention metadata and logits indexing for "
@@ -457,7 +458,7 @@ def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
 
 def _uses_custom_worker_runtime(parallel_config: ParallelConfig) -> bool:
     return (
-        parallel_config.worker_cls != "auto"
+        parallel_config.worker_cls not in ("auto", _GB10_DEFAULT_WORKER_CLASS)
         or parallel_config.sd_worker_cls != "auto"
         or bool(parallel_config.worker_extension_cls)
     )
