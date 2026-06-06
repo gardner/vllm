@@ -31,12 +31,12 @@ on:
       model:
         description: "NVFP4 model id/path used for offline and server smoke"
         required: true
-        default: "nvidia/Qwen3.6-35B-A3B-NVFP4"
+        default: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4"
         type: string
       served-model-name:
         description: "Served model name used by the OpenAI-compatible smoke"
         required: true
-        default: "qwen3.6"
+        default: "nemotron3.nano"
         type: string
       max-model-len:
         description: "Max model length for the smoke run"
@@ -129,6 +129,7 @@ jobs:
       GB10_OPENAI_ENDPOINT: ${{ inputs['openai-endpoint'] }}
       GB10_OPENAI_MAX_TOKENS: ${{ inputs['openai-max-tokens'] }}
       GB10_OPENAI_REPEAT_COUNT: ${{ inputs['openai-repeat-count'] }}
+      GB10_GPU_MEMORY_UTILIZATION: 0.88
       GB10_EXTRA_OFFLINE_ARGS: ${{ inputs['extra-offline-args'] }}
       GB10_EXTRA_SERVE_ARGS: ${{ inputs['extra-serve-args'] }}
       GB10_EXTRA_OPENAI_ARGS: ${{ inputs['extra-openai-args'] }}
@@ -702,13 +703,14 @@ jobs:
             --model "$GB10_MODEL"
             --trust-remote-code
             --max-model-len "$GB10_MAX_MODEL_LEN"
+            --attention-backend flashinfer
             --gb10-require-path linear
             --gb10-expect-backend linear=FlashInferB12x
           )
           if [ "$GB10_REQUIRE_MOE" = "true" ]; then
             offline_args+=(
               --gb10-require-path moe
-              --gb10-expect-backend moe=FLASHINFER_B12X
+              --gb10-expect-backend moe=FLASHINFER_CUTLASS
             )
           fi
           append_extra_args "$GB10_EXTRA_OFFLINE_ARGS" offline_args

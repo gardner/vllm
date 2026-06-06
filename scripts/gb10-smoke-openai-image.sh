@@ -26,6 +26,9 @@ Useful environment:
                                     (default: gb10-openai-smoke-$$)
   GB10_OPENAI_IMAGE_CACHE_DIR       Host cache dir mounted as /root/.cache
                                     (default: ~/.cache)
+  GB10_GPU_MEMORY_UTILIZATION       Default vLLM gpu-memory-utilization
+                                    for the temporary server and offline
+                                    smoke harness (default: 0.88)
   GB10_OPENAI_IMAGE_REPORT_DIR      Host report dir
                                     (default: ./gb10-smoke-reports)
   GB10_OPENAI_IMAGE_SHM_SIZE        Docker --shm-size value (default: 16g)
@@ -41,12 +44,13 @@ Default smoke report:
   ${GB10_OPENAI_IMAGE_REPORT_DIR:-./gb10-smoke-reports}/gb10-openai-server-smoke-image.json
 
 Examples:
-  scripts/gb10-smoke-openai-image.sh ghcr.io/gardner/vllm-gb10:tag \
-    --serve nvidia/Qwen3.6-35B-A3B-NVFP4 \
-      --served-model-name qwen3.6 --trust-remote-code \
+  GB10_GPU_MEMORY_UTILIZATION=0.88 \
+    scripts/gb10-smoke-openai-image.sh ghcr.io/gardner/vllm-gb10:tag \
+    --serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4 \
+      --served-model-name nemotron3.nano --trust-remote-code \
       --quantization modelopt --attention-backend flashinfer \
       --kv-cache-dtype fp8 --max-model-len 4096 \
-    --smoke --model qwen3.6 --gb10-endpoint chat \
+    --smoke --model nemotron3.nano --gb10-endpoint chat \
       --gb10-repeat-count 2 --gb10-require-deterministic
 EOF
 }
@@ -135,6 +139,7 @@ container_port="${GB10_OPENAI_IMAGE_CONTAINER_PORT:-8000}"
 container_name="${GB10_OPENAI_IMAGE_NAME:-gb10-openai-smoke-$$}"
 cache_dir="${GB10_OPENAI_IMAGE_CACHE_DIR:-$HOME/.cache}"
 report_dir="${GB10_OPENAI_IMAGE_REPORT_DIR:-$PWD/gb10-smoke-reports}"
+hf_cache_dir="$cache_dir/huggingface"
 wait_seconds="${GB10_OPENAI_IMAGE_WAIT_SECONDS:-900}"
 wait_interval="${GB10_OPENAI_IMAGE_WAIT_INTERVAL:-5}"
 base_url="http://127.0.0.1:${host_port}"
@@ -142,6 +147,8 @@ default_report_path="$report_dir/gb10-openai-server-smoke-image.json"
 
 mkdir -p "$cache_dir"
 mkdir -p "$report_dir"
+mkdir -p "$hf_cache_dir"
+hf_cache_dir="$(cd "$hf_cache_dir" && pwd -P)"
 
 if ! has_arg --host "${serve_args[@]}"; then
     serve_args+=(--host 0.0.0.0)
@@ -163,6 +170,10 @@ if ! has_arg --gb10-require-deterministic "${smoke_args[@]}" \
     && [ "${GB10_OPENAI_IMAGE_REQUIRE_DETERMINISTIC:-1}" = "1" ]; then
     smoke_args+=(--gb10-require-deterministic)
 fi
+if [ -n "${GB10_GPU_MEMORY_UTILIZATION:-}" ] \
+    && ! has_arg --gpu-memory-utilization "${serve_args[@]}"; then
+    serve_args+=(--gpu-memory-utilization "$GB10_GPU_MEMORY_UTILIZATION")
+fi
 
 docker_args=(
     run
@@ -174,9 +185,9 @@ docker_args=(
     --publish "127.0.0.1:${host_port}:${container_port}"
     -e VLLM_FAIL_ON_NVFP4_FALLBACK=1
     -e VLLM_NO_USAGE_STATS=1
-    -e HF_HOME=/root/.cache/huggingface
-    -e TRANSFORMERS_CACHE=/root/.cache/huggingface
-    -v "$cache_dir:/root/.cache"
+    -e HF_HOME=/root/.cache
+    -e TRANSFORMERS_CACHE=/root/.cache
+    -v "$hf_cache_dir:/root/.cache"
 )
 
 if [ -n "${HF_TOKEN:-}" ]; then

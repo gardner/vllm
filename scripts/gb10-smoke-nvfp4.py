@@ -120,7 +120,7 @@ def _build_parser(engine_args_cls: Any) -> argparse.ArgumentParser:
         metavar="PATH=BACKEND_SUBSTRING",
         help=(
             "Require a selected backend for PATH to contain BACKEND_SUBSTRING, "
-            "for example linear=FlashInferB12x or moe=FLASHINFER_B12X."
+            "for example linear=FlashInferB12x or moe=FLASHINFER_CUTLASS."
         ),
     )
     parser.add_argument(
@@ -150,6 +150,9 @@ def _build_parser(engine_args_cls: Any) -> argparse.ArgumentParser:
         quantization="modelopt_fp4",
         kv_cache_dtype="fp8_e4m3",
         enable_prefix_caching=False,
+        gpu_memory_utilization=float(
+            os.environ.get("GB10_GPU_MEMORY_UTILIZATION", "0.88")
+        ),
     )
     return parser
 

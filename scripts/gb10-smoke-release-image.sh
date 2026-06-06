@@ -72,17 +72,19 @@ Default reports:
   Evidence bundle assets listed by scripts/gb10-list-evidence-release-assets.py.
 
 Example:
-  GB10_NVFP4_MODEL=nvidia/Qwen3.6-35B-A3B-NVFP4 \
+  GB10_GPU_MEMORY_UTILIZATION=0.88 \
+  GB10_NVFP4_MODEL=nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4 \
     scripts/gb10-smoke-release-image.sh ghcr.io/gardner/vllm-gb10:tag \
-      --offline --trust-remote-code --max-model-len 4096 \
+      --offline --trust-remote-code --attention-backend flashinfer \
+        --max-model-len 4096 \
         --gb10-require-path linear --gb10-require-path moe \
         --gb10-expect-backend linear=FlashInferB12x \
-        --gb10-expect-backend moe=FLASHINFER_B12X \
-      --serve nvidia/Qwen3.6-35B-A3B-NVFP4 \
-        --served-model-name qwen3.6 --trust-remote-code \
+        --gb10-expect-backend moe=FLASHINFER_CUTLASS \
+      --serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4 \
+        --served-model-name nemotron3.nano --trust-remote-code \
         --quantization modelopt --attention-backend flashinfer \
         --kv-cache-dtype fp8 --max-model-len 4096 \
-      --openai --model qwen3.6 --gb10-endpoint chat
+      --openai --model nemotron3.nano --gb10-endpoint chat
 EOF
 }
 

@@ -1957,6 +1957,7 @@ def test_gb10_github_artifact_names_share_contract():
         in gb10_workflow
     )
     assert "name: ${{ env.GB10_RELEASE_INPUTS_ARTIFACT_NAME }}" in gb10_workflow
+    assert "GB10_GPU_MEMORY_UTILIZATION: 0.88" in smoke_workflow
     assert (
         "GB10_RELEASE_MANIFEST_ARTIFACT_NAME: "
         f"{contract.GITHUB_RELEASE_MANIFEST_ARTIFACT_NAME}"
@@ -3655,12 +3656,17 @@ def test_gb10_image_smoke_workflow_publishes_durable_evidence():
     assert "scripts/gb10-smoke-release-image.sh \"$GB10_IMAGE_REF\"" in (
         smoke_workflow
     )
+    offline_args_block = smoke_workflow[
+        smoke_workflow.index("offline_args=(") : smoke_workflow.index(
+            "serve_args=("
+        )
+    ]
     assert "--gb10-require-path linear" in smoke_workflow
     assert "--gb10-expect-backend linear=FlashInferB12x" in smoke_workflow
     assert "--gb10-require-path moe" in smoke_workflow
-    assert "--gb10-expect-backend moe=FLASHINFER_B12X" in smoke_workflow
+    assert "--gb10-expect-backend moe=FLASHINFER_CUTLASS" in smoke_workflow
     assert "--quantization modelopt" in smoke_workflow
-    assert "--attention-backend flashinfer" in smoke_workflow
+    assert "--attention-backend flashinfer" in offline_args_block
     assert "--kv-cache-dtype fp8" in smoke_workflow
     assert "GB10_RELEASE_SMOKE_REPORT_DIR" in smoke_workflow
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in smoke_workflow
@@ -9894,6 +9900,9 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert 'os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")' in script
     assert "FLASHINFER_DISABLE_JIT" in script
     assert 'os.environ.setdefault("FLASHINFER_DISABLE_JIT", "1")' in script
+    assert "GB10_GPU_MEMORY_UTILIZATION" in script
+    assert "gpu_memory_utilization=float(" in script
+    assert 'os.environ.get("GB10_GPU_MEMORY_UTILIZATION", "0.88")' in script
     assert "GB10_NVFP4_MODEL" in script
     assert 'parser.error("--model or GB10_NVFP4_MODEL is required")' in script
 
@@ -9955,8 +9964,26 @@ def test_gb10_nvfp4_model_smoke_asserts_native_backend_selection():
     assert 'status="failed"' in script
     assert "except Exception as exc:" in script
     assert "linear=FlashInferB12x" in script
-    assert "moe=FLASHINFER_B12X" in script
+    assert "moe=FLASHINFER_CUTLASS" in script
     assert 'choices=("linear", "linear_w4a16", "moe")' in script
+
+
+def test_gb10_nvfp4_model_smoke_sets_lower_gpu_memory_utilization_default():
+    smoke = _load_gb10_smoke_module()
+
+    class FakeEngineArgs:
+        @staticmethod
+        def add_cli_args(parser):
+            parser.add_argument(
+                "--gpu-memory-utilization",
+                type=float,
+                default=0.9,
+            )
+            return parser
+
+    parser = smoke._build_parser(FakeEngineArgs)
+
+    assert parser.get_default("gpu_memory_utilization") == 0.88
 
 
 def test_gb10_nvfp4_model_smoke_collects_flashinfer_distribution_versions(
@@ -10114,7 +10141,7 @@ def test_gb10_nvfp4_model_smoke_builds_release_summary(monkeypatch):
             backend="FlashInferB12xNvFp4LinearKernel",
             is_fallback=False,
         ),
-        SimpleNamespace(path="moe", backend="FLASHINFER_B12X", is_fallback=False),
+        SimpleNamespace(path="moe", backend="FLASHINFER_CUTLASS", is_fallback=False),
     )
     vllm_config_summary = {
         "model": {
@@ -10310,10 +10337,18 @@ def test_gb10_image_smoke_wraps_nvfp4_model_harness():
     assert 'GB10_SMOKE_SHM_SIZE:-16g' in script
     assert "GB10_SMOKE_CACHE_DIR" in script
     assert "GB10_SMOKE_REPORT_DIR" in script
-    assert "-v \"$cache_dir:/root/.cache\"" in script
+    assert "GB10_GPU_MEMORY_UTILIZATION" in script
+    assert "hf_cache_dir=\"$cache_dir/huggingface\"" in script
+    assert 'mkdir -p "$hf_cache_dir"' in script
+    assert "HF_HOME=/root/.cache" in script
+    assert "TRANSFORMERS_CACHE=/root/.cache" in script
+    assert '-e "GB10_GPU_MEMORY_UTILIZATION=$GB10_GPU_MEMORY_UTILIZATION"' in script
+    assert "-v \"$hf_cache_dir:/root/.cache\"" in script
     assert "-v \"$report_dir:/gb10-smoke-reports\"" in script
     assert "--gb10-report-json" in script
     assert "/gb10-smoke-reports/gb10-nvfp4-smoke.json" in script
+    assert "gb10_release_contract.py" in script
+    assert "/tmp/gb10_release_contract.py:ro" in script
     assert "VLLM_FAIL_ON_NVFP4_FALLBACK=1" in script
     assert "VLLM_ENABLE_V1_MULTIPROCESSING=0" in script
     assert "VLLM_NO_USAGE_STATS=1" in script
@@ -10321,7 +10356,8 @@ def test_gb10_image_smoke_wraps_nvfp4_model_harness():
     assert "GB10_SMOKE_EXTRA_DOCKER_ARGS" in script
     assert "HF_TOKEN" in script
     assert "HUGGING_FACE_HUB_TOKEN" in script
-    assert 'python3 /tmp/gb10-smoke-nvfp4.py "$@"' in script
+    assert "--entrypoint python3" in script
+    assert '/tmp/gb10-smoke-nvfp4.py "$@"' in script
 
 
 def test_gb10_openai_image_smoke_wraps_server_harness():
@@ -10346,10 +10382,16 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
     assert "VLLM_NO_USAGE_STATS=1" in script
     assert "GB10_OPENAI_IMAGE_CACHE_DIR" in script
     assert "GB10_OPENAI_IMAGE_REPORT_DIR" in script
+    assert "GB10_GPU_MEMORY_UTILIZATION" in script
+    assert "hf_cache_dir=\"$cache_dir/huggingface\"" in script
+    assert 'mkdir -p "$hf_cache_dir"' in script
     assert "GB10_OPENAI_IMAGE_ENV_FILE" in script
     assert "GB10_OPENAI_IMAGE_EXTRA_DOCKER_ARGS" in script
     assert "FLASHINFER_DISABLE_JIT" in script
     assert "-e FLASHINFER_DISABLE_JIT=1" in script
+    assert "HF_HOME=/root/.cache" in script
+    assert "TRANSFORMERS_CACHE=/root/.cache" in script
+    assert "-v \"$hf_cache_dir:/root/.cache\"" in script
     assert "HF_TOKEN" in script
     assert "HUGGING_FACE_HUB_TOKEN" in script
     assert "gb10-openai-server-smoke-image.json" in script
@@ -10358,6 +10400,7 @@ def test_gb10_openai_image_smoke_wraps_server_harness():
     assert "--gb10-repeat-count" in script
     assert "--gb10-require-deterministic" in script
     assert "GB10_OPENAI_IMAGE_REQUIRE_DETERMINISTIC" in script
+    assert '--gpu-memory-utilization "$GB10_GPU_MEMORY_UTILIZATION"' in script
     assert 'FLASHINFER_DISABLE_JIT=1 python3 "$smoke_script" "${smoke_args[@]}"' in script
     assert 'python3 "$smoke_script" "${smoke_args[@]}"' in script
 
@@ -10382,6 +10425,11 @@ def test_gb10_release_image_smoke_orchestrates_final_reports():
     assert "GB10_RELEASE_REQUIRE_OPENAI_DETERMINISTIC" in script
     assert "GB10_RELEASE_EVIDENCE_OUTPUT_DIR" in script
     assert "GB10_RELEASE_BUNDLE_ALLOW_PARTIAL" in script
+    assert "GB10_GPU_MEMORY_UTILIZATION=0.88" in script
+    assert (
+        "--offline --trust-remote-code --attention-backend flashinfer"
+        in script
+    )
     assert "GB10_RELEASE_MANIFEST_JSON" in script
     assert "GB10_RUNTIME_IMAGE_METADATA_JSON" in script
     assert "GB10_IMAGE_DIGEST" in script
@@ -10500,7 +10548,7 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
             "GB10_RELEASE_SMOKE_REPORT_DIR": str(report_dir),
             "GB10_RELEASE_EVIDENCE_OUTPUT_DIR": str(output_dir),
             "GB10_RELEASE_EVIDENCE_BUNDLE_NAME": bundle_name,
-            "GB10_NVFP4_MODEL": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            "GB10_NVFP4_MODEL": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
         }
     )
 
@@ -10509,7 +10557,7 @@ def test_gb10_release_image_smoke_guard_bundles_partial_evidence(tmp_path):
             str(script),
             image_ref,
             "--serve",
-            "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
         ],
         cwd=REPO_ROOT,
         env=env,
@@ -10593,7 +10641,7 @@ def test_gb10_release_image_smoke_rejects_release_tag_without_local_provenance(
             "GB10_RELEASE_EVIDENCE_OUTPUT_DIR": str(output_dir),
             "GB10_RELEASE_EVIDENCE_BUNDLE_NAME": bundle_name,
             "GB10_RELEASE_TAG": release_tag,
-            "GB10_NVFP4_MODEL": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            "GB10_NVFP4_MODEL": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
         }
     )
 
@@ -10602,7 +10650,7 @@ def test_gb10_release_image_smoke_rejects_release_tag_without_local_provenance(
             str(script),
             image_ref,
             "--serve",
-            "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
         ],
         cwd=REPO_ROOT,
         env=env,
@@ -10664,7 +10712,7 @@ def test_gb10_release_image_smoke_rejects_incomplete_local_provenance(tmp_path):
             "GB10_RELEASE_EVIDENCE_BUNDLE_NAME": bundle_name,
             "GB10_RELEASE_TAG": release_tag,
             "GB10_RELEASE_MANIFEST_JSON": str(manifest_path),
-            "GB10_NVFP4_MODEL": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            "GB10_NVFP4_MODEL": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
         }
     )
 
@@ -10673,7 +10721,7 @@ def test_gb10_release_image_smoke_rejects_incomplete_local_provenance(tmp_path):
             str(script),
             image_ref,
             "--serve",
-            "nvidia/Qwen3.6-35B-A3B-NVFP4",
+            "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
         ],
         cwd=REPO_ROOT,
         env=env,
@@ -11514,7 +11562,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
             },
             {
                 "path": "moe",
-                "backend": "FLASHINFER_B12X",
+                "backend": "FLASHINFER_CUTLASS",
                 "is_fallback": False,
             },
         ],
@@ -12675,8 +12723,8 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "status": "passed",
         "models": {
             "selected": {
-                "id": "qwen3.6",
-                "root": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+                "id": "nemotron3.nano",
+                "root": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4",
             }
         },
         "response": {
