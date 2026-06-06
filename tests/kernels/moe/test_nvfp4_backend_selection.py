@@ -150,6 +150,26 @@ def test_gb10_swiglu_limit_nvfp4_moe_skips_trtllm_gen_for_cutlass(monkeypatch):
     assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
 
 
+def test_gb10_swiglu_limit_nvfp4_moe_skips_b12x_for_cutlass(monkeypatch):
+    _mock_sm12x_platform(monkeypatch)
+    kernel_by_backend = _mock_backend_support(
+        monkeypatch,
+        {
+            NvFp4MoeBackend.FLASHINFER_B12X,
+            NvFp4MoeBackend.FLASHINFER_CUTLASS,
+        },
+    )
+
+    backend, experts_cls = select_nvfp4_moe_backend(
+        _make_nvfp4_moe_config(swiglu_limit=7.0),
+        weight_key=kNvfp4Static,
+        activation_key=kNvfp4Dynamic,
+    )
+
+    assert backend == NvFp4MoeBackend.FLASHINFER_CUTLASS
+    assert experts_cls is kernel_by_backend[NvFp4MoeBackend.FLASHINFER_CUTLASS]
+
+
 def test_gb10_auto_nvfp4_moe_skips_cutedsl_for_cutlass(monkeypatch):
     _mock_sm12x_platform(monkeypatch)
     kernel_by_backend = _mock_backend_support(
