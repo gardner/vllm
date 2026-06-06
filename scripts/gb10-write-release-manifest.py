@@ -894,6 +894,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "exists."
                 ),
             },
+            "hf_config_path_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Alternate HF config paths decouple the Hugging Face "
+                    "configuration source from the model path before native "
+                    "vLLM model/backend selection outside the validated GB10 "
+                    "first release serving path. They must reject until native "
+                    "SM12x HF config path correctness and runtime evidence "
+                    "exists."
+                ),
+            },
             "hf_overrides_runtime": {
                 "status": "not_supported",
                 "release_contract": (

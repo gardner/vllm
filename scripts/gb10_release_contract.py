@@ -110,6 +110,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
+    "hf_config_path_runtime": "not_supported",
     "hf_overrides_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
@@ -486,6 +487,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "startup outside the validated GB10 first release serving path; reject "
         "--io-processor-plugin until native SM12x IO processor plugin "
         "correctness and runtime evidence exists."
+    ),
+    "hf_config_path_runtime": (
+        "Alternate HF config paths decouple the Hugging Face configuration "
+        "source from the model path before native vLLM model/backend selection "
+        "outside the validated GB10 first release serving path; reject "
+        "--hf-config-path until native SM12x HF config path correctness and "
+        "runtime evidence exists."
     ),
     "hf_overrides_runtime": (
         "HF config overrides mutate Hugging Face model configuration before "

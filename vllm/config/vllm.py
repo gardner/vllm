@@ -223,6 +223,14 @@ _GB10_HF_OVERRIDES_RUNTIME_MESSAGE = (
     "on GB10 until native SM12x HF config override correctness and runtime "
     "evidence exists."
 )
+_GB10_HF_CONFIG_PATH_RUNTIME_MESSAGE = (
+    "HF config path runtime is not supported on GB10/SM12x in this fork: "
+    "--hf-config-path and direct model_config.hf_config_path decouple the "
+    "Hugging Face model configuration source from the model path before native "
+    "vLLM model and backend selection outside the validated native first-path "
+    "NVFP4 serving release. Disable alternate HF config paths on GB10 until "
+    "native SM12x HF config path correctness and runtime evidence exists."
+)
 _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "Transformers model implementation runtime is not supported on GB10/SM12x "
     "in this fork: --model-impl transformers and auto-resolved "
@@ -1173,6 +1181,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_HF_OVERRIDES_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.hf_config_path
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_HF_CONFIG_PATH_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

@@ -650,6 +650,43 @@ def test_vllm_config_allows_io_processor_plugin_runtime_off_gb10(monkeypatch):
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_hf_config_path_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        hf_config_path="facebook/opt-125m",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="HF config path runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_vllm_config_allows_hf_config_path_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        hf_config_path="facebook/opt-125m",
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 def _noop_hf_overrides(config):
     return config
 

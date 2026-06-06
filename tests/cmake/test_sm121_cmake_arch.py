@@ -136,6 +136,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "io_processor_plugin_runtime": "not_supported",
+    "hf_config_path_runtime": "not_supported",
     "hf_overrides_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
@@ -2611,6 +2612,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["io_processor_plugin_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["hf_config_path_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["hf_overrides_runtime"]["status"] == (
@@ -9084,6 +9088,19 @@ def test_gb10_io_processor_plugin_runtime_is_reported():
     assert "--io-processor-plugin" in arg_utils
 
 
+def test_gb10_hf_config_path_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_HF_CONFIG_PATH_RUNTIME_MESSAGE" in vllm_config
+    assert "HF config path runtime is not supported on GB10/SM12x" in vllm_config
+    assert "--hf-config-path" in vllm_config
+    assert "model_config.hf_config_path" in vllm_config
+    assert "hf_config_path" in model_config
+    assert "--hf-config-path" in arg_utils
+
+
 def test_gb10_hf_overrides_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
     model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
@@ -11319,6 +11336,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "hf_config_path_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "alternate HF config paths lack native SM12x "
+                        "correctness evidence"
+                    ),
+                },
                 "hf_overrides_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12157,6 +12182,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
                 "io_processor_plugin_runtime": {"status": "not_supported"},
+                "hf_config_path_runtime": {"status": "not_supported"},
                 "hf_overrides_runtime": {"status": "not_supported"},
                 "transformers_model_impl_runtime": {"status": "not_supported"},
                 "trust_remote_code_runtime": {"status": "not_supported"},
@@ -12381,6 +12407,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "gguf_quantization",
         "gpt_oss_triton_mxfp4_moe",
         "gptq_quantization",
+        "hf_config_path_runtime",
         "hf_overrides_runtime",
         "humming_mxfp4_moe_backend",
         "humming_quantization",
