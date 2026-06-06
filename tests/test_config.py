@@ -27,6 +27,7 @@ from vllm.config import (
     KVTransferConfig,
     LoRAConfig,
     ModelConfig,
+    MultiModalConfig,
     OffloadConfig,
     ParallelConfig,
     PoolerConfig,
@@ -964,6 +965,58 @@ def test_vllm_config_allows_attention_dtype_override_runtime_off_gb10(
 
     assert config.model_config is model_config
     assert config.model_config.override_attention_dtype == "float16"
+
+
+def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    multimodal_config = MultiModalConfig(limit_per_prompt={"image": 1})
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        multimodal_config=multimodal_config,
+    )
+
+    with pytest.raises(ValueError, match="multimodal runtime.*GB10/SM12x"):
+        VllmConfig(model_config=model_config)
+
+
+def test_gb10_vllm_config_allows_text_only_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m")
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert config.model_config.multimodal_config is None
+
+
+def test_vllm_config_allows_multimodal_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    multimodal_config = MultiModalConfig(limit_per_prompt={"image": 1})
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        multimodal_config=multimodal_config,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+    assert config.model_config.multimodal_config is multimodal_config
 
 
 def test_gb10_vllm_config_rejects_fp64_gumbel_sampling_runtime(monkeypatch):

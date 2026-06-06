@@ -65,6 +65,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "attention_dtype_override_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
+    "multimodal_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
     "openai_tool_calling_runtime": "not_supported",
@@ -332,6 +333,14 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "embedding, classification, reward, and scoring APIs outside the "
         "validated GB10 first release serving path; reject it on GB10/SM12x "
         "until native SM12x pooling correctness and runtime evidence exists."
+    ),
+    "multimodal_runtime": (
+        "Multimodal runtime changes preprocessing, media input handling, "
+        "multimodal embeddings, MM processor caches, MM encoder-only/data-TP "
+        "paths, video pruning, MM tensor IPC, and model-runner behavior "
+        "outside the validated GB10 first release text serving path; reject it "
+        "on GB10/SM12x until native SM12x multimodal correctness and runtime "
+        "evidence exists."
     ),
     "reasoning_runtime": (
         "Reasoning runtime changes token parsing and output extraction outside "

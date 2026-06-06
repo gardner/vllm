@@ -81,6 +81,14 @@ _GB10_POOLING_RUNTIME_MESSAGE = (
     "models on GB10 until native SM12x pooling correctness and runtime "
     "evidence exists."
 )
+_GB10_MULTIMODAL_RUNTIME_MESSAGE = (
+    "multimodal runtime is not supported on GB10/SM12x in this fork: "
+    "model_config.multimodal_config, multimodal models, media inputs, "
+    "multimodal embeddings, MM processor caches, MM encoder-only/data-TP "
+    "paths, video pruning, and MM tensor IPC run outside the validated native "
+    "first-path NVFP4 text serving release. Use text-only generation on GB10 "
+    "until native SM12x multimodal correctness and runtime evidence exists."
+)
 _GB10_REASONING_RUNTIME_MESSAGE = (
     "reasoning runtime is not supported on GB10/SM12x in this fork: "
     "ReasoningConfig enables reasoning token parsing and output extraction "
@@ -1358,6 +1366,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.multimodal_config is not None
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_MULTIMODAL_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

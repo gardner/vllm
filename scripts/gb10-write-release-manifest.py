@@ -629,6 +629,18 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x LoRA correctness and runtime evidence exists."
                 ),
             },
+            "multimodal_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Multimodal runtime changes preprocessing, media input "
+                    "handling, multimodal embeddings, MM processor caches, MM "
+                    "encoder-only/data-TP paths, video pruning, MM tensor IPC, "
+                    "and model-runner behavior outside the validated GB10 first "
+                    "release text serving path. It must reject on GB10/SM12x "
+                    "until native SM12x multimodal correctness and runtime "
+                    "evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (
