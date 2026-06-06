@@ -5595,6 +5595,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "fp8.py"
     ).read_text()
+    marlin_moe = (
+        REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
+        "experts" / "marlin_moe.py"
+    ).read_text()
     int8_moe_oracle = (
         REPO_ROOT / "vllm" / "model_executor" / "layers" / "fused_moe" /
         "oracle" / "int8.py"
@@ -6001,6 +6005,10 @@ def test_gb10_nvfp4_linear_fallbacks_are_reported():
     assert "native GB10 Triton FP8 MoE" in fp8_moe_oracle
     assert "native GB10 vLLM CUTLASS FP8 MoE" in fp8_moe_oracle
     assert "not supported on GB10/SM12x" in fp8_moe_oracle
+    assert "_gb10_fp8_w8a16_moe_fallback_unsupported_reason" in marlin_moe
+    assert "FP8 W8A16 Marlin fallback is not supported on GB10/SM12x" in (
+        marlin_moe
+    )
     assert "_gb10_int8_moe_triton_unsupported_reason" in int8_moe_oracle
     assert "Int8 MoE Triton fallback backend" in int8_moe_oracle
     assert "not supported on GB10/SM12x" in int8_moe_oracle

@@ -54,6 +54,36 @@ from vllm.platforms import current_platform
 from vllm.scalar_type import ScalarType, scalar_types
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_fp8_w8a16_moe_fallback_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "FP8 W8A16 Marlin fallback is not supported on GB10/SM12x. "
+        "This path is not native GB10 FP8 W8A16 MoE evidence. Use a native "
+        "SM12x FP8 W8A16 MoE backend when it exists, or keep this path "
+        "unselected."
+    )
+
+
 def _fused_marlin_moe(
     hidden_states: torch.Tensor,
     w1: torch.Tensor,
@@ -562,6 +592,10 @@ class MarlinExpertsBase(mk.FusedMoEExpertsModular):
         w2_g_idx_sort_indices: torch.Tensor | None = None,
         is_k_full: bool = True,
     ):
+        if quant_config.use_fp8_w8a16 and (
+            reason := _gb10_fp8_w8a16_moe_fallback_unsupported_reason()
+        ):
+            raise ValueError(reason)
         # TODO (varun) : Enable activation quantization
         assert (
             quant_config.use_mxfp4_w4a16
