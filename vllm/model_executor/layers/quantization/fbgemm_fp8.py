@@ -128,6 +128,8 @@ class FBGEMMFp8Config(QuantizationConfig):
 
 class FBGEMMFp8LinearMethod(LinearMethodBase):
     def __init__(self, quant_config: FBGEMMFp8Config):
+        if reason := _gb10_fbgemm_fp8_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
         self.out_dtype = torch.get_default_dtype()
         self.input_dtype = get_current_vllm_config().model_config.dtype
