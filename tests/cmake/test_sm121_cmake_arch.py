@@ -134,6 +134,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
+    "transformers_model_impl_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
     "mamba_align_cache_runtime": "not_supported",
@@ -2600,6 +2601,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["custom_logits_processors_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["transformers_model_impl_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["prompt_embeds_runtime"]["status"] == (
@@ -9043,6 +9047,22 @@ def test_gb10_custom_logits_processors_runtime_is_reported():
     assert "native SM12x custom logits processor correctness" in vllm_config
 
 
+def test_gb10_transformers_model_impl_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE" in vllm_config
+    assert (
+        "Transformers model implementation runtime is not supported on GB10/SM12x"
+        in vllm_config
+    )
+    assert "--model-impl transformers" in vllm_config
+    assert 'model_config.model_impl == "transformers"' in vllm_config
+    assert "using_transformers_backend" in model_config
+    assert "--model-impl" in arg_utils
+
+
 def test_gb10_prompt_embeds_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11167,6 +11187,14 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "correctness evidence"
                     ),
                 },
+                "transformers_model_impl_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": (
+                        "Transformers model implementation runtime lacks "
+                        "native SM12x correctness evidence"
+                    ),
+                },
                 "prompt_embeds_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -11963,6 +11991,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "return_routed_experts_runtime": {"status": "not_supported"},
                 "logprobs_logits_runtime": {"status": "not_supported"},
                 "custom_logits_processors_runtime": {"status": "not_supported"},
+                "transformers_model_impl_runtime": {"status": "not_supported"},
                 "prompt_embeds_runtime": {"status": "not_supported"},
                 "stock_torch_compile_runtime": {"status": "not_supported"},
                 "mamba_align_cache_runtime": {"status": "not_supported"},
@@ -12240,6 +12269,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "tokenspeed_mla_cutedsl_fallback",
         "torchao_fp8_activation_quantization",
         "torchao_weight_quantization",
+        "transformers_model_impl_runtime",
         "triton_attention_fallback",
         "triton_fp8_moe",
         "triton_mamba_ssu_fallback",

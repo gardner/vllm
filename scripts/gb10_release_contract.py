@@ -108,6 +108,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "return_routed_experts_runtime": "not_supported",
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
+    "transformers_model_impl_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
     "mamba_align_cache_runtime": "not_supported",
@@ -467,6 +468,13 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Custom logits processor hooks mutate sampler logits outside the "
         "validated GB10 first release serving path; reject them until native "
         "SM12x custom logits processor correctness evidence exists."
+    ),
+    "transformers_model_impl_runtime": (
+        "Transformers model implementation runtime bypasses native vLLM model "
+        "implementations and can run generic Hugging Face module code outside "
+        "the validated GB10 first release serving path; reject explicit and "
+        "auto-resolved Transformers backend execution until native SM12x "
+        "Transformers backend correctness and runtime evidence exists."
     ),
     "prompt_embeds_runtime": (
         "Prompt embeds input handling changes request input batching and "

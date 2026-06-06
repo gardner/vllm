@@ -874,6 +874,17 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "processor correctness evidence exists."
                 ),
             },
+            "transformers_model_impl_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Transformers model implementation runtime bypasses "
+                    "native vLLM model implementations and can run generic "
+                    "Hugging Face module code outside the validated GB10 "
+                    "first release serving path. Explicit and auto-resolved "
+                    "Transformers backend execution must reject until native "
+                    "SM12x Transformers backend correctness evidence exists."
+                ),
+            },
             "prompt_embeds_runtime": {
                 "status": "not_supported",
                 "release_contract": (

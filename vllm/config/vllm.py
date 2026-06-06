@@ -191,6 +191,15 @@ _GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE = (
     "native SM12x custom logits processor correctness and runtime evidence "
     "exists."
 )
+_GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
+    "Transformers model implementation runtime is not supported on GB10/SM12x "
+    "in this fork: --model-impl transformers and auto-resolved "
+    "Transformers backend execution bypass native vLLM model implementations "
+    "and can run generic Hugging Face module code outside the validated "
+    "native first-path NVFP4 serving release. Use a native vLLM model "
+    "implementation on GB10 until native SM12x Transformers backend "
+    "correctness and runtime evidence exists."
+)
 _GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE = (
     "prompt embeds runtime is not supported on GB10/SM12x in this fork: "
     "--enable-prompt-embeds and direct model_config.enable_prompt_embeds "
@@ -228,6 +237,13 @@ def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
         parallel_config.world_size_across_dp > 1
         or parallel_config.nnodes > 1
         or parallel_config.distributed_executor_backend == "external_launcher"
+    )
+
+
+def _uses_transformers_model_impl_runtime(model_config: ModelConfig) -> bool:
+    return (
+        model_config.model_impl == "transformers"
+        or model_config.using_transformers_backend()
     )
 
 
@@ -1066,6 +1082,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_CUSTOM_LOGITS_PROCESSORS_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and _uses_transformers_model_impl_runtime(self.model_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None
