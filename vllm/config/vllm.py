@@ -200,6 +200,14 @@ _GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE = (
     "implementation on GB10 until native SM12x Transformers backend "
     "correctness and runtime evidence exists."
 )
+_GB10_TRUST_REMOTE_CODE_RUNTIME_MESSAGE = (
+    "trust remote code runtime is not supported on GB10/SM12x in this fork: "
+    "--trust-remote-code allows external Hugging Face model code to replace "
+    "or extend native vLLM model, tokenizer, and configuration behavior "
+    "outside the validated native first-path NVFP4 serving release. Disable "
+    "trust_remote_code on GB10 until native SM12x remote-code model "
+    "correctness and runtime evidence exists."
+)
 _GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE = (
     "prompt embeds runtime is not supported on GB10/SM12x in this fork: "
     "--enable-prompt-embeds and direct model_config.enable_prompt_embeds "
@@ -1089,6 +1097,13 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_TRANSFORMERS_MODEL_IMPL_RUNTIME_MESSAGE)
+
+        if (
+            self.model_config is not None
+            and self.model_config.trust_remote_code
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_TRUST_REMOTE_CODE_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None

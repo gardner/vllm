@@ -109,6 +109,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "logprobs_logits_runtime": "not_supported",
     "custom_logits_processors_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
+    "trust_remote_code_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
     "mamba_align_cache_runtime": "not_supported",
@@ -475,6 +476,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "the validated GB10 first release serving path; reject explicit and "
         "auto-resolved Transformers backend execution until native SM12x "
         "Transformers backend correctness and runtime evidence exists."
+    ),
+    "trust_remote_code_runtime": (
+        "Trusted remote model code can replace or extend native vLLM model, "
+        "tokenizer, and configuration behavior outside the validated GB10 "
+        "first release serving path; reject --trust-remote-code until native "
+        "SM12x remote-code model correctness and runtime evidence exists."
     ),
     "prompt_embeds_runtime": (
         "Prompt embeds input handling changes request input batching and "

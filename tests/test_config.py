@@ -643,6 +643,37 @@ def test_vllm_config_allows_transformers_model_impl_runtime_off_gb10(monkeypatch
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_trust_remote_code_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", trust_remote_code=True)
+
+    with pytest.raises(
+        ValueError,
+        match="trust remote code runtime.*GB10/SM12x",
+    ):
+        VllmConfig(model_config=model_config)
+
+
+def test_vllm_config_allows_trust_remote_code_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    model_config = ModelConfig("facebook/opt-125m", trust_remote_code=True)
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config is model_config
+
+
 def test_gb10_vllm_config_rejects_prompt_embeds_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

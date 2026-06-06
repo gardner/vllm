@@ -885,6 +885,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "SM12x Transformers backend correctness evidence exists."
                 ),
             },
+            "trust_remote_code_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Trusted remote model code can replace or extend native "
+                    "vLLM model, tokenizer, and configuration behavior "
+                    "outside the validated GB10 first release serving path. "
+                    "It must reject until native SM12x remote-code model "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "prompt_embeds_runtime": {
                 "status": "not_supported",
                 "release_contract": (
