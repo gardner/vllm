@@ -9439,6 +9439,7 @@ def test_gb10_distributed_parallel_runtime_is_reported():
     )
     assert "data parallel, tensor parallel, pipeline parallel" in vllm_config
     assert "context parallel" in vllm_config
+    assert "elastic EP" in vllm_config
     assert "external launcher" in vllm_config
     assert "world_size_across_dp > 1" in vllm_config
     assert "distributed_executor_backend == \"external_launcher\"" in vllm_config

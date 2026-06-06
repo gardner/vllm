@@ -555,9 +555,9 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
     ),
     "distributed_parallel_runtime": (
         "Data parallel, tensor parallel, pipeline parallel, context parallel, "
-        "multi-node multiprocessing, and external launcher process topologies "
-        "are outside the validated GB10 first release path; reject them until "
-        "native SM12x distributed correctness evidence exists."
+        "elastic EP, multi-node multiprocessing, and external launcher process "
+        "topologies are outside the validated GB10 first release path; reject "
+        "them until native SM12x distributed correctness evidence exists."
     ),
     "kv_sharing_fast_prefill_runtime": (
         "KV sharing fast prefill overrides attention metadata and logits "

@@ -73,6 +73,9 @@ def test_gb10_parallel_config_rejects_deferred_ep_all2all_eplb(
     with pytest.raises(ValueError, match=error):
         ParallelConfig(enable_eplb=True)
 
+    with pytest.raises(ValueError, match=error):
+        ParallelConfig(enable_elastic_ep=True)
+
     first_path_config = ParallelConfig()
     assert not first_path_config.enable_expert_parallel
     assert not first_path_config.enable_eplb

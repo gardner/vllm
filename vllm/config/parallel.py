@@ -797,6 +797,9 @@ class ParallelConfig:
             logger.info("Using external launcher for distributed inference.")
             self.world_size *= self.data_parallel_size
 
+        if _is_sm12x_platform() and self.enable_elastic_ep:
+            raise ValueError(_GB10_DEFERRED_EP_MESSAGE)
+
         if self.enable_elastic_ep:
             if not self.enable_eplb:
                 raise ValueError("Elastic EP is only supported with enable_eplb=True.")

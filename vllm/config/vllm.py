@@ -224,10 +224,10 @@ _GB10_ASYNC_SCHEDULING_RUNTIME_MESSAGE = (
 _GB10_DISTRIBUTED_PARALLEL_RUNTIME_MESSAGE = (
     "distributed parallel runtime is not supported on GB10/SM12x in this fork: "
     "data parallel, tensor parallel, pipeline parallel, context parallel, "
-    "multi-node multiprocessing, and external launcher process topologies are "
-    "outside the validated native first-path NVFP4 release. Use a single local "
-    "GB10 worker for this release until native SM12x distributed correctness "
-    "and runtime evidence exists."
+    "elastic EP, multi-node multiprocessing, and external launcher process "
+    "topologies are outside the validated native first-path NVFP4 release. "
+    "Use a single local GB10 worker for this release until native SM12x "
+    "distributed correctness and runtime evidence exists."
 )
 _GB10_CUSTOM_WORKER_RUNTIME_MESSAGE = (
     "custom worker runtime is not supported on GB10/SM12x in this fork: "
