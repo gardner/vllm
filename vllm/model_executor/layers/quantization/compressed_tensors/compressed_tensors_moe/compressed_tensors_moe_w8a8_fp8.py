@@ -26,8 +26,9 @@ from vllm.model_executor.layers.fused_moe.oracle.fp8 import (
     make_fp8_moe_quant_config,
     select_fp8_moe_backend,
 )
-from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe import (  # noqa E501
+from vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe.compressed_tensors_moe import (  # noqa E501
     CompressedTensorsMoEMethod,
+    _gb10_w8a8_fp8_moe_loading_unsupported_reason,
 )
 from vllm.model_executor.layers.quantization.utils.fp8_utils import (
     process_fp8_input_tensor_strategy_moe,
@@ -59,6 +60,9 @@ class CompressedTensorsW8A8Fp8MoEMethod(CompressedTensorsMoEMethod):
         moe: FusedMoEConfig,
         layer_name: str | None = None,
     ):
+        unsupported_reason = _gb10_w8a8_fp8_moe_loading_unsupported_reason()
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
         super().__init__(moe)
         self.weight_quant = weight_quant
         self.input_quant = input_quant
