@@ -61,6 +61,31 @@ def _make_mxfp8_fallbacks_supported(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "kernel_cls, reason_fragment",
+    [
+        (
+            linear_kernels.MarlinMxfp8LinearKernel,
+            "Marlin MXFP8 dense fallback",
+        ),
+        (
+            linear_kernels.EmulationMxfp8LinearKernel,
+            "MXFP8 emulation fallback",
+        ),
+    ],
+)
+def test_sm12x_mxfp8_fallback_kernels_report_unsupported(
+    kernel_cls,
+    reason_fragment: str,
+) -> None:
+    supported, reason = kernel_cls.is_supported(compute_capability=121)
+
+    assert not supported
+    assert reason is not None
+    assert "GB10/SM12x" in reason
+    assert reason_fragment in reason
+
+
 @pytest.mark.parametrize("backend", ["marlin", "emulation"])
 def test_sm12x_linear_backend_mxfp8_dense_fallback_fails_fast(
     monkeypatch: pytest.MonkeyPatch,

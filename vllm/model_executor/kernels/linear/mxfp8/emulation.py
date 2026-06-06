@@ -9,6 +9,7 @@ from vllm.model_executor.layers.quantization.utils.mxfp8_utils import (
     MXFP8_SCALE_DTYPE,
     dequant_mxfp8_to_bf16,
 )
+from vllm.platforms import current_platform
 
 from .Mxfp8LinearKernel import Mxfp8LinearKernel, Mxfp8LinearLayerConfig
 
@@ -20,6 +21,18 @@ class EmulationMxfp8LinearKernel(Mxfp8LinearKernel):
     def is_supported(
         cls, compute_capability: int | None = None
     ) -> tuple[bool, str | None]:
+        if compute_capability is None:
+            is_sm12x = current_platform.is_device_capability_family(120)
+        else:
+            is_sm12x = compute_capability // 10 == 12
+        if is_sm12x:
+            return (
+                False,
+                "MXFP8 emulation fallback is not supported on GB10/SM12x; "
+                "use FlashInfer CUTLASS native MXFP8 dense support after "
+                "correctness evidence is available, or keep the path "
+                "unselected.",
+            )
         return True, None
 
     @classmethod
