@@ -113,6 +113,15 @@ _GB10_PERFORMANCE_MODE_RUNTIME_MESSAGE = (
     "performance mode on GB10 until native SM12x performance-mode correctness "
     "and runtime evidence exists."
 )
+_GB10_OBSERVABILITY_RUNTIME_MESSAGE = (
+    "observability runtime is not supported on GB10/SM12x in this fork: "
+    "hidden metrics, OpenTelemetry traces, detailed trace collection, "
+    "KV-cache metrics, CUDA graph metrics, layerwise NVTX tracing, MFU "
+    "metrics, multimodal processor stats, and iteration-detail logging add "
+    "runtime instrumentation outside the validated native first-path NVFP4 "
+    "serving release. Use the default observability configuration on GB10 "
+    "until native SM12x observability correctness and runtime evidence exists."
+)
 _GB10_REASONING_RUNTIME_MESSAGE = (
     "reasoning runtime is not supported on GB10/SM12x in this fork: "
     "ReasoningConfig enables reasoning token parsing and output extraction "
@@ -509,6 +518,22 @@ def _uses_profiler_runtime(profiler_config: ProfilerConfig) -> bool:
 
 def _uses_performance_mode_runtime(performance_mode: str) -> bool:
     return performance_mode != "balanced"
+
+
+def _uses_observability_runtime(
+    observability_config: ObservabilityConfig,
+) -> bool:
+    return (
+        observability_config.show_hidden_metrics_for_version is not None
+        or observability_config.otlp_traces_endpoint is not None
+        or observability_config.collect_detailed_traces is not None
+        or observability_config.kv_cache_metrics
+        or observability_config.cudagraph_metrics
+        or observability_config.enable_layerwise_nvtx_tracing
+        or observability_config.enable_mfu_metrics
+        or observability_config.enable_mm_processor_stats
+        or observability_config.enable_logging_iteration_details
+    )
 
 
 _GB10_BASIC_MODEL_LOAD_FORMATS = frozenset(
@@ -1311,6 +1336,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_PROFILER_RUNTIME_MESSAGE)
+
+        if (
+            _uses_observability_runtime(self.observability_config)
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_OBSERVABILITY_RUNTIME_MESSAGE)
 
         if (
             self.cache_config.kv_offloading_size is not None

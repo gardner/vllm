@@ -28,6 +28,7 @@ from vllm.config import (
     LoRAConfig,
     ModelConfig,
     MultiModalConfig,
+    ObservabilityConfig,
     OffloadConfig,
     ParallelConfig,
     PoolerConfig,
@@ -1147,6 +1148,74 @@ def test_gb10_vllm_config_allows_default_performance_mode_runtime(monkeypatch):
     config = VllmConfig(performance_mode="balanced")
 
     assert config.performance_mode == "balanced"
+
+
+@pytest.mark.parametrize(
+    "observability_config_kwargs",
+    [
+        {"show_hidden_metrics_for_version": "0.7"},
+        {"kv_cache_metrics": True},
+        {"cudagraph_metrics": True},
+        {"enable_layerwise_nvtx_tracing": True},
+        {"enable_mfu_metrics": True},
+        {"enable_logging_iteration_details": True},
+    ],
+)
+def test_gb10_vllm_config_rejects_observability_runtime(
+    monkeypatch, observability_config_kwargs
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    observability_config = ObservabilityConfig(**observability_config_kwargs)
+
+    with pytest.raises(ValueError, match="observability runtime.*GB10/SM12x"):
+        VllmConfig(observability_config=observability_config)
+
+
+@pytest.mark.parametrize(
+    "observability_config_kwargs",
+    [
+        {"show_hidden_metrics_for_version": "0.7"},
+        {"kv_cache_metrics": True},
+        {"cudagraph_metrics": True},
+        {"enable_layerwise_nvtx_tracing": True},
+        {"enable_mfu_metrics": True},
+        {"enable_logging_iteration_details": True},
+    ],
+)
+def test_vllm_config_allows_observability_runtime_off_gb10(
+    monkeypatch, observability_config_kwargs
+):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    observability_config = ObservabilityConfig(**observability_config_kwargs)
+
+    config = VllmConfig(observability_config=observability_config)
+
+    assert config.observability_config is observability_config
+
+
+def test_gb10_vllm_config_allows_default_observability_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    config = VllmConfig()
+
+    assert config.observability_config == ObservabilityConfig()
 
 
 def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):

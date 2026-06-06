@@ -69,6 +69,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "generation_config_runtime": "not_supported",
     "profiler_runtime": "not_supported",
     "performance_mode_runtime": "not_supported",
+    "observability_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
     "openai_tool_calling_runtime": "not_supported",
@@ -363,6 +364,14 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "outside the validated GB10 first release serving path; reject them "
         "on GB10/SM12x until native SM12x performance-mode correctness and "
         "runtime evidence exists."
+    ),
+    "observability_runtime": (
+        "Observability runtime adds hidden metrics, OpenTelemetry traces, "
+        "detailed trace collection, KV-cache metrics, CUDA graph metrics, "
+        "layerwise NVTX tracing, MFU metrics, multimodal processor stats, and "
+        "iteration-detail logging outside the validated GB10 first release "
+        "serving path; reject it on GB10/SM12x until native SM12x "
+        "observability correctness and runtime evidence exists."
     ),
     "reasoning_runtime": (
         "Reasoning runtime changes token parsing and output extraction outside "

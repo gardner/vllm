@@ -672,6 +672,18 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "evidence exists."
                 ),
             },
+            "observability_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Observability runtime adds hidden metrics, OpenTelemetry "
+                    "traces, detailed trace collection, KV-cache metrics, CUDA "
+                    "graph metrics, layerwise NVTX tracing, MFU metrics, "
+                    "multimodal processor stats, and iteration-detail logging "
+                    "outside the validated GB10 first release serving path. It "
+                    "must reject on GB10/SM12x until native SM12x observability "
+                    "correctness and runtime evidence exists."
+                ),
+            },
             "gdn_prefill_triton_fallback": {
                 "status": "not_supported",
                 "release_contract": (

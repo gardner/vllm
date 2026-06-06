@@ -95,6 +95,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "generation_config_runtime": "not_supported",
     "profiler_runtime": "not_supported",
     "performance_mode_runtime": "not_supported",
+    "observability_runtime": "not_supported",
     "reasoning_runtime": "not_supported",
     "structured_outputs_runtime": "not_supported",
     "openai_tool_calling_runtime": "not_supported",
@@ -2521,6 +2522,9 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
     )
     assert support_matrix["entries"]["profiler_runtime"]["status"] == "not_supported"
     assert support_matrix["entries"]["performance_mode_runtime"]["status"] == (
+        "not_supported"
+    )
+    assert support_matrix["entries"]["observability_runtime"]["status"] == (
         "not_supported"
     )
     assert support_matrix["entries"]["reasoning_runtime"]["status"] == (
@@ -9056,6 +9060,40 @@ def test_gb10_performance_mode_runtime_is_reported():
     assert "--performance-mode" in arg_utils
 
 
+def test_gb10_observability_runtime_is_reported():
+    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    observability_config = (
+        REPO_ROOT / "vllm" / "config" / "observability.py"
+    ).read_text()
+    arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
+
+    assert "_GB10_OBSERVABILITY_RUNTIME_MESSAGE" in vllm_config
+    assert "observability runtime is not supported on GB10/SM12x" in vllm_config
+    assert "_uses_observability_runtime" in vllm_config
+    assert "observability_config.show_hidden_metrics_for_version" in vllm_config
+    assert "observability_config.otlp_traces_endpoint" in vllm_config
+    assert "observability_config.collect_detailed_traces" in vllm_config
+    assert "observability_config.kv_cache_metrics" in vllm_config
+    assert "observability_config.cudagraph_metrics" in vllm_config
+    assert "observability_config.enable_layerwise_nvtx_tracing" in vllm_config
+    assert "observability_config.enable_mfu_metrics" in vllm_config
+    assert "observability_config.enable_mm_processor_stats" in vllm_config
+    assert "observability_config.enable_logging_iteration_details" in vllm_config
+    assert "OpenTelemetry traces" in vllm_config
+    assert "KV-cache metrics" in vllm_config
+    assert "CUDA graph metrics" in vllm_config
+    assert "enable_mfu_metrics: bool = False" in observability_config
+    assert "enable_logging_iteration_details: bool = False" in observability_config
+    assert "--show-hidden-metrics-for-version" in arg_utils
+    assert "--otlp-traces-endpoint" in arg_utils
+    assert "--collect-detailed-traces" in arg_utils
+    assert "--kv-cache-metrics" in arg_utils
+    assert "--cudagraph-metrics" in arg_utils
+    assert "--enable-layerwise-nvtx-tracing" in arg_utils
+    assert "--enable-mfu-metrics" in arg_utils
+    assert "--enable-logging-iteration-details" in arg_utils
+
+
 def test_gb10_reasoning_runtime_is_reported():
     vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
 
@@ -11614,6 +11652,11 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                         "Performance mode runtime lacks native GB10 evidence"
                     ),
                 },
+                "observability_runtime": {
+                    "status": "not_supported",
+                    "expected_handling": "route_or_reject_before_release_evidence",
+                    "reason": "Observability runtime lacks native GB10 evidence",
+                },
                 "reasoning_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -12718,6 +12761,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "generation_config_runtime": {"status": "not_supported"},
                 "profiler_runtime": {"status": "not_supported"},
                 "performance_mode_runtime": {"status": "not_supported"},
+                "observability_runtime": {"status": "not_supported"},
                 "reasoning_runtime": {"status": "not_supported"},
                 "structured_outputs_runtime": {"status": "not_supported"},
                 "openai_tool_calling_runtime": {"status": "not_supported"},
@@ -13041,16 +13085,17 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "moe_wna16_legacy_fallback",
         "multimodal_runtime",
         "mxfp4_moe_fallback",
-        "mxfp8_dense_fallback",
-        "mxfp8_moe_fallback",
-        "nvfp4_kv_cache_runtime",
-        "online_fp8_quantization",
-        "online_int8_moe_quantization",
-        "online_mxfp4_quantization",
-        "online_mxfp8_quantization",
-        "openai_tool_calling_runtime",
-        "partial_prefill_scheduler_runtime",
-        "performance_mode_runtime",
+            "mxfp8_dense_fallback",
+            "mxfp8_moe_fallback",
+            "nvfp4_kv_cache_runtime",
+            "observability_runtime",
+            "online_fp8_quantization",
+            "online_int8_moe_quantization",
+            "online_mxfp4_quantization",
+            "online_mxfp8_quantization",
+            "openai_tool_calling_runtime",
+            "partial_prefill_scheduler_runtime",
+            "performance_mode_runtime",
         "pooling_runtime",
         "profiler_runtime",
         "prompt_embeds_runtime",
