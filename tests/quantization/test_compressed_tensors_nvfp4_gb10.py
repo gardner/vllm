@@ -18,12 +18,19 @@ ct_w4a16 = import_module(
     "vllm.model_executor.layers.quantization.compressed_tensors.schemes."
     "compressed_tensors_w4a16_nvfp4"
 )
+ct_w8a16 = import_module(
+    "vllm.model_executor.layers.quantization.compressed_tensors.schemes."
+    "compressed_tensors_w8a16_fp8"
+)
 ct_qutlass = import_module(
     "vllm.model_executor.layers.quantization.compressed_tensors.transform."
     "schemes.linear_qutlass_nvfp4"
 )
 ct_config_module = import_module(
     "vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors"
+)
+ct_utils = import_module(
+    "vllm.model_executor.layers.quantization.compressed_tensors.utils"
 )
 CompressedTensorsConfig = ct_config_module.CompressedTensorsConfig
 
@@ -37,6 +44,18 @@ class Sm12xPlatform:
 def sm12x_platform(monkeypatch):
     monkeypatch.setattr(
         ct_w4a16,
+        "current_platform",
+        Sm12xPlatform(),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ct_w8a16,
+        "current_platform",
+        Sm12xPlatform(),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        ct_utils,
         "current_platform",
         Sm12xPlatform(),
         raising=False,
@@ -59,6 +78,16 @@ def test_compressed_tensors_w4a16_nvfp4_rejects_marlin_on_sm12x(
 ) -> None:
     with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
         CompressedTensorsW4A16Fp4()
+
+
+def test_compressed_tensors_w8a16_fp8_rejects_on_sm12x(
+    sm12x_platform,
+) -> None:
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        ct_w8a16.CompressedTensorsW8A16Fp8(
+            weight_quant=_nvfp4_weight_quant(),
+            is_static_input_scheme=True,
+        )
 
 
 def test_compressed_tensors_w4a16_nvfp4_config_dispatch_rejects_on_sm12x(

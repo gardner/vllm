@@ -97,3 +97,33 @@ def test_modelopt_mxfp8_moe_constructor_rejects_on_sm12x_before_backend_selectio
         )
 
     selector.assert_not_called()
+
+
+def test_modelopt_w4a16_nvfp4_linear_constructor_rejects_on_sm12x(
+    sm12x_platform,
+) -> None:
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        modelopt.ModelOptNvFp4W4A16LinearMethod(
+            SimpleNamespace(
+                quant_method="W4A16_NVFP4",
+                is_checkpoint_nvfp4_serialized=True,
+            )
+        )
+
+
+def test_modelopt_w4a16_nvfp4_moe_constructor_rejects_on_sm12x_before_backend_selection(
+    sm12x_platform, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selector = MagicMock(return_value=(MagicMock(), MagicMock()))
+    monkeypatch.setattr(modelopt, "select_nvfp4_moe_backend", selector)
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        modelopt.ModelOptNvFp4FusedMoE(
+            SimpleNamespace(
+                quant_method="W4A16_NVFP4",
+                is_checkpoint_nvfp4_serialized=True,
+            ),
+            MagicMock(),
+        )
+
+    selector.assert_not_called()
