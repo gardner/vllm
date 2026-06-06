@@ -31,6 +31,36 @@ from vllm.utils.flashinfer import (
 logger = init_logger(__name__)
 
 
+def _is_sm12x_device() -> bool:
+    is_family = getattr(current_platform, "is_device_capability_family", None)
+    if callable(is_family):
+        result = is_family(120)
+        if isinstance(result, bool):
+            return result
+
+    get_device_capability = getattr(current_platform, "get_device_capability", None)
+    if callable(get_device_capability):
+        capability = get_device_capability()
+        major = getattr(capability, "major", None)
+        if isinstance(major, int):
+            return major == 12
+        if isinstance(capability, tuple) and capability:
+            return capability[0] == 12
+
+    return False
+
+
+def _gb10_flashinfer_cutedsl_moe_unsupported_reason() -> str | None:
+    if not _is_sm12x_device():
+        return None
+    return (
+        "FlashInfer CuteDSL NVFP4 MoE is not supported on GB10/SM12x. "
+        "Generic CuteDSL and batched CuteDSL variants are not validated "
+        "native GB10 evidence. Use a validated FlashInfer SM12x backend "
+        "such as flashinfer_b12x or flashinfer_cutlass."
+    )
+
+
 class FlashInferCuteDSLBatchedExperts(mk.FusedMoEExpertsModular):
     def __init__(
         self,
@@ -48,6 +78,10 @@ class FlashInferCuteDSLBatchedExperts(mk.FusedMoEExpertsModular):
         assert quant_config.quant_dtype == "nvfp4", (
             "Only nvfp4 quantization are currently supported."
         )
+        if (
+            reason := _gb10_flashinfer_cutedsl_moe_unsupported_reason()
+        ) is not None:
+            raise ValueError(reason)
         self.out_dtype = moe_config.in_dtype
 
     def process_weights_after_loading(self, layer: torch.nn.Module) -> None:

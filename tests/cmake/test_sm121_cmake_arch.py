@@ -9859,6 +9859,35 @@ def test_gb10_nvfp4_moe_fallbacks_are_reported():
     assert "VLLM_USE_FLASHINFER_MOE_FP4=0" in nvfp4_oracle
 
 
+def test_gb10_flashinfer_cutedsl_moe_constructors_are_reported():
+    flashinfer_cutedsl_moe = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "flashinfer_cutedsl_moe.py"
+    ).read_text()
+    flashinfer_cutedsl_batched_moe = (
+        REPO_ROOT
+        / "vllm"
+        / "model_executor"
+        / "layers"
+        / "fused_moe"
+        / "experts"
+        / "flashinfer_cutedsl_batched_moe.py"
+    ).read_text()
+
+    for source in (flashinfer_cutedsl_moe, flashinfer_cutedsl_batched_moe):
+        assert "_gb10_flashinfer_cutedsl_moe_unsupported_reason" in source
+        assert "FlashInfer CuteDSL NVFP4 MoE is not supported on GB10/SM12x" in source
+        assert "flashinfer_b12x" in source
+        assert "flashinfer_cutlass" in source
+        assert "reason := _gb10_flashinfer_cutedsl_moe_unsupported_reason()" in source
+        assert "raise ValueError(reason)" in source
+
+
 def test_gb10_attention_selector_logs_backend_and_kv_cache_dtype():
     selector = (REPO_ROOT / "vllm" / "v1" / "attention" / "selector.py").read_text()
 
