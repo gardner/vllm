@@ -895,6 +895,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                     "correctness and runtime evidence exists."
                 ),
             },
+            "custom_scheduler_runtime": {
+                "status": "not_supported",
+                "release_contract": (
+                    "Custom scheduler classes replace the default vLLM "
+                    "scheduler with user-provided scheduling code outside the "
+                    "validated GB10 first release serving path. They must "
+                    "reject until native SM12x custom scheduler correctness "
+                    "and runtime evidence exists."
+                ),
+            },
             "prompt_embeds_runtime": {
                 "status": "not_supported",
                 "release_contract": (

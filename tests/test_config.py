@@ -674,6 +674,45 @@ def test_vllm_config_allows_trust_remote_code_runtime_off_gb10(monkeypatch):
     assert config.model_config is model_config
 
 
+def test_gb10_vllm_config_rejects_custom_scheduler_runtime(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        scheduler_cls="tests.plugins_tests.test_scheduler_plugins.DummyV1Scheduler",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="custom scheduler runtime.*GB10/SM12x",
+    ):
+        VllmConfig(scheduler_config=scheduler_config)
+
+
+def test_vllm_config_allows_custom_scheduler_runtime_off_gb10(monkeypatch):
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: False,
+    )
+
+    scheduler_config = SchedulerConfig(
+        max_model_len=8192,
+        is_encoder_decoder=False,
+        scheduler_cls="tests.plugins_tests.test_scheduler_plugins.DummyV1Scheduler",
+    )
+    config = VllmConfig(scheduler_config=scheduler_config)
+
+    assert config.scheduler_config is scheduler_config
+
+
 def test_gb10_vllm_config_rejects_prompt_embeds_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

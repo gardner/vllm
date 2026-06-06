@@ -110,6 +110,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "custom_logits_processors_runtime": "not_supported",
     "transformers_model_impl_runtime": "not_supported",
     "trust_remote_code_runtime": "not_supported",
+    "custom_scheduler_runtime": "not_supported",
     "prompt_embeds_runtime": "not_supported",
     "stock_torch_compile_runtime": "not_supported",
     "mamba_align_cache_runtime": "not_supported",
@@ -482,6 +483,12 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "tokenizer, and configuration behavior outside the validated GB10 "
         "first release serving path; reject --trust-remote-code until native "
         "SM12x remote-code model correctness and runtime evidence exists."
+    ),
+    "custom_scheduler_runtime": (
+        "Custom scheduler classes replace the default vLLM scheduler with "
+        "user-provided scheduling code outside the validated GB10 first "
+        "release serving path; reject --scheduler-cls until native SM12x "
+        "custom scheduler correctness and runtime evidence exists."
     ),
     "prompt_embeds_runtime": (
         "Prompt embeds input handling changes request input batching and "

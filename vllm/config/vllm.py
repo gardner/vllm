@@ -208,6 +208,14 @@ _GB10_TRUST_REMOTE_CODE_RUNTIME_MESSAGE = (
     "trust_remote_code on GB10 until native SM12x remote-code model "
     "correctness and runtime evidence exists."
 )
+_GB10_CUSTOM_SCHEDULER_RUNTIME_MESSAGE = (
+    "custom scheduler runtime is not supported on GB10/SM12x in this fork: "
+    "--scheduler-cls and direct scheduler_config.scheduler_cls replace the "
+    "default vLLM scheduler with user-provided scheduler code outside the "
+    "validated native first-path NVFP4 serving release. Use the default "
+    "scheduler on GB10 until native SM12x custom scheduler correctness and "
+    "runtime evidence exists."
+)
 _GB10_PROMPT_EMBEDS_RUNTIME_MESSAGE = (
     "prompt embeds runtime is not supported on GB10/SM12x in this fork: "
     "--enable-prompt-embeds and direct model_config.enable_prompt_embeds "
@@ -1104,6 +1112,12 @@ class VllmConfig:
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_TRUST_REMOTE_CODE_RUNTIME_MESSAGE)
+
+        if (
+            self.scheduler_config.scheduler_cls is not None
+            and _is_gb10_sm12x_cuda_platform()
+        ):
+            raise ValueError(_GB10_CUSTOM_SCHEDULER_RUNTIME_MESSAGE)
 
         if (
             self.model_config is not None
