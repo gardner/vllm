@@ -555,6 +555,8 @@ class INCConfig(QuantizationConfig):
 
 class INCXPULinearBase(LinearMethodBase):
     def __init__(self, weight_bits: int, group_size: int, sym: bool):
+        if reason := _gb10_inc_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.weight_bits = weight_bits
         self.group_size = group_size
         self.sym = sym

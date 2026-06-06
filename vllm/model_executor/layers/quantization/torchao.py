@@ -397,6 +397,14 @@ class TorchAOLinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: TorchAOConfig):
+        if reason := _gb10_torchao_fp8_activation_unsupported_reason(
+            quant_config.torchao_config
+        ):
+            raise ValueError(reason)
+        if reason := _gb10_torchao_weight_quantization_unsupported_reason(
+            quant_config.torchao_config
+        ):
+            raise ValueError(reason)
         self.quant_config = quant_config
 
     def create_weights(
