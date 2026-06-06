@@ -144,6 +144,8 @@ class FPQuantLinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: FPQuantConfig):
+        if reason := _gb10_fp_quant_fp4_quantization_unsupported_reason():
+            raise ValueError(reason)
         self.quant_config = quant_config
 
     def create_weights(
