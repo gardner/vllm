@@ -10,6 +10,9 @@ from vllm.platforms.interface import DeviceCapability
 from vllm.v1.attention.backends.mla.prefill.tokenspeed_mla import (
     TokenspeedMLAPrefillBackend,
 )
+from vllm.v1.attention.backends.mla.prefill.trtllm_ragged import (
+    TrtllmRaggedPrefillBackend,
+)
 from vllm.v1.attention.backends.mla.tokenspeed_mla import TokenspeedMLAImpl
 from vllm.v1.attention.backends.mla.triton_mla import TritonMLAImpl
 
@@ -72,6 +75,22 @@ def test_tokenspeed_mla_prefill_backend_rejects_gb10_sm12x():
         _make_gb10_platform(),
     ), pytest.raises(ValueError, match="TokenSpeed CuTe DSL MLA.*GB10/SM12x"):
         TokenspeedMLAPrefillBackend(
+            num_heads=8,
+            scale=1.0,
+            kv_lora_rank=512,
+            qk_nope_head_dim=128,
+            qk_rope_head_dim=64,
+            v_head_dim=128,
+            vllm_config=SimpleNamespace(),
+        )
+
+
+def test_trtllm_ragged_prefill_backend_rejects_gb10_sm12x():
+    with patch(
+        "vllm.v1.attention.backends.mla.prefill.trtllm_ragged.current_platform",
+        _make_gb10_platform(),
+    ), pytest.raises(ValueError, match="TRT-LLM Ragged MLA prefill.*GB10/SM12x"):
+        TrtllmRaggedPrefillBackend(
             num_heads=8,
             scale=1.0,
             kv_lora_rank=512,

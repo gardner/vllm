@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import torch
 
 import vllm.envs as envs
+from vllm.platforms import current_platform
 from vllm.v1.attention.backends.mla.prefill.base import MLAPrefillBackend
 from vllm.v1.worker.workspace import current_workspace_manager
 
@@ -16,6 +17,19 @@ if TYPE_CHECKING:
         MLACommonPrefillMetadata,
     )
     from vllm.platforms.interface import DeviceCapability
+
+
+def _gb10_trtllm_ragged_prefill_runtime_unsupported_reason(
+    device_capability: "DeviceCapability",
+) -> str | None:
+    if device_capability.major != 12:
+        return None
+    return (
+        "TRT-LLM Ragged MLA prefill backend is not supported on GB10/SM12x. "
+        "It is an SM100-family MLA prefill path today and must not satisfy "
+        "GB10 MLA correctness, artifact, or runtime evidence. Use native "
+        "FlashInfer MLA prefill on SM12x instead."
+    )
 
 
 class TrtllmRaggedPrefillBackend(MLAPrefillBackend):
@@ -52,6 +66,14 @@ class TrtllmRaggedPrefillBackend(MLAPrefillBackend):
         v_head_dim: int,
         vllm_config: "VllmConfig",
     ) -> None:
+        device_capability = current_platform.get_device_capability()
+        if device_capability is not None:
+            gb10_reason = _gb10_trtllm_ragged_prefill_runtime_unsupported_reason(
+                device_capability
+            )
+            if gb10_reason is not None:
+                raise ValueError(gb10_reason)
+
         super().__init__(
             num_heads=num_heads,
             scale=scale,

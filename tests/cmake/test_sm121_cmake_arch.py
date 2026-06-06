@@ -8906,6 +8906,16 @@ def test_gb10_mla_backend_selection_is_reported():
         / "prefill"
         / "tokenspeed_mla.py"
     ).read_text()
+    trtllm_ragged_prefill = (
+        REPO_ROOT
+        / "vllm"
+        / "v1"
+        / "attention"
+        / "backends"
+        / "mla"
+        / "prefill"
+        / "trtllm_ragged.py"
+    ).read_text()
     flashmla_ops = (
         REPO_ROOT / "vllm" / "v1" / "attention" / "ops" / "flashmla.py"
     ).read_text()
@@ -8956,6 +8966,13 @@ def test_gb10_mla_backend_selection_is_reported():
         tokenspeed_prefill
     )
     assert "raise ValueError(gb10_reason)" in tokenspeed_prefill
+    assert "_gb10_trtllm_ragged_prefill_runtime_unsupported_reason" in (
+        trtllm_ragged_prefill
+    )
+    assert "TRT-LLM Ragged MLA prefill backend is not supported on GB10/SM12x" in (
+        trtllm_ragged_prefill
+    )
+    assert "raise ValueError(gb10_reason)" in trtllm_ragged_prefill
     assert "current_platform.is_device_capability_family(120)" in flashmla_ops
 
 
