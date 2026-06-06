@@ -52,6 +52,45 @@ def _make_marlin_supported(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "kernel_cls, reason_fragment",
+    [
+        (
+            linear_kernels.FlashInferMxFp4LinearKernel,
+            "FlashInfer CUTLASS MXFP4 dense",
+        ),
+        (
+            linear_kernels.MarlinMxFp4LinearKernel,
+            "Marlin MXFP4 dense fallback",
+        ),
+    ],
+)
+def test_sm12x_mxfp4_dense_kernels_report_unsupported(
+    kernel_cls,
+    reason_fragment: str,
+) -> None:
+    supported, reason = kernel_cls.is_supported(compute_capability=121)
+
+    assert not supported
+    assert reason is not None
+    assert "GB10/SM12x" in reason
+    assert reason_fragment in reason
+
+
+def test_sm12x_linear_backend_flashinfer_cutlass_mxfp4_dense_fails_fast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(linear_kernels, "current_platform", _Sm12xCudaPlatform())
+    monkeypatch.setattr(
+        linear_kernels,
+        "_get_linear_backend",
+        lambda: "flashinfer_cutlass",
+    )
+
+    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
+        linear_kernels.init_mxfp4_linear_kernel()
+
+
 def test_sm12x_forced_mxfp4_marlin_fallback_fails_fast(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
