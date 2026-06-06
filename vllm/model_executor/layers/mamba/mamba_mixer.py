@@ -24,6 +24,7 @@ from vllm.model_executor.layers.mamba.abstract import MambaBase
 from vllm.model_executor.layers.mamba.mamba_utils import (
     MambaStateDtypeCalculator,
     MambaStateShapeCalculator,
+    gb10_mamba_triton_runtime_unsupported_reason,
     is_conv_state_dim_first,
 )
 from vllm.model_executor.layers.mamba.ops.causal_conv1d import (
@@ -79,6 +80,12 @@ class MambaMixer(MambaBase, PluggableLayer):
         cache_config: CacheConfig | None = None,
         prefix: str = "",
     ):
+        unsupported_reason = gb10_mamba_triton_runtime_unsupported_reason(
+            "Mamba1 triton runtime"
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         super().__init__()
         self.time_step_rank = time_step_rank
         self.ssm_state_size = ssm_state_size

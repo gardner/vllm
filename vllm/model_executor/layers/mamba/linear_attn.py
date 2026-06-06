@@ -24,6 +24,7 @@ from vllm.model_executor.layers.mamba.abstract import MambaBase
 from vllm.model_executor.layers.mamba.mamba_utils import (
     MambaStateDtypeCalculator,
     MambaStateShapeCalculator,
+    gb10_mamba_triton_runtime_unsupported_reason,
 )
 from vllm.model_executor.layers.minimax_rms_norm import MiniMaxText01RMSNormTP
 from vllm.model_executor.layers.quantization import QuantizationConfig
@@ -191,6 +192,12 @@ class MiniMaxText01LinearAttention(nn.Module, MambaBase):
         linear_layer_idx: int = 0,
         prefix: str = "linear_attn",
     ) -> None:
+        unsupported_reason = gb10_mamba_triton_runtime_unsupported_reason(
+            "linear attention triton runtime"
+        )
+        if unsupported_reason is not None:
+            raise ValueError(unsupported_reason)
+
         super().__init__()
 
         self.layer_idx = layer_idx

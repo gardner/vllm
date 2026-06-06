@@ -13,6 +13,7 @@ from vllm.config.cache import MambaDType
 from vllm.config.model import ModelDType
 from vllm.distributed import divide
 from vllm.logger import init_logger
+from vllm.platforms import current_platform
 from vllm.utils.torch_utils import (
     STR_DTYPE_TO_TORCH_DTYPE,
     get_kv_cache_torch_dtype,
@@ -46,6 +47,23 @@ def get_conv_state_layout() -> ConvStateLayoutType:
 def is_conv_state_dim_first() -> bool:
     """True when the conv state is stored as (dim, state_len) per block."""
     return get_conv_state_layout() == "DS"
+
+
+def gb10_mamba_triton_runtime_unsupported_reason(
+    runtime_name: str,
+) -> str | None:
+    if not (
+        current_platform.is_cuda()
+        and current_platform.is_device_capability_family(120)
+    ):
+        return None
+
+    return (
+        f"{runtime_name} is not supported on GB10/SM12x in this fork: the "
+        "native first-path NVFP4 release does not validate this Mamba Triton "
+        "runtime. Use a validated non-Mamba path on GB10 until native SM12x "
+        "correctness and runtime evidence exists."
+    )
 
 
 class MambaStateDtypeCalculator:
