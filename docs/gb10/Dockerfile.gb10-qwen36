@@ -1,0 +1,13 @@
+FROM ghcr.io/gardner/vllm-gb10:gb10-vllm-v0.22.1rc0-92d4d7aae27e
+# Native Qwen3.6-35B-A3B-NVFP4 enablement (Python-only; sm_121a _C unchanged):
+# W4A16 NVFP4 MoE+dense, FP8 dense, mixed-precision + multimodal text-only.
+COPY vllm/config/vllm.py \
+     /usr/local/lib/python3.12/dist-packages/vllm/config/vllm.py
+COPY vllm/model_executor/layers/quantization/modelopt.py \
+     /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/quantization/modelopt.py
+COPY vllm/model_executor/layers/fused_moe/oracle/nvfp4.py \
+     /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/oracle/nvfp4.py
+COPY vllm/model_executor/layers/fused_moe/experts/flashinfer_b12x_moe.py \
+     /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/experts/flashinfer_b12x_moe.py
+COPY vllm/model_executor/layers/quantization/utils/flashinfer_fp4_moe.py \
+     /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/quantization/utils/flashinfer_fp4_moe.py
