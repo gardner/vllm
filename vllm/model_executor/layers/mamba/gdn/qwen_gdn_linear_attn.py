@@ -235,9 +235,16 @@ def _resolve_gdn_prefill_backend(
     if not current_platform.is_cuda():
         return backend, "triton"
 
-    head_k_dim = getattr(
-        vllm_config.model_config.hf_config, "linear_key_head_dim", None
-    )
+    hf_config = vllm_config.model_config.hf_config
+    head_k_dim = getattr(hf_config, "linear_key_head_dim", None)
+    if head_k_dim is None:
+        # Multimodal checkpoints (e.g. Qwen3.6-VL) nest the language-model GDN
+        # dims under text_config; read it there so the native FlashInfer SM12x
+        # GDN kernel is selected (head_k_dim == 128) instead of falling back to
+        # (GB10-rejected) Triton/FLA.
+        get_text_config = getattr(hf_config, "get_text_config", None)
+        if callable(get_text_config):
+            head_k_dim = getattr(get_text_config(), "linear_key_head_dim", None)
     runtime_major = current_platform.get_cuda_runtime_major()
     is_sm12x = _is_sm12x_cuda_platform()
 
@@ -296,9 +303,16 @@ def _log_gdn_backend_decision(
     active_backend: str,
 ) -> None:
     """Log the GDN prefill backend choice in the attention-selector style."""
-    head_k_dim = getattr(
-        vllm_config.model_config.hf_config, "linear_key_head_dim", None
-    )
+    hf_config = vllm_config.model_config.hf_config
+    head_k_dim = getattr(hf_config, "linear_key_head_dim", None)
+    if head_k_dim is None:
+        # Multimodal checkpoints (e.g. Qwen3.6-VL) nest the language-model GDN
+        # dims under text_config; read it there so the native FlashInfer SM12x
+        # GDN kernel is selected (head_k_dim == 128) instead of falling back to
+        # (GB10-rejected) Triton/FLA.
+        get_text_config = getattr(hf_config, "get_text_config", None)
+        if callable(get_text_config):
+            head_k_dim = getattr(get_text_config(), "linear_key_head_dim", None)
     chosen = {
         "flashinfer": "FlashInfer",
         "cutedsl": "CuteDSL",

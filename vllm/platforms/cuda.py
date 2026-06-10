@@ -462,6 +462,31 @@ class CudaPlatformBase(Platform):
         return device_capability is not None and device_capability.major == 12
 
     @classmethod
+    def _gb10_mm_encoder_text_only(cls) -> bool:
+        """True when the current run serves a multimodal model text-only (every
+        media limit is 0). The ViT / MM-encoder attention is then *constructed*
+        but never *run*, so its (non-native) backend can be allowed on GB10 —
+        mirrors the text-only multimodal allowance in VllmConfig. Media
+        multimodal still requires a native FlashInfer MM-encoder backend."""
+        try:
+            from vllm.config import get_current_vllm_config
+
+            mm_config = get_current_vllm_config().model_config.multimodal_config
+        except Exception:
+            return False
+        if mm_config is None:
+            return False
+        if getattr(mm_config, "language_model_only", False):
+            return True
+        limits = getattr(mm_config, "limit_per_prompt", None) or {}
+        if not limits:
+            return False
+        try:
+            return all(int(getattr(v, "count", v)) == 0 for v in limits.values())
+        except (TypeError, ValueError):
+            return False
+
+    @classmethod
     def _gb10_vit_attn_backend_unsupported_reason(
         cls,
         backend: AttentionBackendEnum,
@@ -469,6 +494,10 @@ class CudaPlatformBase(Platform):
         if not cls._is_sm12x_device():
             return None
         if backend == AttentionBackendEnum.FLASHINFER:
+            return None
+        if cls._gb10_mm_encoder_text_only():
+            # Text-only serving: the vision tower constructs but never runs, so
+            # allow its (unused) non-native attention backend.
             return None
 
         if backend == AttentionBackendEnum.FLASH_ATTN:
@@ -511,6 +540,7 @@ class CudaPlatformBase(Platform):
         if (
             cls._is_sm12x_device()
             and AttentionBackendEnum.FLASHINFER not in supported_vit_backends
+            and not cls._gb10_mm_encoder_text_only()
         ):
             raise ValueError(
                 "MM encoder attention requires FlashInfer on GB10/SM12x. Triton, "
@@ -520,7 +550,7 @@ class CudaPlatformBase(Platform):
 
         for vit_attn_backend in supported_vit_backends:
             if vit_attn_backend == AttentionBackendEnum.TORCH_SDPA:
-                if cls._is_sm12x_device():
+                if cls._is_sm12x_device() and not cls._gb10_mm_encoder_text_only():
                     raise ValueError(
                         "MM encoder attention requires FlashInfer on GB10/SM12x. "
                         "Triton, Torch SDPA, and public FlashAttention ViT "
@@ -550,7 +580,7 @@ class CudaPlatformBase(Platform):
             except ImportError:
                 pass
 
-        if cls._is_sm12x_device():
+        if cls._is_sm12x_device() and not cls._gb10_mm_encoder_text_only():
             raise ValueError(
                 "MM encoder attention requires FlashInfer on GB10/SM12x. Triton, "
                 "Torch SDPA, and public FlashAttention ViT attention fallbacks "
