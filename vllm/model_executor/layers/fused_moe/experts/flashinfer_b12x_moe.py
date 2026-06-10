@@ -48,8 +48,9 @@ class FlashInferB12xExperts(mk.FusedMoEExpertsModular):
         quant_config: FusedMoEQuantConfig,
     ):
         super().__init__(moe_config=moe_config, quant_config=quant_config)
-        assert quant_config.quant_dtype == "nvfp4", (
-            "FlashInferB12xExperts only supports nvfp4 quantization."
+        assert quant_config.quant_dtype == "nvfp4" or quant_config.use_nvfp4_w4a16, (
+            "FlashInferB12xExperts only supports nvfp4 (W4A4) or "
+            "nvfp4 W4A16 quantization."
         )
         self.out_dtype = moe_config.in_dtype
         self.num_local_experts = moe_config.num_local_experts
@@ -133,6 +134,11 @@ class FlashInferB12xExperts(mk.FusedMoEExpertsModular):
     ) -> bool:
         return (weight_key, activation_key) == (kNvfp4Static, kNvfp4Dynamic)
 
+    def _quant_mode(self) -> str:
+        """b12x quantization mode passed to the kernel. The base class is the
+        W4A4 (NVFP4 activation) path; the W4A16 subclass overrides this."""
+        return "nvfp4"
+
     @staticmethod
     def _supports_activation(activation: MoEActivation) -> bool:
         return activation == MoEActivation.SILU
@@ -206,9 +212,14 @@ class FlashInferB12xExperts(mk.FusedMoEExpertsModular):
         assert self.g1_alphas is not None and self.g2_alphas is not None, (
             "g1_alphas and g2_alphas must not be None for FlashInferB12xExperts"
         )
-        assert self.a2_gscale is not None, (
-            "a2_gscale must not be None for FlashInferB12xExperts"
-        )
+
+        quant_mode = self._quant_mode()
+        # W4A4 quantizes the FC2 input to FP4 dynamically and needs the FC2
+        # input global scale; W4A16 keeps BF16 activations and ignores it.
+        if quant_mode != "w4a16":
+            assert self.a2_gscale is not None, (
+                "a2_gscale must not be None for FlashInferB12xExperts W4A4"
+            )
 
         top_k = topk_ids.shape[1]
 
@@ -228,4 +239,32 @@ class FlashInferB12xExperts(mk.FusedMoEExpertsModular):
             num_local_experts=self.num_local_experts,
             output_dtype=self.out_dtype,
             output=output,
+            quant_mode=quant_mode,
         )
+
+
+class FlashInferB12xW4A16Experts(FlashInferB12xExperts):
+    """W4A16 NVFP4 fused MoE for SM12x (SM120/SM121).
+
+    FP4 weights with BF16 activations (no activation quantization). Used for
+    ModelOpt ``W4A16_NVFP4`` MoE checkpoints — e.g.
+    ``nvidia/Qwen3.6-35B-A3B-NVFP4``, whose ``quantized_layers`` declare the
+    experts as ``W4A16_NVFP4`` (FP4 weights x bf16 activations), not W4A4. The
+    b12x kernel runs in ``quant_mode="w4a16"``: FP4 weights are dequantized and
+    the GEMMs consume BF16 activations directly, so no FC2 input (a2) global
+    scale is required. Weight handling (per-expert global-scale bake-in and the
+    MMA-layout scale conversion in ``process_weights_after_loading``) is
+    identical to the W4A4 base class.
+    """
+
+    def _quant_mode(self) -> str:
+        return "w4a16"
+
+    @staticmethod
+    def _supports_quant_scheme(
+        weight_key: QuantKey | None,
+        activation_key: QuantKey | None,
+    ) -> bool:
+        # W4A16: NVFP4 weights, no activation quantization (activation_key is
+        # None). The base W4A4 class requires (kNvfp4Static, kNvfp4Dynamic).
+        return (weight_key, activation_key) == (kNvfp4Static, None)

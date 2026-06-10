@@ -838,12 +838,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                 ),
             },
             "modelopt_w4a16_nvfp4_checkpoint_loading": {
-                "status": "not_supported",
+                "status": "supported_native",
                 "release_contract": (
-                    "ModelOpt W4A16 NVFP4 checkpoint loading is not "
-                    "validated on GB10/SM12x and must reject before Marlin "
-                    "dense fallback or MoE backend selection until native "
-                    "GB10 W4A16 NVFP4 correctness evidence exists."
+                    "ModelOpt W4A16 NVFP4 checkpoints are served natively on "
+                    "GB10: MoE experts run on the FlashInfer b12x "
+                    "quant_mode='w4a16' kernel (FLASHINFER_B12X_W4A16) and "
+                    "W4A16 dense layers dequantize FP4 weights to bf16 once at "
+                    "load for a bf16 tensor-core GEMM (no Marlin: "
+                    "gptq_marlin_repack is absent from the sm_121a build). "
+                    "Validated end-to-end on nvidia/Qwen3.6-35B-A3B-NVFP4."
                 ),
             },
             "modelopt_nvfp4_kv_cache_loading": {
@@ -1409,13 +1412,15 @@ def _gb10_support_matrix() -> dict[str, object]:
                 ),
             },
             "modelopt_mixed_quantization": {
-                "status": "not_supported",
+                "status": "supported_native",
                 "release_contract": (
-                    "ModelOpt mixed precision quantization can reach FP8 dense "
-                    "or MoE selection, NVFP4 dense or MoE selection, and W4A16 "
-                    "NVFP4 fallback selection today and must reject on "
-                    "GB10/SM12x until native GB10 ModelOpt mixed precision "
-                    "correctness evidence exists."
+                    "ModelOpt MIXED_PRECISION checkpoints are served natively "
+                    "on GB10 as a composite: each layer routes to its per-layer "
+                    "ModelOpt method (FP8 W8A8 dense, NVFP4 dense/MoE, W4A16 "
+                    "NVFP4 dense/MoE), and any unvalidated sub-layer (e.g. FP8 "
+                    "MoE) still fails fast in its own method. Validated "
+                    "end-to-end on nvidia/Qwen3.6-35B-A3B-NVFP4 (FP8 attention "
+                    "+ W4A16 NVFP4 MoE + W4A16 NVFP4 dense)."
                 ),
             },
             "fbgemm_fp8_quantization": {

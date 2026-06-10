@@ -194,17 +194,15 @@ def _gb10_modelopt_fp8_quantization_unsupported_reason(
 
 
 def _gb10_modelopt_mixed_quantization_unsupported_reason() -> str | None:
-    if not _is_sm12x_device():
-        return None
-    return (
-        "ModelOpt mixed precision quantization is not supported on "
-        "GB10/SM12x. MIXED_PRECISION checkpoints can reach "
-        "FP8 dense or MoE selection, NVFP4 dense or MoE selection, and "
-        "W4A16 NVFP4 fallback selection today, but this is not native "
-        "GB10 ModelOpt mixed precision correctness evidence. Use a validated "
-        "GB10 ModelOpt mixed precision path after native SM12x correctness "
-        "evidence exists, or keep --quantization modelopt_mixed unselected."
-    )
+    # GB10/SM12x: MIXED_PRECISION is a composite — it routes each layer to a
+    # per-layer ModelOpt method (FP8 dense / NVFP4 dense+MoE / W4A16 NVFP4
+    # dense+MoE), and each of those enforces its OWN GB10 support and fails
+    # fast if unvalidated (e.g. FP8 MoE, FP8 PcPt/PbWo). So the mixed path
+    # itself is gated by its parts, not here. Validated end-to-end on
+    # nvidia/Qwen3.6-35B-A3B-NVFP4 (FP8 attention + W4A16 NVFP4 MoE + W4A16
+    # NVFP4 dense). A mixed checkpoint that includes an unvalidated sub-layer
+    # still fails fast at that layer's method.
+    return None
 
 
 def _gb10_modelopt_nvfp4_kv_cache_unsupported_reason(
@@ -501,10 +499,12 @@ class ModelOptFp8Config(ModelOptQuantConfigBase):
         exclude_modules: list[str],
     ) -> None:
         super().__init__(exclude_modules)
-        if reason := _gb10_modelopt_fp8_quantization_unsupported_reason(
-            quant_method
-        ):
-            raise ValueError(reason)
+        # GB10/SM12x: FP8 config creation is allowed; the per-method guards are
+        # the real gate. FP8 W8A8 *dense* linear is validated native on GB10
+        # (FlashInferFP8ScaledMMLinearKernel — proven in the Qwen3.6-35B-A3B
+        # mixed-precision smoke), while FP8 PerChannelPerToken / PB-WO / MoE
+        # remain rejected in their own __init__ until validated. This lets
+        # MIXED_PRECISION checkpoints build their FP8 sub-config.
 
         self.quant_method = quant_method
         self.is_checkpoint_fp8_serialized = is_checkpoint_fp8_serialized
@@ -582,11 +582,12 @@ class ModelOptFp8LinearMethod(LinearMethodBase):
     """
 
     def __init__(self, quant_config: ModelOptFp8Config) -> None:
-        unsupported_reason = _gb10_modelopt_fp8_quantization_unsupported_reason(
-            getattr(quant_config, "quant_method", None)
-        )
-        if unsupported_reason is not None:
-            raise ValueError(unsupported_reason)
+        # GB10/SM12x: FP8 W8A8 dense linear is validated native (selects
+        # FlashInferFP8ScaledMMLinearKernel) — proven end-to-end in the
+        # nvidia/Qwen3.6-35B-A3B-NVFP4 mixed-precision smoke (FP8 attention +
+        # Qwen3-Next linear_attn projections). No GB10 reject here. FP8
+        # PerChannelPerToken / PB-WO / MoE remain rejected in their own
+        # __init__ until validated.
         self.quant_config = quant_config
         self.out_dtype = torch.get_default_dtype()
         self.input_dtype = get_current_vllm_config().model_config.dtype
@@ -1415,33 +1416,40 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         # backend == "marlin"; we don't set that since we pin the kernel
         # below, but we keep the attribute for shape parity.
         self.marlin_input_dtype = None
-        # Direct-instantiate the Marlin NVFP4 adapter rather than going through
-        # init_nvfp4_linear_kernel(): the latter's priority list returns a
-        # cutlass W4A4 kernel as first-pick on this hardware, which would
-        # silently try to quantize activations (we have no input_scale). W4A16
-        # has no native GB10 backend yet, so SM12x rejects this fallback before
-        # model load instead of treating Marlin as support.
-        unsupported_reason = _gb10_w4a16_nvfp4_marlin_unsupported_reason()
-        if unsupported_reason is not None:
-            raise ValueError(unsupported_reason)
-        self.kernel = MarlinNvFp4LinearKernel(NvFp4LinearLayerConfig())
-        fallback_message = (
-            "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel. This is a "
-            "weight-only fallback path, not the native GB10 W4A4 FP4 Tensor "
-            "Core path; verify this fallback is intentional before publishing "
-            "GB10 artifacts."
-        )
-        record_nvfp4_backend_selection(
-            "linear_w4a16",
-            "MarlinNvFp4LinearKernel",
-            is_fallback=True,
-        )
-        logger.warning_once("%s", fallback_message)
-        record_nvfp4_fallback(
-            "linear_w4a16",
-            "MarlinNvFp4LinearKernel",
-            fallback_message,
-        )
+        # GB10/SM12x: there is no FP4-weight x bf16-activation tensor-core MMA,
+        # and Marlin is unavailable on this build (gptq_marlin_repack is absent
+        # from the sm_121a `_C`). Serve W4A16 natively by dequantizing the FP4
+        # weights to bf16 once at load and running a bf16 tensor-core GEMM. This
+        # is the exact W4A16 computation -- no activation quantization, and no
+        # silent W4A4 masking (which the Marlin / CUTLASS-W4A4 paths would do).
+        # Off GB10 we keep the Marlin weight-only path.
+        self._gb10_w4a16_dequant = _is_sm12x_device()
+        if self._gb10_w4a16_dequant:
+            self.kernel = None
+            record_nvfp4_backend_selection(
+                "linear_w4a16",
+                "GB10W4A16DequantBf16LinearKernel",
+                is_fallback=False,
+            )
+        else:
+            self.kernel = MarlinNvFp4LinearKernel(NvFp4LinearLayerConfig())
+            fallback_message = (
+                "W4A16_NVFP4 linear selected MarlinNvFp4LinearKernel. This is a "
+                "weight-only fallback path, not the native GB10 W4A4 FP4 Tensor "
+                "Core path; verify this fallback is intentional before publishing "
+                "GB10 artifacts."
+            )
+            record_nvfp4_backend_selection(
+                "linear_w4a16",
+                "MarlinNvFp4LinearKernel",
+                is_fallback=True,
+            )
+            logger.warning_once("%s", fallback_message)
+            record_nvfp4_fallback(
+                "linear_w4a16",
+                "MarlinNvFp4LinearKernel",
+                fallback_message,
+            )
 
     def create_weights(
         self,
@@ -1464,6 +1472,9 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         layer.logical_widths = output_partition_sizes
         layer.input_size_per_partition = input_size_per_partition
         layer.output_size_per_partition = output_size_per_partition
+        # Compute/activation dtype, used by the GB10 W4A16 dequant path to
+        # materialise the bf16/fp16 weight at load time.
+        layer.w4a16_compute_dtype = params_dtype
 
         if input_size_per_partition % 16 != 0:
             raise ValueError(
@@ -1542,6 +1553,33 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         )
         del layer.weight_scale_2
 
+        if self._gb10_w4a16_dequant:
+            # Native GB10 W4A16: dequantize the packed FP4 weights to the
+            # compute dtype once, here, then run a plain bf16 GEMM at apply
+            # time. Mirrors the weight-dequant convention of
+            # run_nvfp4_emulations (swizzle=False, global = weight_scale_2),
+            # but without any activation quantization.
+            from vllm.model_executor.layers.quantization.utils.nvfp4_emulation_utils import (  # noqa: E501
+                dequantize_to_dtype,
+                kE2M1ToFloat_handle,
+            )
+
+            kE2M1ToFloat_handle.val = kE2M1ToFloat_handle.val.to(layer.weight.device)
+            compute_dtype = getattr(layer, "w4a16_compute_dtype", torch.bfloat16)
+            weight_dq = dequantize_to_dtype(
+                layer.weight.data.view(torch.uint8),
+                layer.weight_scale.data,
+                layer.weight_global_scale,
+                compute_dtype,
+                self.quant_config.group_size,
+                swizzle=False,
+            )
+            layer.weight_dq = Parameter(weight_dq, requires_grad=False)
+            del layer.weight
+            del layer.weight_scale
+            del layer.weight_global_scale
+            return
+
         self.kernel.process_weights_after_loading(layer)
 
     def apply(
@@ -1550,6 +1588,11 @@ class ModelOptNvFp4W4A16LinearMethod(LinearMethodBase):
         x: torch.Tensor,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        if self._gb10_w4a16_dequant:
+            out = torch.matmul(x, layer.weight_dq.t())
+            if bias is not None:
+                out = out + bias
+            return out
         return self.kernel.apply_weights(layer=layer, x=x, bias=bias)
 
 
@@ -1575,10 +1618,13 @@ class ModelOptNvFp4FusedMoE(FusedMoEMethodBase):
         # rejects this path before backend selection until native evidence
         # exists.
         self.use_a16 = quant_config.quant_method == "W4A16_NVFP4"
-        if self.use_a16:
-            unsupported_reason = _gb10_w4a16_nvfp4_moe_unsupported_reason()
-            if unsupported_reason is not None:
-                raise ValueError(unsupported_reason)
+        # GB10/SM12x: W4A16_NVFP4 MoE is served natively by
+        # FlashInferB12xW4A16Experts (quant_mode="w4a16"), which
+        # select_nvfp4_moe_backend picks below for the (kNvfp4Static, None)
+        # scheme. Marlin/emulation remain rejected on SM12x
+        # (_gb10_unsupported_backend_reason), so if no native backend matches
+        # the selector fails fast — there is no silent dequant-to-bf16
+        # fallback. On non-SM12x the W4A16 path selects Marlin as before.
         self.nvfp4_backend, self.experts_cls = select_nvfp4_moe_backend(
             config=self.moe,
             weight_key=kNvfp4Static,

@@ -318,6 +318,7 @@ def prepare_nvfp4_moe_layer_for_fi_or_cutlass(
         NvFp4MoeBackend.FLASHINFER_TRTLLM,
         NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED,
         NvFp4MoeBackend.FLASHINFER_B12X,
+        NvFp4MoeBackend.FLASHINFER_B12X_W4A16,
     ]
 
     # Reorder [w1, w3] to [w3, w1] for FI NVFP4 MoE kernels.
@@ -330,6 +331,7 @@ def prepare_nvfp4_moe_layer_for_fi_or_cutlass(
             NvFp4MoeBackend.FLASHINFER_CUTLASS,
             NvFp4MoeBackend.FLASHINFER_TRTLLM,
             NvFp4MoeBackend.FLASHINFER_B12X,
+            NvFp4MoeBackend.FLASHINFER_B12X_W4A16,
         ]
     ):
         w13, w13_scale = reorder_w1w3_to_w3w1(w13, w13_scale)

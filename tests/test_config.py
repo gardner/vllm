@@ -1239,6 +1239,30 @@ def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):
         VllmConfig(model_config=model_config)
 
 
+def test_gb10_vllm_config_allows_multimodal_text_only_runtime(monkeypatch):
+    # A multimodal model served text-only (every media limit 0) is allowed on
+    # GB10: the language model runs natively and no media is accepted. Media
+    # multimodal runtime stays rejected (see the test above). Validated on
+    # nvidia/Qwen3.6-35B-A3B-NVFP4 served with image/video limits 0.
+    monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
+    monkeypatch.setattr(
+        platforms.current_platform,
+        "is_device_capability_family",
+        lambda family, device_id=0: family == 120,
+    )
+
+    multimodal_config = MultiModalConfig(
+        limit_per_prompt={"image": 0, "video": 0}
+    )
+    model_config = ModelConfig(
+        "facebook/opt-125m",
+        multimodal_config=multimodal_config,
+    )
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config.multimodal_config is multimodal_config
+
+
 def test_gb10_vllm_config_allows_text_only_runtime(monkeypatch):
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

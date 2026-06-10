@@ -49,6 +49,9 @@ class NvFp4MoeBackend(Enum):
     FLASHINFER_CUTEDSL = "FLASHINFER_CUTEDSL"
     FLASHINFER_CUTEDSL_BATCHED = "FLASHINFER_CUTEDSL_BATCHED"
     FLASHINFER_B12X = "FLASHINFER_B12X"
+    # W4A16 NVFP4 (FP4 weights x bf16 activations) variant of the SM12x b12x
+    # MoE path. Native GB10 backend for ModelOpt W4A16_NVFP4 MoE checkpoints.
+    FLASHINFER_B12X_W4A16 = "FLASHINFER_B12X_W4A16"
     VLLM_CUTLASS = "VLLM_CUTLASS"
     MARLIN = "MARLIN"
     EMULATION = "EMULATION"
@@ -60,6 +63,7 @@ FLASHINFER_NVFP4_MOE_BACKENDS = [
     NvFp4MoeBackend.FLASHINFER_CUTEDSL,
     NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED,
     NvFp4MoeBackend.FLASHINFER_B12X,
+    NvFp4MoeBackend.FLASHINFER_B12X_W4A16,
 ]
 
 _NVFP4_MOE_FALLBACK_BACKENDS = {
@@ -187,6 +191,13 @@ def backend_to_kernel_cls(
 
         return [FlashInferB12xExperts]
 
+    elif backend == NvFp4MoeBackend.FLASHINFER_B12X_W4A16:
+        from vllm.model_executor.layers.fused_moe.experts.flashinfer_b12x_moe import (  # noqa: E501
+            FlashInferB12xW4A16Experts,
+        )
+
+        return [FlashInferB12xW4A16Experts]
+
     elif backend == NvFp4MoeBackend.VLLM_CUTLASS:
         from vllm.model_executor.layers.fused_moe.experts.cutlass_moe import (
             CutlassExpertsFp4,
@@ -244,6 +255,7 @@ def select_nvfp4_moe_backend(
     # deployments in is_supported_config(), so this remains a no-op elsewhere.
     AVAILABLE_BACKENDS = [
         NvFp4MoeBackend.FLASHINFER_B12X,
+        NvFp4MoeBackend.FLASHINFER_B12X_W4A16,
         NvFp4MoeBackend.FLASHINFER_TRTLLM,
         NvFp4MoeBackend.FLASHINFER_CUTEDSL,
         NvFp4MoeBackend.FLASHINFER_CUTEDSL_BATCHED,
@@ -619,7 +631,12 @@ def make_nvfp4_moe_quant_config(
     a2_scale: torch.Tensor,
     swiglu_limit: float | None = None,
 ) -> FusedMoEQuantConfig:
-    if backend == NvFp4MoeBackend.MARLIN:
+    if backend in (
+        NvFp4MoeBackend.MARLIN,
+        NvFp4MoeBackend.FLASHINFER_B12X_W4A16,
+    ):
+        # W4A16: FP4 weights, bf16 activations. No activation global scales;
+        # per-expert weight global scales pass through as g1/g2 alphas.
         return nvfp4_w4a16_moe_quant_config(
             g1_alphas=w13_scale_2,
             g2_alphas=w2_scale_2,

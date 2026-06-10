@@ -447,6 +447,31 @@ def _is_gb10_sm12x_cuda_platform() -> bool:
     )
 
 
+def _gb10_multimodal_is_text_only(model_config: "ModelConfig") -> bool:
+    """True when a multimodal model is configured to accept no media inputs,
+    i.e. text-only serving. GB10 serves the language model natively but has no
+    validated multimodal *encoder* path, so a multimodal model is allowed on
+    GB10 only when every media modality limit is 0 (or language_model_only).
+    Validated on nvidia/Qwen3.6-35B-A3B-NVFP4 served text-only."""
+    mm_config = getattr(model_config, "multimodal_config", None)
+    if mm_config is None:
+        return True
+    if getattr(mm_config, "language_model_only", False):
+        return True
+    limits = getattr(mm_config, "limit_per_prompt", None) or {}
+    if not limits:
+        # Unspecified limits default to media-allowed; not text-only.
+        return False
+    counts: list[int] = []
+    for value in limits.values():
+        count = getattr(value, "count", value)
+        try:
+            counts.append(int(count))
+        except (TypeError, ValueError):
+            return False
+    return all(count == 0 for count in counts)
+
+
 def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
     return (
         parallel_config.world_size_across_dp > 1
@@ -1461,6 +1486,7 @@ class VllmConfig:
         if (
             self.model_config is not None
             and self.model_config.multimodal_config is not None
+            and not _gb10_multimodal_is_text_only(self.model_config)
             and _is_gb10_sm12x_cuda_platform()
         ):
             raise ValueError(_GB10_MULTIMODAL_RUNTIME_MESSAGE)

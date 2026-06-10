@@ -380,7 +380,11 @@ def test_modelopt_nvfp4_config_dispatches_w4a16_method():
     assert config.quant_method == "W4A16_NVFP4"
 
 
-def test_modelopt_w4a16_nvfp4_rejects_marlin_fallback_on_sm12x(monkeypatch):
+def test_modelopt_w4a16_nvfp4_uses_native_dequant_on_sm12x(monkeypatch):
+    # W4A16 NVFP4 dense on GB10 is served natively by dequantizing the FP4
+    # weights to bf16 at load (Marlin's gptq_marlin_repack is absent from the
+    # sm_121a build, and there is no FP4-weight x bf16-act MMA). The constructor
+    # must succeed and pin the dequant path rather than reject.
     import vllm.model_executor.layers.quantization.modelopt as modelopt
 
     class Sm12xPlatform:
@@ -395,14 +399,19 @@ def test_modelopt_w4a16_nvfp4_rejects_marlin_fallback_on_sm12x(monkeypatch):
     )
     monkeypatch.setattr(modelopt, "current_platform", Sm12xPlatform(), raising=False)
 
-    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
-        modelopt.ModelOptNvFp4W4A16LinearMethod(config)
+    method = modelopt.ModelOptNvFp4W4A16LinearMethod(config)
+    assert method._gb10_w4a16_dequant is True
+    assert method.kernel is None
 
 
-def test_modelopt_w4a16_nvfp4_moe_rejects_on_sm12x_before_backend_selection(
+def test_modelopt_w4a16_nvfp4_moe_selects_native_b12x_on_sm12x(
     monkeypatch,
 ):
+    # W4A16 NVFP4 MoE on GB10 selects the native FlashInferB12xW4A16Experts
+    # backend (activation_key=None signals weight-only NVFP4); it is no longer
+    # rejected before backend selection.
     import vllm.model_executor.layers.quantization.modelopt as modelopt
+    from vllm.model_executor.layers.fused_moe.oracle.nvfp4 import NvFp4MoeBackend
 
     class Sm12xPlatform:
         def is_device_capability_family(self, capability: int) -> bool:
@@ -415,14 +424,19 @@ def test_modelopt_w4a16_nvfp4_moe_rejects_on_sm12x_before_backend_selection(
         exclude_modules=[],
         group_size=16,
     )
-    backend_selector = MagicMock(return_value=(MagicMock(), MagicMock()))
+    captured = {}
+
+    def fake_select(config, weight_key, activation_key):
+        captured["activation_key"] = activation_key
+        return NvFp4MoeBackend.FLASHINFER_B12X_W4A16, MagicMock()
+
     monkeypatch.setattr(modelopt, "current_platform", Sm12xPlatform(), raising=False)
-    monkeypatch.setattr(modelopt, "select_nvfp4_moe_backend", backend_selector)
+    monkeypatch.setattr(modelopt, "select_nvfp4_moe_backend", fake_select)
 
-    with pytest.raises(ValueError, match="not supported on GB10/SM12x"):
-        modelopt.ModelOptNvFp4FusedMoE(config, MagicMock())
+    method = modelopt.ModelOptNvFp4FusedMoE(config, MagicMock())
 
-    backend_selector.assert_not_called()
+    assert captured["activation_key"] is None
+    assert method.nvfp4_backend == NvFp4MoeBackend.FLASHINFER_B12X_W4A16
 
 
 @pytest.mark.parametrize(
