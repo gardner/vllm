@@ -36,16 +36,31 @@ model couldn't load. The fix is real kernel wiring, not a flag.
 - **Main attention:** native FlashInfer FA2, FP8 E4M3 KV cache.
 - **No silent fallback:** every backend selection is logged/recorded; Marlin and
   emulation stay hard-rejected on SM12x.
+- **Four models serve natively** across 3 architectures and 2 quantizers:
+  nvidia Qwen3.6-35B-A3B-NVFP4 (modelopt W4A16 mixed), RedHatAI
+  Llama-3.1-8B-NVFP4 (compressed-tensors W4A4 dense), RedHatAI Qwen3.6-NVFP4
+  (compressed-tensors W4A4 MoE, multimodal text-only), and Nemotron-3-Nano-NVFP4
+  (hybrid Mamba+MoE W4A4). Nemotron worked despite an earlier config-reasoned
+  "won't fit the kernel" assumption — a recurring theme here: claims reasoned
+  from config files didn't survive an actual load.
 
 ## Numbers (single GB10, validated CUDA-graph path)
 
-- **Correctness (GSM8K, 5-shot, completions):** **89.5%** exact-match on 200
-  questions, **0% invalid** responses (answer extraction never failed). That's
-  a strong absolute score for a 35B-A3B model and good evidence the NVFP4
-  quantization isn't badly degraded. *Caveat:* we do **not** yet have a BF16/FP8
-  reference run on the same prompts to isolate the NVFP4 quantization delta, and
-  this is plain completions (not the model's chat/think template) — so it's a
-  solid floor, not the model's headline number.
+- **Correctness — and an honest quality cost.** GSM8K (200q, 5-shot,
+  completions, same harness):
+  - Headline model, **Qwen3.6-35B-A3B-NVFP4 (W4A16): 89.5%**, 0% invalid —
+    strong absolute score. We don't have its 70 GB BF16 reference to delta, but
+    W4A16 keeps BF16 activations (only weights are FP4), so it's the
+    less-lossy NVFP4 variant.
+  - Reference delta on a smaller model we serve, **Llama-3.1-8B-Instruct**:
+    BF16 **75.5%** → **NVFP4 (W4A4) 68.0%** = **−7.5 points** (~10% relative).
+    That is a *real, non-negligible* quality cost — exactly the W4A4-NVFP4
+    degradation the community worries about. (W4A4 quantizes both weights *and*
+    activations to FP4; it's lossier than W4A16.)
+  - **Takeaway:** NVFP4 is **not free**. Expect a few points of accuracy loss,
+    more for W4A4 than W4A16. *Caveats:* 200-question sample (≈±3 pt), plain
+    completions (not chat/think template), single eval task — a fuller
+    accuracy story (more tasks, larger n, per-quantizer) is still owed.
 - **Throughput:** **2,906 total tok/s** (323 output tok/s, 2.52 req/s) at batch
   (random input 1024 / output 256, 256 prompts, `gpu_mem_util=0.6`, CUDA-graph).
   Single-stream interactive is ~26–30 tok/s. *Caveat:* no comparison baseline

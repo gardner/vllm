@@ -88,18 +88,24 @@ Legend: **[accommodation]** = correct but not the ideal native kernel ·
 
 ## 7. Validation is narrow: one model, no *reference* correctness, no comparison baseline [coverage]
 
-- **Correctness** now has a real number: **GSM8K 5-shot = 89.5%** exact-match
-  (200 questions, 0% invalid) via the served model. That's a strong absolute
-  score — but there is **no BF16/FP8 reference run** on the same prompts to
-  isolate the NVFP4 quantization delta (could be 0, could be a couple of
-  points). No MMLU/other-task coverage. It's also plain completions, not the
-  model's chat/think template.
+- **Correctness** now has real numbers, including a reference delta that
+  surfaced a genuine quality cost:
+  - Qwen3.6-35B-A3B-NVFP4 (W4A16): **GSM8K 5-shot 89.5%**, 0% invalid — strong
+    absolute, but no 70 GB BF16 reference to delta.
+  - Llama-3.1-8B (same harness): BF16 **75.5%** vs NVFP4 W4A4 **68.0%** =
+    **−7.5 pt**. So **NVFP4 is not free** — W4A4 in particular costs real
+    accuracy, and the headline 89.5% (W4A16) hid this until a reference was run.
+  - Still owed: larger n (200q ≈ ±3 pt), more tasks (MMLU/etc.), a Qwen3.6
+    W4A16 reference delta, and the chat/think template (not just completions).
 - **Throughput** now has a real number: **2,906 total tok/s / 323 output tok/s**
   (`vllm bench throughput`, random 1024→256, 256 prompts, CUDA-graph). But
   **no comparison baseline** (vs FP8/BF16 on the same Spark, vs other engines),
   no concurrency sweep, no prefill/decode split, no power/latency curve.
-- **One model.** Only Qwen3.6-35B-A3B-NVFP4 is exercised end-to-end. Other
-  W4A16-NVFP4 / mixed-precision checkpoints are unproven.
+- **Multi-model** is now 4 native (nvidia Qwen3.6 W4A16; RedHatAI Llama-8B W4A4
+  dense; RedHatAI Qwen3.6 W4A4 MoE multimodal-text-only; Nemotron-3-Nano hybrid
+  Mamba+MoE W4A4) — but accuracy was measured on only 2, there's no systematic
+  per-model accuracy/throughput table, and the exact per-model native backend
+  wasn't re-captured with INFO logging for the evidence bundle.
 
 ## 8. Durable image is a Python overlay, not a from-source release build [packaging]
 
