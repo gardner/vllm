@@ -519,12 +519,13 @@ def _gb10_support_matrix() -> dict[str, object]:
                 ),
             },
             "mamba2_triton_ssd_runtime": {
-                "status": "not_supported",
+                "status": "supported_native",
                 "release_contract": (
-                    "Mamba2 runtime uses generic Triton causal-conv and SSD "
-                    "prefill kernels beyond native FlashInfer SSU, so it must "
-                    "reject on GB10/SM12x until full native Mamba2 "
-                    "correctness, artifact, and runtime evidence exists."
+                    "Mamba2 SSD prefill scan is numerically correct on SM121 "
+                    "(tests/kernels/mamba/test_mamba_ssm_ssd.py, 48/48 vs the "
+                    "ssd_minimal reference); paired with the native FlashInfer "
+                    "Mamba SSU decode and causal-conv it serves "
+                    "Nemotron-3-Nano-NVFP4 natively on GB10."
                 ),
             },
             "short_conv_triton_runtime": {

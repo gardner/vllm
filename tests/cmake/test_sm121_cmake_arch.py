@@ -83,7 +83,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "tokenspeed_mla_cutedsl_fallback": "not_supported",
     "triton_mamba_ssu_fallback": "not_supported",
     "mamba1_triton_runtime": "not_supported",
-    "mamba2_triton_ssd_runtime": "not_supported",
+    "mamba2_triton_ssd_runtime": "supported_native",
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
     "cascade_attention_runtime": "not_supported",
@@ -2497,7 +2497,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["mamba2_triton_ssd_runtime"]["status"] == (
-        "not_supported"
+        "supported_native"
     )
     assert support_matrix["entries"]["short_conv_triton_runtime"]["status"] == (
         "not_supported"
@@ -9021,12 +9021,16 @@ def test_gb10_mamba_attention_backend_selection_is_reported():
     assert "GB10/SM12x" in selector
     assert "FlashInfer Mamba SSU is native GB10 evidence" in selector
     assert "MambaAttentionBackendEnum.MAMBA1" in selector
-    assert "MambaAttentionBackendEnum.MAMBA2" in selector
     assert "MambaAttentionBackendEnum.SHORT_CONV" in selector
     assert "MambaAttentionBackendEnum.LINEAR" in selector
-    assert "MambaAttentionBackendEnum.GDN_ATTN" not in selector.split(
-        "_GB10_UNVALIDATED_MAMBA_BACKENDS", 1
-    )[1].split("}", 1)[0]
+    # Mamba2 is validated on SM121 (tests/kernels/mamba/test_mamba_ssm_ssd.py
+    # 48/48 vs ssd_minimal) and removed from the unvalidated set, so it must
+    # NOT appear in the guard dict (same as the already-native GDN_ATTN).
+    _unvalidated_block = selector.split("_GB10_UNVALIDATED_MAMBA_BACKENDS", 1)[
+        1
+    ].split("}", 1)[0]
+    assert "MambaAttentionBackendEnum.MAMBA2" not in _unvalidated_block
+    assert "MambaAttentionBackendEnum.GDN_ATTN" not in _unvalidated_block
 
 
 def test_gb10_public_flashattention_runtime_is_reported():
@@ -12132,11 +12136,6 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Mamba1 runtime lacks native GB10 evidence",
                 },
-                "mamba2_triton_ssd_runtime": {
-                    "status": "not_supported",
-                    "expected_handling": "route_or_reject_before_release_evidence",
-                    "reason": "Mamba2 Triton SSD runtime lacks native GB10 evidence",
-                },
                 "short_conv_triton_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -13313,7 +13312,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 "tokenspeed_mla_cutedsl_fallback": {"status": "not_supported"},
                 "triton_mamba_ssu_fallback": {"status": "not_supported"},
                 "mamba1_triton_runtime": {"status": "not_supported"},
-                "mamba2_triton_ssd_runtime": {"status": "not_supported"},
+                "mamba2_triton_ssd_runtime": {"status": "supported_native"},
                 "short_conv_triton_runtime": {"status": "not_supported"},
                 "linear_attention_triton_runtime": {"status": "not_supported"},
                 "cascade_attention_runtime": {"status": "not_supported"},
@@ -13641,7 +13640,6 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "logprobs_logits_runtime",
         "lora_runtime",
         "mamba1_triton_runtime",
-        "mamba2_triton_ssd_runtime",
         "mamba_align_cache_runtime",
         "marlin_mxfp4_fallback",
         "marlin_nvfp4_fallback",

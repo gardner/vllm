@@ -62,7 +62,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "tokenspeed_mla_cutedsl_fallback": "not_supported",
     "triton_mamba_ssu_fallback": "not_supported",
     "mamba1_triton_runtime": "not_supported",
-    "mamba2_triton_ssd_runtime": "not_supported",
+    "mamba2_triton_ssd_runtime": "supported_native",
     "short_conv_triton_runtime": "not_supported",
     "linear_attention_triton_runtime": "not_supported",
     "cascade_attention_runtime": "not_supported",
@@ -293,12 +293,6 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "Mamba1 runtime uses generic Triton causal-conv and prefill/scan "
         "kernels beyond the native FlashInfer SSU kernel, so it is not native "
         "GB10 runtime evidence until full SM12x Mamba1 correctness, artifact, "
-        "and runtime evidence exists."
-    ),
-    "mamba2_triton_ssd_runtime": (
-        "Mamba2 runtime uses generic Triton causal-conv and SSD prefill "
-        "kernels beyond the native FlashInfer SSU kernel, so it is not native "
-        "GB10 runtime evidence until full SM12x Mamba2 correctness, artifact, "
         "and runtime evidence exists."
     ),
     "short_conv_triton_runtime": (

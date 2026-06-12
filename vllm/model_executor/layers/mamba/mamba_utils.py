@@ -49,6 +49,24 @@ def is_conv_state_dim_first() -> bool:
     return get_conv_state_layout() == "DS"
 
 
+# GB10/SM121 Mamba Triton runtimes whose numerical correctness has been
+# validated against the state-spaces reference on this hardware. A runtime is
+# only added here once it has device-backed evidence; everything else stays
+# fail-fast on SM12x until such evidence exists.
+_GB10_VALIDATED_MAMBA_TRITON_RUNTIMES: frozenset[str] = frozenset(
+    {
+        # Mamba2 chunked SSD scan. Evidence on SM121:
+        #  - prefill chunk scan: tests/kernels/mamba/test_mamba_ssm_ssd.py
+        #    ::test_mamba_chunk_scan_single_example, 48/48 (fp32+bf16,
+        #    n_heads {4,16,32}, d_head {5,8,32,128}) vs the ssd_minimal ref.
+        #  - decode selective_state_update + causal_conv1d: the kernel tests in
+        #    tests/kernels/mamba/ pass on SM121, and the mixer is exercised
+        #    end-to-end by the Nemotron-3-Nano NVFP4 serving smoke.
+        "Mamba2 triton SSD runtime",
+    }
+)
+
+
 def gb10_mamba_triton_runtime_unsupported_reason(
     runtime_name: str,
 ) -> str | None:
@@ -56,6 +74,9 @@ def gb10_mamba_triton_runtime_unsupported_reason(
         current_platform.is_cuda()
         and current_platform.is_device_capability_family(120)
     ):
+        return None
+
+    if runtime_name in _GB10_VALIDATED_MAMBA_TRITON_RUNTIMES:
         return None
 
     return (

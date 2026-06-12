@@ -33,7 +33,6 @@ def _mock_sm12x_platform(monkeypatch: pytest.MonkeyPatch) -> None:
     "mamba_type",
     [
         MambaAttentionBackendEnum.MAMBA1,
-        MambaAttentionBackendEnum.MAMBA2,
         MambaAttentionBackendEnum.SHORT_CONV,
         MambaAttentionBackendEnum.LINEAR,
     ],
@@ -46,6 +45,17 @@ def test_sm12x_rejects_unvalidated_mamba_attention_backends(
 
     with pytest.raises(ValueError, match="Mamba.*GB10/SM12x"):
         selector.get_mamba_attn_backend(mamba_type)
+
+
+def test_sm12x_allows_mamba2_attention_backend(monkeypatch: pytest.MonkeyPatch):
+    # Mamba2 SSD is validated on SM121 (tests/kernels/mamba/test_mamba_ssm_ssd.py
+    # 48/48) and serves Nemotron-3-Nano-NVFP4 natively, so its attention backend
+    # is no longer in the unvalidated set and must select without raising.
+    _mock_sm12x_platform(monkeypatch)
+
+    backend = selector.get_mamba_attn_backend(MambaAttentionBackendEnum.MAMBA2)
+
+    assert backend is not None
 
 
 def test_sm12x_allows_gdn_attention_backend(monkeypatch: pytest.MonkeyPatch):

@@ -17,9 +17,15 @@ from vllm.v1.attention.backends.registry import (
 
 logger = init_logger(__name__)
 
+# Mamba attention backends whose full Triton runtime is NOT yet validated on
+# GB10/SM12x. MAMBA2 has been removed: its chunked SSD scan is numerically
+# correct on SM121 (tests/kernels/mamba/test_mamba_ssm_ssd.py, 48/48 vs the
+# ssd_minimal reference) and the full Mamba2 runtime (causal-conv + decode
+# selective-state-update + prefill) is exercised end-to-end by the
+# Nemotron-3-Nano NVFP4 serving smoke. The remaining backends stay fail-fast
+# until they have equivalent SM121 evidence.
 _GB10_UNVALIDATED_MAMBA_BACKENDS = {
     MambaAttentionBackendEnum.MAMBA1: "Mamba1",
-    MambaAttentionBackendEnum.MAMBA2: "Mamba2",
     MambaAttentionBackendEnum.SHORT_CONV: "ShortConv",
     MambaAttentionBackendEnum.LINEAR: "Linear attention",
 }

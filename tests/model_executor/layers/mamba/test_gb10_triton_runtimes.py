@@ -6,7 +6,6 @@ from vllm.model_executor.layers.mamba.linear_attn import (
     MiniMaxText01LinearAttention,
 )
 from vllm.model_executor.layers.mamba.mamba_mixer import MambaMixer
-from vllm.model_executor.layers.mamba.mamba_mixer2 import MambaMixer2
 from vllm.model_executor.layers.mamba.short_conv import ShortConv
 from vllm.platforms import current_platform
 
@@ -38,25 +37,29 @@ def test_gb10_mamba1_triton_runtime_rejects(monkeypatch: pytest.MonkeyPatch):
         )
 
 
-def test_gb10_mamba2_triton_runtime_rejects(monkeypatch: pytest.MonkeyPatch):
+def test_gb10_mamba2_triton_runtime_allowed(monkeypatch: pytest.MonkeyPatch):
+    # Mamba2 SSD is validated on SM121 (tests/kernels/mamba/test_mamba_ssm_ssd.py
+    # 48/48 vs the ssd_minimal reference) and serves Nemotron-3-Nano-NVFP4
+    # natively, so its Triton SSD runtime is now allowed on GB10 while the other
+    # Mamba Triton runtimes stay fail-fast.
+    from vllm.model_executor.layers.mamba.mamba_utils import (
+        gb10_mamba_triton_runtime_unsupported_reason,
+    )
+
     _mock_gb10(monkeypatch)
 
-    with pytest.raises(
-        ValueError, match="Mamba2 triton SSD runtime.*GB10/SM12x"
-    ):
-        MambaMixer2(
-            hidden_size=8,
-            ssm_state_size=4,
-            conv_kernel_size=4,
-            intermediate_size=8,
-            use_conv_bias=False,
-            use_bias=False,
-            n_groups=1,
-            num_heads=4,
-            head_dim=2,
-            model_config=None,
-            cache_config=None,
-        )
+    assert (
+        gb10_mamba_triton_runtime_unsupported_reason("Mamba2 triton SSD runtime")
+        is None
+    )
+    assert (
+        gb10_mamba_triton_runtime_unsupported_reason("Mamba1 triton runtime")
+        is not None
+    )
+    assert (
+        gb10_mamba_triton_runtime_unsupported_reason("short_conv triton runtime")
+        is not None
+    )
 
 
 def test_gb10_short_conv_triton_runtime_rejects(monkeypatch: pytest.MonkeyPatch):
