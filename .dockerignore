@@ -4,6 +4,12 @@ dist
 vllm/*.so
 vllm/vllm-rs
 
+# GB10: local BuildKit cache is consumed via --cache-from type=local (read
+# directly by the buildkitd daemon), NOT through the build-context tarball.
+# Without this, the 100GB+ cache dir is shipped as context on every build.
+/.buildx-cache
+/gb10-release-manifest-local
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
