@@ -71,7 +71,7 @@ REQUIRED_GB10_SUPPORT_MATRIX = {
     "mla_prefill_query_quantization_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
-    "multimodal_runtime": "not_supported",
+    "multimodal_runtime": "supported_native",
     "generation_config_runtime": "not_supported",
     "profiler_runtime": "not_supported",
     "performance_mode_runtime": "not_supported",
@@ -342,14 +342,6 @@ GB10_NOT_SUPPORTED_PATH_REASONS = {
         "embedding, classification, reward, and scoring APIs outside the "
         "validated GB10 first release serving path; reject it on GB10/SM12x "
         "until native SM12x pooling correctness and runtime evidence exists."
-    ),
-    "multimodal_runtime": (
-        "Multimodal runtime changes preprocessing, media input handling, "
-        "multimodal embeddings, MM processor caches, MM encoder-only/data-TP "
-        "paths, video pruning, MM tensor IPC, and model-runner behavior "
-        "outside the validated GB10 first release text serving path; reject it "
-        "on GB10/SM12x until native SM12x multimodal correctness and runtime "
-        "evidence exists."
     ),
     "generation_config_runtime": (
         "Custom generation-config paths and override_generation_config mutate "

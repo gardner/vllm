@@ -57,6 +57,22 @@ def test_sm12x_allows_mm_encoder_flashinfer_backend_override(monkeypatch):
     )
 
 
+def test_sm12x_auto_selects_flashinfer_mm_encoder(monkeypatch):
+    # With no explicit override, media serving on SM12x auto-selects the native
+    # FlashInfer ViT backend (the mandated GB10 MM-encoder attention) rather
+    # than falling through the supports_head_size gate to the guarded Triton
+    # fallback. Validated end-to-end on RedHatAI/Qwen3.6-35B-A3B-NVFP4.
+    _mock_sm12x_cuda_platform(monkeypatch)
+
+    assert (
+        CudaPlatform.get_vit_attn_backend(
+            head_size=72,
+            dtype=torch.bfloat16,
+        )
+        == AttentionBackendEnum.FLASHINFER
+    )
+
+
 def test_sm12x_rejects_mm_encoder_attention_fallback_without_flashinfer(
     monkeypatch,
 ):

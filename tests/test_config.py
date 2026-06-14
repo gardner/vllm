@@ -1221,7 +1221,12 @@ def test_gb10_vllm_config_allows_default_observability_runtime(monkeypatch):
     assert config.observability_config == ObservabilityConfig()
 
 
-def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):
+def test_gb10_vllm_config_allows_multimodal_media_runtime(monkeypatch):
+    # Media multimodal is no longer rejected at config validation on GB10. The
+    # MM-encoder attention is gated precisely at model init by
+    # CUDAPlatform.get_vit_attn_backend, which requires (and auto-selects) the
+    # native FlashInfer ViT backend on SM12x. Validated end-to-end on
+    # RedHatAI/Qwen3.6-35B-A3B-NVFP4 (correct image perception).
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(
         platforms.current_platform,
@@ -1235,14 +1240,16 @@ def test_gb10_vllm_config_rejects_multimodal_runtime(monkeypatch):
         multimodal_config=multimodal_config,
     )
 
-    with pytest.raises(ValueError, match="multimodal runtime.*GB10/SM12x"):
-        VllmConfig(model_config=model_config)
+    config = VllmConfig(model_config=model_config)
+
+    assert config.model_config.multimodal_config is multimodal_config
 
 
 def test_gb10_vllm_config_allows_multimodal_text_only_runtime(monkeypatch):
     # A multimodal model served text-only (every media limit 0) is allowed on
     # GB10: the language model runs natively and no media is accepted. Media
-    # multimodal runtime stays rejected (see the test above). Validated on
+    # multimodal is now also allowed (gated at model init by the native
+    # FlashInfer MM-encoder requirement). Validated on
     # nvidia/Qwen3.6-35B-A3B-NVFP4 served with image/video limits 0.
     monkeypatch.setattr(platforms.current_platform, "is_cuda", lambda: True)
     monkeypatch.setattr(

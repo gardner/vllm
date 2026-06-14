@@ -81,14 +81,6 @@ _GB10_POOLING_RUNTIME_MESSAGE = (
     "models on GB10 until native SM12x pooling correctness and runtime "
     "evidence exists."
 )
-_GB10_MULTIMODAL_RUNTIME_MESSAGE = (
-    "multimodal runtime is not supported on GB10/SM12x in this fork: "
-    "model_config.multimodal_config, multimodal models, media inputs, "
-    "multimodal embeddings, MM processor caches, MM encoder-only/data-TP "
-    "paths, video pruning, and MM tensor IPC run outside the validated native "
-    "first-path NVFP4 text serving release. Use text-only generation on GB10 "
-    "until native SM12x multimodal correctness and runtime evidence exists."
-)
 _GB10_GENERATION_CONFIG_RUNTIME_MESSAGE = (
     "generation config runtime is not supported on GB10/SM12x in this fork: "
     "--generation-config custom paths and --override-generation-config mutate "
@@ -445,31 +437,6 @@ def _is_gb10_sm12x_cuda_platform() -> bool:
     return current_platform.is_cuda() and current_platform.is_device_capability_family(
         120
     )
-
-
-def _gb10_multimodal_is_text_only(model_config: "ModelConfig") -> bool:
-    """True when a multimodal model is configured to accept no media inputs,
-    i.e. text-only serving. GB10 serves the language model natively but has no
-    validated multimodal *encoder* path, so a multimodal model is allowed on
-    GB10 only when every media modality limit is 0 (or language_model_only).
-    Validated on nvidia/Qwen3.6-35B-A3B-NVFP4 served text-only."""
-    mm_config = getattr(model_config, "multimodal_config", None)
-    if mm_config is None:
-        return True
-    if getattr(mm_config, "language_model_only", False):
-        return True
-    limits = getattr(mm_config, "limit_per_prompt", None) or {}
-    if not limits:
-        # Unspecified limits default to media-allowed; not text-only.
-        return False
-    counts: list[int] = []
-    for value in limits.values():
-        count = getattr(value, "count", value)
-        try:
-            counts.append(int(count))
-        except (TypeError, ValueError):
-            return False
-    return all(count == 0 for count in counts)
 
 
 def _uses_distributed_parallel_runtime(parallel_config: ParallelConfig) -> bool:
@@ -1483,13 +1450,14 @@ class VllmConfig:
         ):
             raise ValueError(_GB10_GENERATION_CONFIG_RUNTIME_MESSAGE)
 
-        if (
-            self.model_config is not None
-            and self.model_config.multimodal_config is not None
-            and not _gb10_multimodal_is_text_only(self.model_config)
-            and _is_gb10_sm12x_cuda_platform()
-        ):
-            raise ValueError(_GB10_MULTIMODAL_RUNTIME_MESSAGE)
+        # Media multimodal is now gated precisely by the MM-encoder attention
+        # backend (CUDA platform get_vit_attn_backend): on GB10/SM12x the ViT
+        # encoder must use the validated native FlashInfer backend, which is
+        # selected automatically. This replaces the earlier blanket "no media on
+        # GB10" reject — validated end-to-end on RedHatAI/Qwen3.6-35B-A3B-NVFP4
+        # (correct image perception). Models whose encoder cannot use FlashInfer
+        # (or whose LM attention is itself unsupported, e.g. Gemma-4's forced
+        # Triton attention) still fail fast at their specific guard.
 
         if (
             self.model_config is not None

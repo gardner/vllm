@@ -640,15 +640,16 @@ def _gb10_support_matrix() -> dict[str, object]:
                 ),
             },
             "multimodal_runtime": {
-                "status": "not_supported",
+                "status": "supported_native",
                 "release_contract": (
-                    "Multimodal runtime changes preprocessing, media input "
-                    "handling, multimodal embeddings, MM processor caches, MM "
-                    "encoder-only/data-TP paths, video pruning, MM tensor IPC, "
-                    "and model-runner behavior outside the validated GB10 first "
-                    "release text serving path. It must reject on GB10/SM12x "
-                    "until native SM12x multimodal correctness and runtime "
-                    "evidence exists."
+                    "Native single-Spark multimodal media serving via the "
+                    "FlashInfer MM-encoder attention, auto-selected on SM12x "
+                    "(CUDAPlatform.get_vit_attn_backend). Validated end-to-end "
+                    "on RedHatAI/Qwen3.6-35B-A3B-NVFP4: correct multi-color "
+                    "image perception (red/blue/green) and multi-image prompts. "
+                    "Video is runtime-supported (not yet GB10-validated); "
+                    "distributed multimodal (encoder-only/data-TP, MM tensor "
+                    "IPC) stays deferred under the multi-Spark deferral."
                 ),
             },
             "generation_config_runtime": {

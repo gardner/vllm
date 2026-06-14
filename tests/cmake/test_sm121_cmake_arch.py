@@ -92,7 +92,7 @@ GB10_REQUIRED_SUPPORT_MATRIX = {
     "mla_prefill_query_quantization_runtime": "not_supported",
     "speculative_decoding_runtime": "not_supported",
     "pooling_runtime": "not_supported",
-    "multimodal_runtime": "not_supported",
+    "multimodal_runtime": "supported_native",
     "generation_config_runtime": "not_supported",
     "profiler_runtime": "not_supported",
     "performance_mode_runtime": "not_supported",
@@ -2521,7 +2521,7 @@ def test_gb10_release_manifest_records_resolved_inputs(tmp_path):
         "not_supported"
     )
     assert support_matrix["entries"]["multimodal_runtime"]["status"] == (
-        "not_supported"
+        "supported_native"
     )
     assert support_matrix["entries"]["generation_config_runtime"]["status"] == (
         "not_supported"
@@ -9219,29 +9219,35 @@ def test_gb10_pooling_runtime_is_reported():
 
 
 def test_gb10_multimodal_runtime_is_reported():
-    vllm_config = (REPO_ROOT / "vllm" / "config" / "vllm.py").read_text()
+    # Media multimodal is native on GB10/SM12x via the FlashInfer MM-encoder
+    # attention, enforced + auto-selected in CUDAPlatform.get_vit_attn_backend
+    # (non-native Triton/SDPA/FlashAttention ViT fallbacks stay fail-fast). The
+    # earlier blanket config-level reject is gone; enforcement is precise at
+    # model init. Validated end-to-end on RedHatAI/Qwen3.6-35B-A3B-NVFP4.
+    cuda_platform = (REPO_ROOT / "vllm" / "platforms" / "cuda.py").read_text()
     model_config = (REPO_ROOT / "vllm" / "config" / "model.py").read_text()
     multimodal_config = (
         REPO_ROOT / "vllm" / "config" / "multimodal.py"
     ).read_text()
     arg_utils = (REPO_ROOT / "vllm" / "engine" / "arg_utils.py").read_text()
 
-    assert "_GB10_MULTIMODAL_RUNTIME_MESSAGE" in vllm_config
-    assert "multimodal runtime is not supported on GB10/SM12x" in vllm_config
-    assert "model_config.multimodal_config" in vllm_config
-    assert "self.model_config.multimodal_config is not None" in vllm_config
-    assert "media inputs" in vllm_config
-    assert "multimodal embeddings" in vllm_config
-    assert "MM processor caches" in vllm_config
-    assert "MM tensor IPC" in vllm_config
+    assert "def get_vit_attn_backend" in cuda_platform
+    assert "_gb10_vit_attn_backend_unsupported_reason" in cuda_platform
+    assert "_gb10_mm_encoder_text_only" in cuda_platform
+    assert "Using FlashInfer for vit attention on GB10/SM12x" in cuda_platform
+    assert (
+        "MM encoder attention requires FlashInfer on GB10/SM12x" in cuda_platform
+    )
+    assert "MM encoder attention backend" in cuda_platform
     assert "multimodal_config: MultiModalConfig | None = None" in model_config
     assert "if self._model_info.supports_multimodal" in model_config
     assert "self.multimodal_config = MultiModalConfig" in model_config
+    assert "mm_encoder_attn_backend" in multimodal_config
     assert "enable_mm_embeds: bool = False" in multimodal_config
     assert "mm_tensor_ipc: MMTensorIPC = \"direct_rpc\"" in multimodal_config
     assert "--limit-mm-per-prompt" in arg_utils
+    assert "--mm-encoder-attn-backend" in arg_utils
     assert "--enable-mm-embeds" in arg_utils
-    assert "--mm-processor-cache-gb" in arg_utils
     assert "--mm-encoder-only" in arg_utils
     assert "--mm-tensor-ipc" in arg_utils
 
@@ -12190,11 +12196,6 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                     "expected_handling": "route_or_reject_before_release_evidence",
                     "reason": "Pooling runtime lacks native GB10 evidence",
                 },
-                "multimodal_runtime": {
-                    "status": "not_supported",
-                    "expected_handling": "route_or_reject_before_release_evidence",
-                    "reason": "Multimodal runtime lacks native GB10 evidence",
-                },
                 "generation_config_runtime": {
                     "status": "not_supported",
                     "expected_handling": "route_or_reject_before_release_evidence",
@@ -13323,7 +13324,7 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
                 },
                 "speculative_decoding_runtime": {"status": "not_supported"},
                 "pooling_runtime": {"status": "not_supported"},
-                "multimodal_runtime": {"status": "not_supported"},
+                "multimodal_runtime": {"status": "supported_native"},
                 "generation_config_runtime": {"status": "not_supported"},
                 "profiler_runtime": {"status": "not_supported"},
                 "performance_mode_runtime": {"status": "not_supported"},
@@ -13653,7 +13654,6 @@ def test_gb10_release_evidence_verifier_builds_gate_summary():
         "modelopt_mxfp8_quantization",
         "modelopt_nvfp4_kv_cache_loading",
         "moe_wna16_legacy_fallback",
-        "multimodal_runtime",
         "mxfp4_moe_fallback",
             "mxfp8_dense_fallback",
             "mxfp8_moe_fallback",

@@ -548,6 +548,22 @@ class CudaPlatformBase(Platform):
                 "are not native GB10 MM encoder attention evidence."
             )
 
+        # GB10/SM12x: FlashInfer is the mandated, validated native MM-encoder
+        # attention backend (correct image perception verified end-to-end on
+        # RedHatAI/Qwen3.6-35B-A3B-NVFP4 — "Red" on a red image). The generic
+        # supports_head_size gate below is conservative for the ViT head sizes
+        # FlashInfer handles here, so select it directly rather than falling
+        # through to the guarded Triton/SDPA fallbacks.
+        if (
+            cls._is_sm12x_device()
+            and not cls._gb10_mm_encoder_text_only()
+            and AttentionBackendEnum.FLASHINFER in supported_vit_backends
+        ):
+            logger.info_once(
+                "Using FlashInfer for vit attention on GB10/SM12x",
+            )
+            return AttentionBackendEnum.FLASHINFER
+
         for vit_attn_backend in supported_vit_backends:
             if vit_attn_backend == AttentionBackendEnum.TORCH_SDPA:
                 if cls._is_sm12x_device() and not cls._gb10_mm_encoder_text_only():
